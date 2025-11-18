@@ -1,0 +1,44 @@
+# AG-UI upstream repository (reference only)
+ag-ui-upstream/
+
+# Node modules
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Lock files (optional - some projects keep them)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+uv.lock
+
