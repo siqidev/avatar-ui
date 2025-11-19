@@ -48,15 +48,14 @@
    - [x] CLI でユーザー入力 → ADK 応答まで一連のメッセージ（Text/ActionExecution/Result/AgentState）が流れることを確認。
    - [x] ログを `docs/agui-adk-cli.md` に追記。
 
-## ステップ6：GUI 化の準備
-- [ ] CLI の現状を「ユーザー入力／agent 呼び出し／イベント表示」の観点で棚卸しし、docs に図解メモを追加。
-- [ ] レトロ端末＋アバター UI の必須要素（入力欄・出力欄・アバター枠・通知）を文章とワイヤで定義。
-- [ ] `app/src/ui/web/` など新ディレクトリ構成とエントリーポイント（`index.html` / `index.ts`）の設計案を決定。
-- [ ] `AgentSubscriber` を CLI 用・Web 用に分割する手順と、共通ロガー subscriber を `agent.subscribe` で登録するルールを定義。
-- [ ] Web レンダラの開発フロー（例：`npm run dev:web` → Vite or esbuild）と必要スクリプトを `package.json` に追記する計画をまとめる。
-- [ ] AG-UI イベント種別ごとの DOM 更新方針（ストリーミング、ツール結果、エラー、アバター制御）を表形式で整理。
-- [ ] CLI → GUI の切り替え計画（併存期間、ブランチ戦略、切替チェックリスト）を作成。
-- [ ] GUI 化で壊れやすい箇所のテスト観点（イベント順序、入力多重送信、エラー表示等）を洗い出し、検証方法を決める。
+## ステップ6：GUI 化の準備（GUI=唯一のフロントエンド）
+- [x] CLI の現状を「ユーザー入力／agent 呼び出し／イベント表示」の観点で棚卸しし、docs に図解メモを追加。
+- [x] レトロ端末＋アバター UI の必須要素（入力欄・出力欄・アバター枠・通知）を文章とワイヤで定義。
+- [x] `app/src/renderer/` をルートにした Vite ベースのディレクトリ構成（`index.html` / `style.css` / `main.ts` / `subscriber.ts` / `assets/`）を決定。
+- [x] `AgentSubscriber` を GUI 表示専用に再定義し、共通ロガー subscriber の配置ルールを決める（CLI 用コードは削除前提）。
+- [x] `package.json` に `dev:ui` / `build:ui`（Vite）を追加する計画と Electron 取り込み手順をまとめる。
+- [x] AG-UI イベント種別ごとの DOM 更新方針（ストリーミング、ツール結果、エラー、アバター制御）を表形式で整理。
+- [ ] CLI → GUI の完全移行手順（CLI 削除の段取り、ブランチ戦略、切替チェックリスト）とテスト観点を整理。
 
 ## 補足メモ
 - AG-UI CLI で得た `messages` フローは最終的に Web UI に移植。まずはプロトコル理解を優先し、Copilot 周りのコードは計画的に撤去する。

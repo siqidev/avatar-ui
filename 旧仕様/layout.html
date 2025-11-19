@@ -1,0 +1,24 @@
+<!-- packages/ui-classic/src/layout.html -->
+<main class="app split">
+  <section data-slot="output" id="pane-output">
+    <div class="surface-host" id="surface-host"></div>
+  </section>
+
+  <footer data-slot="input" id="pane-input">
+    <span class="prompt">&gt;</span>
+    <input type="text" id="input" placeholder="入力エリア" autofocus />
+  </footer>
+
+  <aside data-slot="avatar" id="pane-avatar">
+    <img
+      id="avatar-img"
+      src="../../../ui-classic/src/assets/idle.png"
+      data-idle="../../../ui-classic/src/assets/idle.png"
+      data-talk="../../../ui-classic/src/assets/talk.png"
+      alt="avatar"
+    />
+    <div class="avatar-label"></div>
+  </aside>
+
+  <div class="meta-bar" id="meta"></div>
+</main>
