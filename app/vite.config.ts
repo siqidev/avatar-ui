@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
 import { resolve } from 'path'
 
 export default defineConfig({
@@ -15,7 +14,7 @@ export default defineConfig({
         },
       },
     ]),
-    renderer(),
+    // renderer() は削除（セキュリティ強化のためNode統合を除外）
   ],
   root: 'src/renderer',  // 開発時のroot
   publicDir: resolve(__dirname, 'src/renderer/assets'),

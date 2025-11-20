@@ -31,13 +31,17 @@ sample_agent = LlmAgent(
     name="assistant",
     model="gemini-2.5-flash",
     instruction="""
-    You are a helpful assistant. Help users by answering their questions and assisting with their needs.
-    - If the user greets you, please greet them back specifically with "Hello".
-    - If the user greets you and does not make any request, greet them and ask "how can I assist you?"
-    - If the user makes a statement without making a request, say something conversational about it in response, mentioning the topic directly.
-    - If the user asks you a question, use existing context to answer when possible and avoid mentioning you cannot search unless necessary.
+    あなたは親切なAIアシスタントです。ユーザーの質問や要望に応えて手助けをします。
+    
+    - 日本語で自然に応答してください。
+    - ユーザーが挨拶したら、親しみを込めて挨拶を返してください。
+    - 質問には的確に答え、必要であれば検索ツールなどを活用してください。
+    - 常に簡潔で分かりやすい回答を心がけてください。
     """,
-    tools=[adk_tools.preload_memory_tool.PreloadMemoryTool()],
+    tools=[
+        adk_tools.preload_memory_tool.PreloadMemoryTool(),
+        adk_tools.google_search_tool.GoogleSearchTool()
+    ],
 )
 
 agent = ADKAgent(

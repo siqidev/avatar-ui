@@ -3,11 +3,13 @@ import { join } from 'path'
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 900,      // 横長レイアウトに最適化
+    height: 500,     // スクリーンショットに近い比率
+    minWidth: 600,   // レイアウト崩れを防ぐ最小幅
+    minHeight: 400,  // レイアウト崩れを防ぐ最小高さ
     webPreferences: {
-      nodeIntegration: true,       // Node.js API を使える
-      contextIsolation: false,     // シンプルに
+      nodeIntegration: false,      // ✅ 安全設定: Node機能無効
+      contextIsolation: true,      // ✅ 安全設定: コンテキスト分離
     }
   })
 
@@ -34,4 +36,3 @@ app.on('activate', () => {
     createWindow()
   }
 })
-
