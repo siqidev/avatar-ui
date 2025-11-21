@@ -40,10 +40,5 @@ dist-electron/
 build/
 *.egg-info/
 
-# Lock files (optional - some projects keep them)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-uv.lock
 
 settings.json
