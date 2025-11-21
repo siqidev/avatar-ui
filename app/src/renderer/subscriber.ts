@@ -1,15 +1,14 @@
 import type { AgentSubscriber } from "@ag-ui/client";
-import { AnimationManager } from "./animation";
+import { TerminalEngine } from "./engine/TerminalEngine";
 
 interface UiSubscriberOptions {
   outputEl: HTMLElement;
-  animation: AnimationManager;
+  engine: TerminalEngine;
 }
 
 export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscriber {
-  const { outputEl, animation } = options;
+  const { outputEl, engine } = options;
 
-  let activeAssistantLine: HTMLElement | null = null;
   let activeToolLine: HTMLElement | null = null;
 
   const scrollToBottom = () => {
@@ -27,20 +26,18 @@ export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscribe
 
   return {
     onTextMessageStartEvent() {
-      activeAssistantLine = document.createElement("p");
-      activeAssistantLine.className = "text-line text-line--assistant";
-      outputEl.appendChild(activeAssistantLine);
-      animation.startTyping();
-      scrollToBottom();
+      // アシスタントのメッセージ開始：新しい行を作成してエンジンにセット
+      engine.startNewMessage("text-line text-line--assistant");
     },
     onTextMessageContentEvent({ event }) {
-      animation.appendDelta(activeAssistantLine, event.delta);
+      // 文字列をエンジンに渡す（エンジンが少しずつ表示する）
+      engine.pushText(event.delta);
     },
     onTextMessageEndEvent() {
-      animation.stopTyping();
-      activeAssistantLine = null;
-      scrollToBottom();
+      // 今のところ特になし (エンジンのキューが空になれば止まる)
     },
+    
+    // ツール実行イベント (これは即時表示したいので直接DOM操作)
     onToolCallStartEvent({ event }) {
       activeToolLine = appendLine("text-line--tool", `🔧 Tool call: ${event.toolCallName}`);
     },
@@ -56,9 +53,9 @@ export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscribe
     onToolCallEndEvent() {
       activeToolLine = null;
     },
+    
     onRunFailedEvent({ error }) {
-      animation.stopTyping();
-      activeAssistantLine = null;
+      engine.reset(); // 喋ってる途中なら止める
       appendLine(
         "text-line--error",
         `❌ ${error instanceof Error ? error.message : String(error)}`,

@@ -1,7 +1,9 @@
+import { config, fetchConfig } from "./config";
 import { agent, agentConfig } from "../core/agent";
 import { loggerSubscriber } from "../core/loggerSubscriber";
 import { createUiSubscriber } from "./subscriber";
-import { AnimationManager } from "./animation";
+import { TerminalEngine } from "./engine/TerminalEngine";
+import pkg from "../../package.json"; // バージョン情報の取得
 
 // グローバルsubscriber登録（ロガー）
 agent.subscribe(loggerSubscriber);
@@ -11,83 +13,100 @@ const outputEl = document.querySelector("#pane-output .text-scroll") as HTMLElem
 const avatarImg = document.getElementById("avatar-img") as HTMLImageElement | null;
 const metaBar = document.getElementById("meta");
 
-if (metaBar) {
-  metaBar.textContent = "avatar-ui v1.0.0";
-}
-
-if (!inputEl || !outputEl || !avatarImg) {
-  throw new Error("UI elements missing");
-}
-
-const animation = new AnimationManager(
-  {
-    mouthAnimationInterval: 120,
-    getAvatarImagePath: (isIdle) => {
-      if (isIdle) {
-        return avatarImg.dataset.idle ?? avatarImg.src;
-      }
-      return avatarImg.dataset.talk ?? avatarImg.dataset.idle ?? avatarImg.src;
-    },
-  },
-);
-animation.setAvatar(avatarImg);
-animation.setOutput(outputEl);
-
-const appendLine = (className: string, text: string) => {
-  const line = document.createElement("p");
-  line.className = `text-line ${className}`;
-  line.textContent = text;
-  outputEl.appendChild(line);
-  outputEl.scrollTop = outputEl.scrollHeight;
-};
-
-let isRunning = false;
-
-inputEl.addEventListener("keydown", async (event) => {
-  if (event.isComposing || event.key !== "Enter") {
-    return;
-  }
-  event.preventDefault();
-
-  if (isRunning) {
-    return;
+async function initApp() {
+  if (metaBar) {
+    // package.json から名前とバージョンを取得して表示
+    metaBar.textContent = `${pkg.name} v${pkg.version}`;
   }
 
-  const value = inputEl.value.trim();
-  if (!value) {
-    return;
+  if (!inputEl || !outputEl || !avatarImg) {
+    throw new Error("UI elements missing");
   }
 
-  appendLine("text-line--user", `> ${value}`);
-  inputEl.value = "";
+  // 1. サーバーから設定を取得 (Fail-Fast)
+  try {
+    await fetchConfig();
+  } catch (error) {
+    // 設定取得失敗時のエラー表示
+    outputEl.innerHTML = `
+      <div style="color: #ff4444; padding: 20px;">
+        <h2>CONNECTION ERROR</h2>
+        <p>Failed to connect to AG-UI Server at <code>${config.server.url}</code>.</p>
+        <p>Please ensure the server is running:</p>
+        <pre>cd server && uvicorn main:app --reload</pre>
+        <p>Error details: ${String(error)}</p>
+      </div>
+    `;
+    return; // アプリ起動を中断
+  }
 
-  const userMessage = {
-    id: crypto.randomUUID(),
-    role: "user" as const,
-    content: value,
+  // 2. UIエンジン (Game Loop) の初期化
+  // これひとつでタイプライター・アニメーション・音声すべてを制御する
+  const engine = new TerminalEngine(outputEl, avatarImg);
+
+  const appendLine = (className: string, text: string) => {
+    const line = document.createElement("p");
+    line.className = `text-line ${className}`;
+    line.textContent = text;
+    outputEl.appendChild(line);
+    outputEl.scrollTop = outputEl.scrollHeight;
   };
 
-  agent.messages.push(userMessage);
+  let isRunning = false;
 
-  isRunning = true;
-  try {
-    await agent.runAgent(
-      {
-        runId: crypto.randomUUID(),
-        threadId: agentConfig.threadId,
-      },
-      createUiSubscriber({
-        outputEl,
-        animation,
-      }),
-    );
-  } catch (error) {
-    console.error(error);
-    appendLine(
-      "text-line--error",
-      `❌ ${error instanceof Error ? error.message : String(error)}`,
-    );
-  } finally {
-    isRunning = false;
-  }
-});
+  inputEl.addEventListener("keydown", async (event) => {
+    if (event.isComposing || event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+
+    if (isRunning) {
+      return;
+    }
+
+    const value = inputEl.value.trim();
+    if (!value) {
+      return;
+    }
+
+    appendLine("text-line--user", `> ${value}`);
+    inputEl.value = "";
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content: value,
+    };
+
+    agent.messages.push(userMessage);
+
+    isRunning = true;
+    try {
+      await agent.runAgent(
+        {
+          runId: crypto.randomUUID(),
+          threadId: agentConfig.threadId,
+        },
+        createUiSubscriber({
+          outputEl,
+          engine, // エンジンを渡す
+        }),
+      );
+    } catch (error) {
+      console.error(error);
+      appendLine(
+        "text-line--error",
+        `❌ ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      isRunning = false;
+    }
+  });
+  
+  // 初期メッセージ
+  appendLine("text-line--system", "SYSTEM READY.");
+  appendLine("text-line--system", `Config loaded: ${config.ui.theme} mode`);
+}
+
+// アプリ起動
+initApp().catch(err => console.error("Fatal Error:", err));
