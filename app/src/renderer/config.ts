@@ -10,10 +10,12 @@ export interface UiConfig {
   beepVolumeEnd: number;
   nameTags: {
     user: string;
-    assistant: string;
+    avatar: string;
+    avatarFullName: string;
   };
   systemMessages: {
-    ready: string;
+    banner1: string;
+    banner2: string;
   };
 }
 
@@ -25,7 +27,6 @@ export interface AppConfig {
 }
 
 // 初期状態 (未ロード)
-// API取得に失敗したらこのままエラー画面になるので、中身は何でも良い
 const defaults: AppConfig = {
   server: {
     url: "", // プロキシ使用 (/agui/config)
@@ -40,10 +41,12 @@ const defaults: AppConfig = {
     beepVolumeEnd: 0,
     nameTags: {
       user: "",
-      assistant: "",
+      avatar: "",
+      avatarFullName: "",
     },
     systemMessages: {
-      ready: "",
+      banner1: "",
+      banner2: "",
     },
   },
 };
@@ -59,10 +62,10 @@ export async function fetchConfig(): Promise<void> {
       throw new Error(`Config fetch failed: ${response.status} ${response.statusText}`);
     }
     const serverConfig = await response.json();
-    
+
     // サーバーの設定で完全に上書き
     config.ui = serverConfig;
-    
+
     console.info("Config loaded from server:", config.ui);
   } catch (error) {
     console.error("Failed to load config from server:", error);

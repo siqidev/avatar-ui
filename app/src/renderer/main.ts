@@ -42,7 +42,7 @@ async function initApp() {
     metaBar.textContent = `${pkg.name} v${pkg.version}`;
   }
   // アバター枠内のラベルはエージェント名 (設定連動)
-  avatarLabel.textContent = config.ui.nameTags.assistant;
+  avatarLabel.textContent = config.ui.nameTags.avatar;
 
   // 3. UIエンジン (Game Loop) の初期化
   // これひとつでタイプライター・アニメーション・音声すべてを制御する
@@ -110,11 +110,14 @@ async function initApp() {
   });
   
   // 初期メッセージ: 設定されたシステムメッセージを使う
-  // システムメッセージは "> " プレフィックスを付ける (要望)
-  if (config.ui.systemMessages.ready) {
-    appendLine("text-line--system", `> ${config.ui.systemMessages.ready}`);
+  const fullName = config.ui.nameTags.avatarFullName || config.ui.nameTags.avatar || "AGENT";
+  if (config.ui.systemMessages.banner1) {
+    const banner1 = config.ui.systemMessages.banner1.replace("{avatarFullName}", fullName);
+    appendLine("text-line--system", `> ${banner1}`);
   }
-  appendLine("text-line--system", `> Config loaded: ${config.ui.theme} mode`);
+  if (config.ui.systemMessages.banner2) {
+    appendLine("text-line--system", `> ${config.ui.systemMessages.banner2}`);
+  }
 }
 
 // アプリ起動

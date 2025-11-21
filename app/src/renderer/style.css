@@ -11,7 +11,7 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #000;
+  background: #000; /* 透過ウィンドウでもUI全体を黒で塗る */
   color: #0f0;
 }
 
@@ -21,13 +21,13 @@ body {
   /* アバター枠をスリム化 (220px -> 170px) */
   grid-template-rows: 1fr auto auto;
   /* Output(flex), Input(auto), Meta(auto) */
-  gap: 16px;
+  column-gap: 10px; /* アバターとの横ギャップを入力行と揃える */
+  row-gap: 10px; /* 出力と入力の間に余白を確保 */
   height: 100vh;
-  min-width: 600px;
-  min-height: 400px;
+  min-width: 500px;
+  min-height: 360px; /* 縦方向をややコンパクトに許容 */
   padding: 20px;
-  padding-top: 50px;
-  /* 上部に線のスペースを確保 */
+  padding-top: 32px; /* 上部の余白を減らし、罫線との距離を詰める */
   box-sizing: border-box;
   position: relative;
   /* 線の配置基準 */
@@ -37,12 +37,25 @@ body {
 .app::before {
   content: "";
   position: absolute;
-  top: 20px;
+  top: 16px; /* 罫線をやや上に寄せる */
   left: 20px;
   right: 20px;
-  height: 4px;
+  height: 3px;
   background: rgba(0, 255, 0, 0.8);
   box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+/* フレームレス時にドラッグできる領域を広く確保 */
+.app {
+  -webkit-app-region: drag;
+}
+#pane-output,
+#pane-input,
+#pane-avatar,
+.meta-bar,
+input,
+.text-scroll {
+  -webkit-app-region: no-drag;
 }
 
 .app:not(.split) #pane-avatar {
@@ -126,7 +139,7 @@ body {
 
 /* Left Column: Input Area */
 #pane-input {
-  grid-column: 1 / 2;
+  grid-column: 1 / 3; /* 入力を全幅に拡張（アバターまで貫通） */
   grid-row: 2 / 3;
   display: flex;
   align-items: center;
@@ -148,8 +161,7 @@ body {
 /* Right Column: Avatar Area */
 #pane-avatar {
   grid-column: 2 / 3;
-  grid-row: 1 / 3;
-  /* Spans Output and Input rows */
+  grid-row: 1 / 2; /* 出力エリアと同じ高さに揃える */
   border: 1px solid rgba(0, 255, 0, 0.4);
   background: rgba(0, 40, 0, 0.25);
   display: flex;
@@ -157,7 +169,6 @@ body {
   align-items: center;
   justify-content: center;
   padding: 4px;
-  /* 余白を狭くする (16px -> 4px) */
   box-sizing: border-box;
   gap: 12px;
 }
@@ -183,4 +194,5 @@ body {
   justify-content: flex-end;
   font-size: 12px;
   color: rgba(0, 255, 0, 0.7);
+  margin-top: -6px; /* メタバーをアバターの下線に寄せる微調整 */
 }

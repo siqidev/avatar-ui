@@ -31,7 +31,7 @@ export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscribe
       engine.startNewMessage("text-line text-line--assistant");
       
       // 設定されたアシスタントタグを表示
-      const tag = config.ui.nameTags.assistant ? `${config.ui.nameTags.assistant}> ` : "";
+      const tag = config.ui.nameTags.avatar ? `${config.ui.nameTags.avatar}> ` : "";
       if (tag) {
         engine.pushText(tag);
       }

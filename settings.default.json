@@ -10,15 +10,17 @@
     "typeSpeed": 30,
     "soundVolume": 0.5,
     "mouthInterval": 120,
-    "beepFrequency": 800,
+    "beepFrequency": 600,
     "beepDuration": 0.05,
     "beepVolumeEnd": 0.01,
     "nameTags": {
       "user": "USER",
-      "assistant": "AGENT"
+      "avatar": "SPECTRA",
+      "avatarFullName": "Spectra Communicator"
     },
     "systemMessages": {
-      "ready": "SYSTEM READY."
+      "banner1": "SYSTEM {avatarFullName} Online",
+      "banner2": "Session Standby"
     }
   }
 }

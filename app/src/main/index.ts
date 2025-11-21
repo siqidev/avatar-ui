@@ -1,12 +1,15 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, globalShortcut } from 'electron'
 import { join } from 'path'
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 900,      // 横長レイアウトに最適化
-    height: 500,     // スクリーンショットに近い比率
+    width: 860,      // 横長レイアウトに最適化
+    height: 360,     // 最小高さに合わせる
     minWidth: 600,   // レイアウト崩れを防ぐ最小幅
-    minHeight: 400,  // レイアウト崩れを防ぐ最小高さ
+    minHeight: 360,  // 最小高さを合わせる
+    frame: false,    // ネイティブタイトルバーを除去
+    transparent: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       nodeIntegration: false,      // ✅ 安全設定: Node機能無効
       contextIsolation: true,      // ✅ 安全設定: コンテキスト分離
@@ -23,7 +26,11 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  // 共通ショートカット: Cmd/Ctrl+Q で終了
+  globalShortcut.register('CommandOrControl+Q', () => app.quit())
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -35,4 +42,8 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
