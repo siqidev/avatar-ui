@@ -34,30 +34,24 @@
 
 ## ステップ7：設定基盤とUI基盤の整備（完了）
 **目標**: 拡張に耐えうるクリーンなコードベース（設定一元化、UI統合）を作る。
+- [x] **Phase 1-A: 設定基盤のAPI化**: ServerをSSOT化し、ClientはAPI経由で設定を取得。Fail-Fast実装。
+- [x] **Phase 1-B: UIエンジンの統合**: `TerminalEngine.ts` による Game Loop 統合。
+- [x] **Phase 1-C: クリーンアップ**: フォールバック排除、不要ファイル削除、パッケージング確認。
 
-### Phase 1-A: 設定基盤のAPI化 (Dynamic Configuration)
-**方針**: ServerをSSOT(Single Source of Truth)とし、ClientはAPI経由で設定を取得する。
-- [x] **Server側エンドポイント実装**: `/agui/config` エンドポイントを追加し、`settings.json` のUI設定部分を返す。
-- [x] **Client側設定ローダー修正**: `config.ts` を修正し、`fetchConfig()` でサーバーから設定を取得。失敗時はエラー表示(Fail-Fast)。
-- [x] **Client側初期化ロジック修正**: `main.ts` で設定取得を待ってからアプリを起動する。
-- [x] **クリーンアップ**: `vite.config.ts` の `define` や `fs.allow` を削除し、シンプルに戻す。
+## ステップ8：UI改修 (UX Refinement)
+**目標**: レトロ端末としての完成度を高め、すべてのテキスト要素を設定可能にする。
+- [x] **設定拡張**: `settings.json` に `ui.nameTags` (user/assistant), `ui.systemMessages` (ready/loading) を追加。
+- [x] **行間調整**: 出力エリアの行間を調整し、読みやすさと情報量を両立。
+- [x] **ネームタグ実装**: 入力時の `USER>`、出力時の `AGENT` などのプレフィックスを実装（設定値使用）。
+- [x] **システムメッセージ外部化**: 起動ログメッセージ等をハードコードから設定値参照に変更。
+- [ ] **UIレイアウト詳細調整**: アバターエリア、全体のパディング、フォントサイズなどの微調整（要件定義中）。
 
-### Phase 1-B: UIエンジンの統合
-- [x] **`TerminalEngine.ts` 作成**: `AnimationManager`, `Typewriter`, `BeepPlayer` を単一の Game Loop に統合。
-- [x] **UIコードの簡素化**: `main.ts` / `subscriber.ts` を修正し、Engine の単純なメソッド呼び出しに変更。
-
-### Phase 1-C: 設定の一元化と完全クリーンアップ
-- [x] **SSOT確立**: `settings.json` (と `.env`) を唯一の設定源とする。
-- [x] **Fail-Fast実装**: Server/Client 共に、設定欠損時は即座にエラー停止し、フォールバック値を全廃。
-- [x] **不要ファイル削除**: 旧い音声・アニメーション関連ファイル、不要な設定ファイルを削除。
-- [x] **パッケージング確認**: `electron-builder` によるビルド成功を確認。
-
-## ステップ8：MCP (Model Context Protocol) 連携
+## ステップ9：MCP (Model Context Protocol) 連携
 **目標**: ローカルファイル操作能力を実装する。
 - [ ] **MCP Client 実装 (Server)**: Python MCP SDK を導入し、MCPサーバーへの接続機能を実装。
 - [ ] **Filesystem MCP 導入**: `@modelcontextprotocol/server-filesystem` を導入し、プロジェクトディレクトリへのアクセスを許可。
 - [ ] **ADK ツール連携**: MCP ツールを `LlmAgent` に登録し、チャットからファイル操作ができることを確認。
 
-## ステップ9：機能拡張（Future）
+## ステップ10：機能拡張（Future）
 - [ ] **コマンド実行 MCP**: シェルコマンド実行能力の追加（セキュリティ考慮）。
 - [ ] **マルチメディア対応**: Python コード実行によるグラフ/画像表示のサポート。

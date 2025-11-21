@@ -14,11 +14,6 @@ const avatarImg = document.getElementById("avatar-img") as HTMLImageElement | nu
 const metaBar = document.getElementById("meta");
 
 async function initApp() {
-  if (metaBar) {
-    // package.json から名前とバージョンを取得して表示
-    metaBar.textContent = `${pkg.name} v${pkg.version}`;
-  }
-
   if (!inputEl || !outputEl || !avatarImg) {
     throw new Error("UI elements missing");
   }
@@ -40,7 +35,13 @@ async function initApp() {
     return; // アプリ起動を中断
   }
 
-  // 2. UIエンジン (Game Loop) の初期化
+  // 2. UI初期化 (設定ロード後)
+  if (metaBar) {
+    // アバター下の表示名: 設定されたエージェント名 + バージョン
+    metaBar.textContent = `${config.ui.nameTags.assistant} v${pkg.version}`;
+  }
+
+  // 3. UIエンジン (Game Loop) の初期化
   // これひとつでタイプライター・アニメーション・音声すべてを制御する
   const engine = new TerminalEngine(outputEl, avatarImg);
 
@@ -69,7 +70,9 @@ async function initApp() {
       return;
     }
 
-    appendLine("text-line--user", `> ${value}`);
+    // ユーザー入力の表示: 設定されたユーザータグを使う
+    const userTag = config.ui.nameTags.user ? `${config.ui.nameTags.user}> ` : "> ";
+    appendLine("text-line--user", `${userTag}${value}`);
     inputEl.value = "";
 
     const userMessage = {
@@ -103,9 +106,12 @@ async function initApp() {
     }
   });
   
-  // 初期メッセージ
-  appendLine("text-line--system", "SYSTEM READY.");
-  appendLine("text-line--system", `Config loaded: ${config.ui.theme} mode`);
+  // 初期メッセージ: 設定されたシステムメッセージを使う
+  // システムメッセージは "> " プレフィックスを付ける (要望)
+  if (config.ui.systemMessages.ready) {
+    appendLine("text-line--system", `> ${config.ui.systemMessages.ready}`);
+  }
+  appendLine("text-line--system", `> Config loaded: ${config.ui.theme} mode`);
 }
 
 // アプリ起動

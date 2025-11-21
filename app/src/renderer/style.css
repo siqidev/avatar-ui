@@ -82,13 +82,13 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   white-space: pre-wrap;
-  line-height: 1.5;
+  line-height: 1.4; /* 少しタイトにして情報量を増やす */
   color: rgba(0, 255, 0, 0.9);
   min-height: 0;
 }
 
 .text-line {
-  margin: 0 0 12px;
+  margin: 0 0 8px; /* 段落間も少し詰める */
 }
 
 .text-line strong {

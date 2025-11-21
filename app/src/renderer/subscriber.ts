@@ -1,5 +1,6 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 import { TerminalEngine } from "./engine/TerminalEngine";
+import { config } from "./config";
 
 interface UiSubscriberOptions {
   outputEl: HTMLElement;
@@ -28,6 +29,12 @@ export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscribe
     onTextMessageStartEvent() {
       // アシスタントのメッセージ開始：新しい行を作成してエンジンにセット
       engine.startNewMessage("text-line text-line--assistant");
+      
+      // 設定されたアシスタントタグを表示
+      const tag = config.ui.nameTags.assistant ? `${config.ui.nameTags.assistant}> ` : "";
+      if (tag) {
+        engine.pushText(tag);
+      }
     },
     onTextMessageContentEvent({ event }) {
       // 文字列をエンジンに渡す（エンジンが少しずつ表示する）

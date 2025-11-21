@@ -8,6 +8,13 @@ export interface UiConfig {
   beepFrequency: number;
   beepDuration: number;
   beepVolumeEnd: number;
+  nameTags: {
+    user: string;
+    assistant: string;
+  };
+  systemMessages: {
+    ready: string;
+  };
 }
 
 export interface AppConfig {
@@ -31,6 +38,13 @@ const defaults: AppConfig = {
     beepFrequency: 0,
     beepDuration: 0,
     beepVolumeEnd: 0,
+    nameTags: {
+      user: "",
+      assistant: "",
+    },
+    systemMessages: {
+      ready: "",
+    },
   },
 };
 

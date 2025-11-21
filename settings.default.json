@@ -12,6 +12,13 @@
     "mouthInterval": 120,
     "beepFrequency": 800,
     "beepDuration": 0.05,
-    "beepVolumeEnd": 0.01
+    "beepVolumeEnd": 0.01,
+    "nameTags": {
+      "user": "USER",
+      "assistant": "AGENT"
+    },
+    "systemMessages": {
+      "ready": "SYSTEM READY."
+    }
   }
 }
