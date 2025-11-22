@@ -3,6 +3,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 from google.adk.agents import LlmAgent
 from google.adk import tools as adk_tools
@@ -60,8 +61,12 @@ async def log_agui_request(request: Request, call_next):
         body = await request.body()
         logger.info("AGUI request body: %s", body.decode("utf-8"))
         request._body = body
-    response = await call_next(request)
-    return response
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as exc:
+        logger.exception("Unhandled server error")
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 # Config API Endpoint
 @app.get("/agui/config")
