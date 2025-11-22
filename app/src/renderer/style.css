@@ -24,7 +24,7 @@ body {
   column-gap: 10px; /* アバターとの横ギャップを入力行と揃える */
   row-gap: 10px; /* 出力と入力の間に余白を確保 */
   height: 100vh;
-  min-width: 500px;
+  min-width: 600px;
   min-height: 360px; /* 縦方向をややコンパクトに許容 */
   padding: 20px;
   padding-top: 32px; /* 上部の余白を減らし、罫線との距離を詰める */

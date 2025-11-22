@@ -40,9 +40,10 @@ export class TerminalEngine {
   /**
    * 新しいメッセージ行を開始
    */
-  public startNewMessage(className: string = "text-line") {
+  public startNewMessage(className: string = "text-line", initialText: string = "") {
     const line = document.createElement("p");
     line.className = className;
+    line.textContent = initialText;
     this.outputEl.appendChild(line);
     this.currentTarget = line;
     this.outputEl.scrollTop = this.outputEl.scrollHeight;

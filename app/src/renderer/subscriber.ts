@@ -27,14 +27,11 @@ export function createUiSubscriber(options: UiSubscriberOptions): AgentSubscribe
 
   return {
     onTextMessageStartEvent() {
-      // アシスタントのメッセージ開始：新しい行を作成してエンジンにセット
-      engine.startNewMessage("text-line text-line--assistant");
-      
-      // 設定されたアシスタントタグを表示
+      // 設定されたアバタータグを取得
       const tag = config.ui.nameTags.avatar ? `${config.ui.nameTags.avatar}> ` : "";
-      if (tag) {
-        engine.pushText(tag);
-      }
+
+      // アシスタントのメッセージ開始：新しい行を作成してエンジンにセット（タグは即時表示）
+      engine.startNewMessage("text-line text-line--assistant", tag);
     },
     onTextMessageContentEvent({ event }) {
       // 文字列をエンジンに渡す（エンジンが少しずつ表示する）
