@@ -48,9 +48,9 @@
 1. [x] **設定バリデーション強化**  
    - [x] Pydantic BaseSettings で `.env` + `settings.json` を統合ロード  
    - [x] 必須キー・型・未使用キー検出を実装  
-2. [ ] **モデル×ツール適合の周知（コードで強制しない）**  
-   - [ ] README と settings 注記に「推奨ペア＝Gemini 2.x + GoogleSearch（仕様変動あり）」と一次情報URLを記載  
-   - [ ] 警告ログやエラーでの強制は行わない  
+2. [x] **モデル×ツール適合の周知（コードで強制しない）**  
+   - [x] README と settings 注記に「推奨ペア＝Gemini 2.x + GoogleSearch（仕様変動あり）」と一次情報URLを記載  
+   - [x] 警告ログやエラーでの強制は行わない  
 3. [ ] **HTTP/運用ガード**  
    - [ ] `/healthz` で APIキー存在＋モデル可用性チェック  
    - [ ] `root_path` / `X-Forwarded-*` 対応を追加  
