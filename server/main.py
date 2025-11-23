@@ -14,17 +14,17 @@ from src import config
 if not config.GOOGLE_API_KEY:
     raise RuntimeError("GOOGLE_API_KEY is not set. Please add it to .env in project root")
 
-# Logging to file
+# Logging: 共通設定（uvicorn と整合）
 logs_dir = Path(__file__).resolve().parent / "logs"
 logs_dir.mkdir(exist_ok=True)
 log_file = logs_dir / "app.log"
 
+log_level = logging.INFO
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    handlers=[RotatingFileHandler(log_file, maxBytes=config.LOG_MAX_BYTES, backupCount=config.LOG_BACKUP_COUNT)]
+    handlers=[RotatingFileHandler(log_file, maxBytes=config.LOG_MAX_BYTES, backupCount=config.LOG_BACKUP_COUNT)],
 )
-
 logger = logging.getLogger("agui-adk-bridge")
 
 sample_agent = LlmAgent(
@@ -57,16 +57,18 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_agui_request(request: Request, call_next):
+    # ボディログは dev/LOG_BODY=true のときだけ
     if request.url.path == "/agui" and request.method == "POST":
-        body = await request.body()
-        logger.info("AGUI request body: %s", body.decode("utf-8"))
-        request._body = body
+        if config.APP_ENV == "dev" or config.LOG_BODY is True:
+            body = await request.body()
+            logger.info("AGUI request body: %s", body.decode("utf-8", errors="replace"))
+            request._body = body
     try:
         response = await call_next(request)
         return response
     except Exception as exc:
         logger.exception("Unhandled server error")
-        return JSONResponse(status_code=500, content={"detail": str(exc)})
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 # Config API Endpoint
 @app.get("/agui/config")
@@ -89,7 +91,6 @@ async def healthz():
     # APIキー必須
     if not config.GOOGLE_API_KEY:
         return JSONResponse(status_code=500, content={"status": "fail", "reason": "missing GOOGLE_API_KEY"})
-    # モデル名が設定されているかのみチェック（外部APIコールは行わない）
     if not config.LLM_MODEL:
         return JSONResponse(status_code=500, content={"status": "fail", "reason": "missing LLM_MODEL"})
     return {"status": "ok", "model": config.LLM_MODEL}

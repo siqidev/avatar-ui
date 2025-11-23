@@ -70,6 +70,8 @@ class EnvSettings(BaseSettings):
     server_host: str = Field(alias="SERVER_HOST")
     server_port: int = Field(alias="SERVER_PORT", ge=1, le=65535)
     client_port: int = Field(alias="CLIENT_PORT", ge=1, le=65535)
+    app_env: str = Field(default="dev", alias="APP_ENV")
+    log_body: bool | None = Field(default=None, alias="LOG_BODY")
     @field_validator("google_api_key", "ag_ui_agent_name", "server_host")
     @classmethod
     def non_empty(cls, v: str, info):
@@ -128,6 +130,8 @@ AG_UI_AGENT_NAME = env_settings.ag_ui_agent_name
 SERVER_HOST = env_settings.server_host
 SERVER_PORT = env_settings.server_port
 CLIENT_PORT = env_settings.client_port
+APP_ENV = env_settings.app_env
+LOG_BODY = env_settings.log_body
 # CORS origins:
 # - デフォルト: dev 用に localhost/127.0.0.1:CLIENT_PORT を許可
 # - 本番で別オリジンを許可したい場合だけ .env の ALLOWED_ORIGINS をカンマ区切りで指定
