@@ -45,9 +45,9 @@
 - MCP・モデル互換性: 仕様バージョンを固定し、最新版利用は opt-in。モデルID/仕様を起動ログに出力。
 
 ## Phase 1: マイクロタスク（チェックボックス）
-1. [ ] **設定バリデーション強化**  
-   - [ ] Pydantic BaseSettings で `.env` + `settings.json` を統合ロード  
-   - [ ] 必須キー・型・未使用キー検出を実装  
+1. [x] **設定バリデーション強化**  
+   - [x] Pydantic BaseSettings で `.env` + `settings.json` を統合ロード  
+   - [x] 必須キー・型・未使用キー検出を実装  
 2. [ ] **モデル×ツール適合の周知（コードで強制しない）**  
    - [ ] README と settings 注記に「推奨ペア＝Gemini 2.x + GoogleSearch（仕様変動あり）」と一次情報URLを記載  
    - [ ] 警告ログやエラーでの強制は行わない  
