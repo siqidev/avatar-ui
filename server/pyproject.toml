@@ -12,6 +12,7 @@ dependencies = [
     "asyncio>=3.4.3",
     "fastapi>=0.115.2",
     "google-adk>=1.14.0",
+    "google-genai>=1.39.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.6.1",
     "uvicorn>=0.35.0",
