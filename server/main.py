@@ -79,9 +79,16 @@ def get_config():
     UI用の設定を返すエンドポイント。
     Server設定(config.py)から、UIに必要な部分だけを抽出して返す。
     """
-    # config.py ロード時に _ui_settings の存在は保証されているため
-    # 単に返すだけで良い (なければ起動時に落ちている)
-    return config._ui_settings
+    # UI設定に加えて、クライアント側ログ詳細フラグとエージェント接続情報も返す
+    return {
+        "ui": config._ui_settings,
+        "clientLogVerbose": config.CLIENT_LOG_VERBOSE,
+        "agent": {
+            "url": config.AGENT_URL,
+            "agentId": config.AGENT_ID,
+            "threadId": config.THREAD_ID,
+        },
+    }
 
 add_adk_fastapi_endpoint(app, agent, path="/agui")
 

@@ -1,12 +1,12 @@
 import { config, fetchConfig } from "./config";
-import { agent, agentConfig } from "../core/agent";
+import { createAgent } from "../core/agent";
 import { loggerSubscriber } from "../core/loggerSubscriber";
 import { createUiSubscriber } from "./subscriber";
 import { TerminalEngine } from "./engine/TerminalEngine";
 import pkg from "../../package.json"; // バージョン情報の取得
 
 // グローバルsubscriber登録（ロガー）
-agent.subscribe(loggerSubscriber);
+let agentInstance = null as ReturnType<typeof createAgent> | null;
 
 const inputEl = document.getElementById("input") as HTMLInputElement | null;
 const outputEl = document.querySelector("#pane-output .text-scroll") as HTMLElement | null;
@@ -101,6 +101,14 @@ async function initApp() {
   // これひとつでタイプライター・アニメーション・音声すべてを制御する
   const engine = new TerminalEngine(outputEl, avatarImg);
 
+  // 4. エージェント初期化（サーバ設定に従う）
+  agentInstance = createAgent({
+    agentId: config.agent.agentId,
+    url: config.agent.url,
+    threadId: config.agent.threadId,
+  });
+  agentInstance.subscribe(loggerSubscriber);
+
   const appendLine = (className: string, text: string) => {
     const line = document.createElement("p");
     line.className = `text-line ${className}`;
@@ -137,11 +145,11 @@ async function initApp() {
       content: value,
     };
 
-    agent.messages.push(userMessage);
+    agentInstance!.messages.push(userMessage);
 
     isRunning = true;
     try {
-      await agent.runAgent(
+      await agentInstance!.runAgent(
         {
           runId: crypto.randomUUID(),
         },

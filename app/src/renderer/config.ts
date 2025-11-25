@@ -26,6 +26,12 @@ export interface AppConfig {
   server: {
     url: string;
   };
+  agent: {
+    url: string;
+    agentId: string;
+    threadId: string;
+  };
+  clientLogVerbose: boolean;
   ui: UiConfig;
 }
 
@@ -34,6 +40,12 @@ const defaults: AppConfig = {
   server: {
     url: "", // プロキシ使用 (/agui/config)
   },
+  agent: {
+    url: "",
+    agentId: "",
+    threadId: "",
+  },
+  clientLogVerbose: false,
   ui: {
     themeColor: "#33ff99",
     userColor: "#64ffff",
@@ -69,10 +81,22 @@ export async function fetchConfig(): Promise<void> {
     }
     const serverConfig = await response.json();
 
-    // サーバーの設定で完全に上書き
-    config.ui = serverConfig;
+    // 新形式: { ui, clientLogVerbose, agent }, 旧形式: uiのみ
+    const ui = serverConfig.ui ?? serverConfig;
+    const agent = serverConfig.agent ?? defaults.agent;
+    config.ui = ui;
+    config.agent = {
+      url: agent.url ?? "",
+      agentId: agent.agentId ?? "",
+      threadId: agent.threadId ?? "",
+    };
+    config.clientLogVerbose = Boolean(serverConfig.clientLogVerbose ?? false);
 
-    console.info("Config loaded from server:", config.ui);
+    console.info("Config loaded from server:", {
+      ui: config.ui,
+      agent: config.agent,
+      clientLogVerbose: config.clientLogVerbose,
+    });
   } catch (error) {
     console.error("Failed to load config from server:", error);
     throw error; // Main側でキャッチしてエラー画面を表示

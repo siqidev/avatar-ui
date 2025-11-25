@@ -66,15 +66,18 @@ class AppSettings(BaseModel, extra="forbid"):
 
 class EnvSettings(BaseSettings):
     google_api_key: str = Field(alias="GOOGLE_API_KEY")
-    ag_ui_agent_name: str = Field(alias="AG_UI_AGENT_NAME")
+    agent_id: str = Field(alias="AGENT_ID")
     server_host: str = Field(alias="SERVER_HOST")
     server_port: int = Field(alias="SERVER_PORT", ge=1, le=65535)
     client_port: int = Field(alias="CLIENT_PORT", ge=1, le=65535)
-    app_env: str = Field(default="dev", alias="APP_ENV")
-    log_body: bool | None = Field(default=None, alias="LOG_BODY")
-    session_timeout_seconds: int = Field(default=1200, alias="SESSION_TIMEOUT_SECONDS")
-    cleanup_interval_seconds: int = Field(default=300, alias="CLEANUP_INTERVAL_SECONDS")
-    @field_validator("google_api_key", "ag_ui_agent_name", "server_host")
+    thread_id: str = Field(alias="THREAD_ID")
+    app_env: str = Field(alias="APP_ENV")
+    log_body: bool | None = Field(alias="LOG_BODY")
+    open_devtools: str | None = Field(alias="OPEN_DEVTOOLS")
+    electron_warnings: str | None = Field(alias="ELECTRON_WARNINGS")
+    session_timeout_seconds: int = Field(alias="SESSION_TIMEOUT_SECONDS")
+    cleanup_interval_seconds: int = Field(alias="CLEANUP_INTERVAL_SECONDS")
+    @field_validator("google_api_key", "agent_id", "server_host")
     @classmethod
     def non_empty(cls, v: str, info):
         if not v or not v.strip():
@@ -128,10 +131,11 @@ env_settings = load_env_settings()
 app_settings = load_settings_json()
 
 GOOGLE_API_KEY = env_settings.google_api_key
-AG_UI_AGENT_NAME = env_settings.ag_ui_agent_name
+AGENT_ID = env_settings.agent_id
 SERVER_HOST = env_settings.server_host
 SERVER_PORT = env_settings.server_port
 CLIENT_PORT = env_settings.client_port
+THREAD_ID = env_settings.thread_id
 APP_ENV = env_settings.app_env
 LOG_BODY = env_settings.log_body
 # CORS origins:
@@ -154,3 +158,9 @@ CLEANUP_INTERVAL_SECONDS = env_settings.cleanup_interval_seconds
 
 # FastAPI の /agui/config で返すために dict で保持
 _ui_settings = app_settings.ui.model_dump()
+
+# クライアントのログ詳細可否（サーバ設定と連動）
+CLIENT_LOG_VERBOSE = (APP_ENV == "dev") or (LOG_BODY is True)
+
+# AG-UI エージェント接続情報（サーバを唯一の真実源とする）
+AGENT_URL = f"http://{SERVER_HOST}:{SERVER_PORT}/agui"

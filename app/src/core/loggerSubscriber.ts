@@ -1,5 +1,6 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 import { logError, logInfo } from "./logger";
+import { config } from "../renderer/config";
 
 export const loggerSubscriber: AgentSubscriber = {
   onTextMessageStartEvent({ event }) {
@@ -13,8 +14,10 @@ export const loggerSubscriber: AgentSubscriber = {
     logInfo(`tool call started name=${event.toolCallName}`);
   },
   onToolCallResultEvent({ event }) {
-    if (event.content) {
+    if (config.clientLogVerbose && event.content) {
       logInfo(`tool call result name=${event.toolCallName ?? "unknown"} content=${event.content}`);
+    } else {
+      logInfo(`tool call result name=${event.toolCallName ?? "unknown"}`);
     }
   },
   onRunFailedEvent({ error }) {

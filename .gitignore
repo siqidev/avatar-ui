@@ -9,6 +9,7 @@ node_modules/
 
 # Python
 __pycache__/
+server/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -19,6 +20,8 @@ ENV/
 
 # Logs
 *.log
+server/logs/
+app/logs/
 
 # Environment variables
 .env
@@ -39,6 +42,7 @@ dist/
 dist-electron/
 build/
 *.egg-info/
+server/uv.lock
 
 
 settings.json
