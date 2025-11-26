@@ -10,21 +10,21 @@
     "themes": [
       {
         "name": "classic",
-        "themeColor": "#00ff66",
-        "userColor": "#64ffff",
-        "toolColor": "#ffaa00"
+        "themeColor": "#00f0a0",
+        "userColor": "#86ffe0",
+        "toolColor": "#d4fff8"
       },
       {
-        "name": "future",
+        "name": "cobalt",
         "themeColor": "#5ad1ff",
         "userColor": "#9efc6a",
         "toolColor": "#ff66c4"
       },
       {
-        "name": "modern",
-        "themeColor": "#7b6cff",
-        "userColor": "#4dd0e1",
-        "toolColor": "#ffb74d"
+        "name": "amber",
+        "themeColor": "#ffb000",
+        "userColor": "#ffd37f",
+        "toolColor": "#ffc266"
       }
     ],
     "avatarOverlayOpacity": 1.0,

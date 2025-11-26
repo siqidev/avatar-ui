@@ -48,7 +48,7 @@
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
-- `server/main.py` で `add_adk_fastapi_endpoint(..., path="/agui")` を指定してあるため、`http://localhost:8000/agui` がクライアント用エンドポイントになる。
+   - `server/main.py` で `add_adk_fastapi_endpoint(..., path="/agui")` を指定してあるため、`http://localhost:8000/agui` がクライアント用エンドポイントになる。
 
 ## 4. 拡張検討メモ（未実装・要議論）
 
@@ -96,3 +96,11 @@
 1. **サーバー起動**: `cd server && uvicorn main:app --reload`
 2. **クライアント起動**: `cd app && npm run dev`
 3. **設定変更**: `settings.json` を編集し、リロード（または再起動）で反映。
+
+## テーマ構想メモ（現行と将来）
+
+- 現行: 「Classic / Cobalt / Amber」の3テーマは**カラー差分のみ**で運用（枠の形状や丸みは変えない）
+- 将来案: テーマごとに枠の丸み・レイアウト・スキャンライン強度などを差分化
+  - 例: 角丸や別フォント、アンバーCRT風エフェクトなどを個別に付与
+- 現時点では開発コストが見合わないためペンディング。カラー差分のみを維持する。
+
