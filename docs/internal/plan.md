@@ -88,33 +88,34 @@
 - LiteLLM で OpenAI / Anthropic モデルを利用可能。
 
 ### マイクロタスク
-1. **依存追加 / 環境変数拡張**  
+- [x] 依存追加 / 環境変数拡張  
    - `server/pyproject.toml` に `litellm` を追加。  
    - `.env.example` に `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` を追記。
 
-2. **設定スキーマ拡張（settings.json5）**  
+- [x] 設定スキーマ拡張（settings.json5）  
    - `server.model` : ベンダー込みモデルID（例: "gemini-2.5-flash" / "openai/gpt-4o" / "anthropic/claude-3-5-sonnet"）。  
    - `server.searchSubAgent.enabled` : デフォルト true。  
    - `server.searchSubAgent.model` : 固定 "gemini-2.5-flash"（検索用）。
 
-3. **エージェント構築ロジック実装**  
+- [x] エージェント構築ロジック実装  
    - `get_model()` で provider/model を解決（LiteLlm を使用）。  
    - `search_agent = LlmAgent(..., model=searchSubAgent.model, tools=[google_search])`。  
    - `search_tool = AgentTool(agent=search_agent)` を生成。  
    - メインエージェント: tools を `[preload_memory, search_tool]` にする（google_search を直接付けない）。
 
-4. **Fail-Fast / フォールバック**  
+- [x] Fail-Fast / フォールバック  
    - 未設定・不正モデル時は起動時に例外を出す（安全側）。  
    - `searchSubAgent.enabled=false` の場合は `AgentTool` を付けない（検索なしで起動）。
 
-5. **テスト**  
+- [x] テスト (Gemini / OpenAI / Anthropic で動作確認)  
    - Gemini: 従来通り動作し、検索が機能すること。  
    - OpenAI: `LLM_MODEL=openai/...` + OPENAI_API_KEY で会話・検索が動くこと。  
    - Anthropic: 同上。  
    - キー欠如やモデル不正時に Fail-Fast すること。
 
-6. **ドキュメント更新**  
-   - 本書（plan.md）および README に 3ベンダー対応と設定手順を追記。
+- [x] ドキュメント更新
+    - メモ: Gemini / OpenAI / Anthropic + 検索サブエージェントで実働確認済み
+    - 本書（plan.md）および README に 3ベンダー対応と設定手順を追記。
 
 ## ステップ12：配布パッケージ最終化（ローカル同梱型）
 - [ ] Pythonサーバを各OS向けにバイナリ化（PyInstaller 等）する。

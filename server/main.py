@@ -7,11 +7,13 @@ from fastapi.responses import JSONResponse
 from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 from google.adk.agents import LlmAgent
 from google.adk import tools as adk_tools
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.tools.agent_tool import AgentTool
 
 # 設定モジュールをインポート
 from src import config
 
-if not config.GOOGLE_API_KEY:
+if config.SEARCH_SUBAGENT_ENABLED and not config.GOOGLE_API_KEY:
     raise RuntimeError("GOOGLE_API_KEY is not set. Please add it to .env in project root")
 
 # Logging: 共通設定（uvicorn と整合）
@@ -27,24 +29,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger("agui-adk-bridge")
 
-sample_agent = LlmAgent(
-    name="assistant",
-    model=config.LLM_MODEL,
-    instruction=config.SYSTEM_PROMPT,
-    tools=[
-        adk_tools.preload_memory,
-        adk_tools.google_search
-    ],
-)
+def resolve_model(provider: str, model: str):
+    provider = provider.lower()
+    if provider == "gemini":
+        return model
+    # openai / anthropic などは LiteLlm 経由
+    if "/" in model:
+        return LiteLlm(model=model)
+    return LiteLlm(model=f"{provider}/{model}")
 
-agent = ADKAgent(
-    adk_agent=sample_agent,
-    app_name="agents",
-    user_id="cli_user",
-    use_in_memory_services=True,
-    session_timeout_seconds=config.SESSION_TIMEOUT_SECONDS,
-    cleanup_interval_seconds=config.CLEANUP_INTERVAL_SECONDS,
-)
+
+def build_agent() -> ADKAgent:
+    # 検索サブエージェント（必要なら）
+    search_tool = None
+    if config.SEARCH_SUBAGENT_ENABLED:
+        search_agent = LlmAgent(
+            name="search_agent",
+            model=config.SEARCH_SUBAGENT_MODEL,
+            description="Performs web searches using Google Search",
+            instruction="Search the web and return concise results.",
+            tools=[adk_tools.google_search],
+        )
+        search_tool = AgentTool(agent=search_agent)
+
+    main_model = resolve_model(config.LLM_PROVIDER, config.LLM_MODEL)
+    tools = [adk_tools.preload_memory]
+    if search_tool:
+        tools.append(search_tool)
+
+    main_agent = LlmAgent(
+        name="assistant",
+        model=main_model,
+        instruction=config.SYSTEM_PROMPT,
+        tools=tools,
+    )
+
+    return ADKAgent(
+        adk_agent=main_agent,
+        app_name="agents",
+        user_id="cli_user",
+        use_in_memory_services=True,
+        session_timeout_seconds=config.SESSION_TIMEOUT_SECONDS,
+        cleanup_interval_seconds=config.CLEANUP_INTERVAL_SECONDS,
+    )
+
+
+agent = build_agent()
 
 app = FastAPI(title="AG-UI ADK Bridge")
 
@@ -94,15 +124,7 @@ add_adk_fastapi_endpoint(app, agent, path="/agui")
 
 @app.get("/healthz")
 async def healthz():
-    """
-    ヘルスチェック: APIキー有無とモデル可用性の簡易確認。
-    """
-    # APIキー必須
-    if not config.GOOGLE_API_KEY:
-        return JSONResponse(status_code=500, content={"status": "fail", "reason": "missing GOOGLE_API_KEY"})
-    if not config.LLM_MODEL:
-        return JSONResponse(status_code=500, content={"status": "fail", "reason": "missing LLM_MODEL"})
-    return {"status": "ok", "model": config.LLM_MODEL}
+    return {"status": "ok"}
 
 @app.get("/")
 def root():

@@ -68,10 +68,17 @@ class ThemePreset(BaseModel, extra="forbid"):
 
 
 class ServerSettings(BaseModel, extra="forbid"):
+    llmProvider: str = "gemini"  # gemini | openai | anthropic
     llmModel: str
+    searchSubAgent: "SearchSubAgent" = Field(default_factory=lambda: SearchSubAgent())
     systemPrompt: str
     logMaxBytes: int = Field(gt=0)
     logBackupCount: int = Field(ge=0)
+
+
+class SearchSubAgent(BaseModel, extra="forbid"):
+    enabled: bool = True
+    model: str = "gemini-2.5-flash"
 
 
 class AppSettings(BaseModel, extra="forbid"):
@@ -101,6 +108,8 @@ def resolve_theme(ui: UiSettings) -> dict:
 
 class EnvSettings(BaseSettings):
     google_api_key: str = Field(alias="GOOGLE_API_KEY")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     agent_id: str = Field(alias="AGENT_ID")
     server_host: str = Field(alias="SERVER_HOST")
     server_port: int = Field(alias="SERVER_PORT", ge=1, le=65535)
@@ -191,6 +200,7 @@ else:
     CORS_ORIGINS: List[str] = [o.format(port=CLIENT_PORT) for o in DEFAULT_ALLOWED_ORIGINS_DEV]
 
 LLM_MODEL = app_settings.server.llmModel
+LLM_PROVIDER = app_settings.server.llmProvider
 SYSTEM_PROMPT = app_settings.server.systemPrompt
 LOG_MAX_BYTES = app_settings.server.logMaxBytes
 LOG_BACKUP_COUNT = app_settings.server.logBackupCount
@@ -204,6 +214,10 @@ _ui_settings = resolve_theme(app_settings.ui)
 
 # クライアントのログ詳細可否（サーバ設定と連動）
 CLIENT_LOG_VERBOSE = (APP_ENV == "dev") or (LOG_BODY is True)
+
+# 検索サブエージェント設定
+SEARCH_SUBAGENT_ENABLED = app_settings.server.searchSubAgent.enabled
+SEARCH_SUBAGENT_MODEL = app_settings.server.searchSubAgent.model
 
 # AG-UI エージェント接続情報（サーバを唯一の真実源とする）
 AGENT_URL = f"http://{SERVER_HOST}:{SERVER_PORT}/agui"

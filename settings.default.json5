@@ -1,8 +1,15 @@
 {
   // ---- Server settings ----
   "server": {
-    // LLM モデル ID（Google ADKで利用）
+    // LLM プロバイダ: gemini | openai | anthropic
+    "llmProvider": "gemini",
+    // LLM モデル ID（Google ADKで利用）: gemini-2.5-flash | gpt-5 | claude-sonnet-4-5
     "llmModel": "gemini-2.5-flash",
+    // 検索サブエージェント設定（Gemini + Google Search 専用）
+    "searchSubAgent": {
+      "enabled": true,
+      "model": "gemini-2.5-flash",
+    },
     // システムプロンプト（全応答の前置き）
     "systemPrompt": "あなたはSpectraというAIアシスタントです。技術的で直接的なスタイルで簡潔に応答してください。回答は短く要点を押さえたものにしてください。",
     // ローテーション前のログ最大サイズ（bytes）

@@ -22,8 +22,9 @@ Google Gemini (Google ADK) をバックエンドに使用し、Electron で動�
 
 ### 2. 環境変数をリポジトリルートに `.env` として用意
 ```bash
-GOOGLE_API_KEY=your_api_key_here
-AG_UI_AGENT_NAME=google-adk-agent
+GOOGLE_API_KEY=...
+OPENAI_API_KEY=...      # https://platform.openai.com/api-keys
+ANTHROPIC_API_KEY=...   # https://console.anthropic.com/settings/keys
 SERVER_HOST=localhost
 SERVER_PORT=8000
 CLIENT_PORT=5173
@@ -33,6 +34,19 @@ APP_ENV=dev
 # LOG_BODY=true
 ```
 ※ `vite.config.ts` は親ディレクトリの `.env` を読むため、`app/.env` は不要です。
+
+#### LLM の切り替え（settings.json5）
+```json5
+"server": {
+  "llmProvider": "gemini",                // gemini | openai | anthropic
+  "llmModel": "gemini-2.5-flash",         // gemini-2.5-flash | gpt-5 | claude-sonnet-4-5
+  "searchSubAgent": {
+    "enabled": true,
+    "model": "gemini-2.5-flash"           // Google Search 用（Gemini 固定）
+  }
+}
+```
+プロバイダを変えるときは、対応する API キーを `.env` に入れて再起動してください。
 
 ### 3. サーバーセットアップ & 起動
 ```bash
