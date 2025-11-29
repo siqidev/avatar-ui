@@ -106,10 +106,9 @@ body {
   column-gap: 10px;
   row-gap: 10px;
   height: 100vh;
-  min-width: 600px;
-  min-height: 360px;
   padding: 20px;
   padding-top: 32px;
+  padding-bottom: 12px;
   box-sizing: border-box;
   position: relative;
 }

@@ -28,9 +28,9 @@ if (!warningsEnabled) {
 function createWindow() {
   const win = new BrowserWindow({
     width: 720,      // 16:9 aspect ratio based on height 360 (360 * 16 / 9 = 640)
-    height: 350,     // 最小高さに合わせる
+    height: 360,     // 最小高さに合わせる
     minWidth: 600,   // レイアウト崩れを防ぐ最小幅
-    minHeight: 350,  // 最小高さを合わせる
+    minHeight: 360,  // 最小高さを合わせる
     frame: false,    // ネイティブタイトルバーを除去
     transparent: true,
     backgroundColor: '#00000000',
