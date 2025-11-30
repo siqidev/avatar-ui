@@ -47,7 +47,7 @@
     // アバターへの色オーバーレイ濃度（0.0-1.0）
     "avatarOverlayOpacity": 1.0,
     // アバター全体の明るさ
-    "avatarBrightness": 1.0,
+    "avatarBrightness": 1.5,
 
     // テキストと枠のグロー強度（相対値）
     "glowText": 1.0,
@@ -57,7 +57,7 @@
     "brightness": 1.2,
 
     // タイピング速度（ms/文字、0 で即時表示）
-    "typeSpeed": 30,
+    "typeSpeed": 40,
     // メインパネル透明度（0.0=透明, 1.0=不透明）
     "opacity": 0.75,
     // 効果音ボリューム（0.0-1.0）
@@ -65,7 +65,7 @@
     // 口パク切り替え間隔（ms）
     "mouthInterval": 120,
     // ビープ音設定
-    "beepFrequency": 800,
+    "beepFrequency": 600,
     "beepDuration": 0.05,
     "beepVolumeEnd": 0.01,
 

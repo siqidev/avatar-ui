@@ -47,7 +47,7 @@
     // アバターへの色オーバーレイ濃度（0.0-1.0）
     "avatarOverlayOpacity": 1.0,
     // アバター全体の明るさ
-    "avatarBrightness": 1.0,
+    "avatarBrightness": 1.5,
 
     // テキストと枠のグロー強度（相対値）
     "glowText": 1.0,

@@ -1,7 +1,7 @@
 import { config, fetchConfig } from "./config";
 import { createAgent } from "../core/agent";
 import { loggerSubscriber } from "../core/loggerSubscriber";
-import { createUiSubscriber } from "./subscriber";
+import { createUiSubscriber, renderMarkdown } from "./subscriber";
 import { TerminalEngine } from "./engine/TerminalEngine";
 import pkg from "../../package.json"; // バージョン情報の取得
 
@@ -118,7 +118,7 @@ async function initApp() {
 
   // 3. UIエンジン (Game Loop) の初期化
   // これひとつでタイプライター・アニメーション・音声すべてを制御する
-  const engine = new TerminalEngine(outputEl, avatarImg);
+  const engine = new TerminalEngine(outputEl, avatarImg, renderMarkdown);
 
   // 4. エージェント初期化（サーバ設定に従う）
   agentInstance = createAgent({
@@ -129,7 +129,7 @@ async function initApp() {
   agentInstance.subscribe(loggerSubscriber);
 
   const appendLine = (className: string, text: string) => {
-    const line = document.createElement("p");
+    const line = document.createElement("div");
     line.className = `text-line ${className}`;
     line.textContent = text;
     outputEl.appendChild(line);

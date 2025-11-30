@@ -1,8 +1,11 @@
 import { config } from "../config";
 
+export type MarkdownRenderer = (md: string) => string;
+
 export class TerminalEngine {
   private outputEl: HTMLElement;
   private avatarImg: HTMLImageElement;
+  private renderMarkdown: MarkdownRenderer;
   
   // 状態
   private queue: string[] = [];
@@ -13,6 +16,9 @@ export class TerminalEngine {
   
   // 現在書き込み中の要素
   private currentTarget: HTMLElement | null = null;
+  
+  // 表示済みテキストのバッファ（Markdown 変換用）
+  private displayedText: string = "";
 
   // ループ制御
   private rafId: number | null = null;
@@ -25,10 +31,14 @@ export class TerminalEngine {
   private audioCtx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
 
-  // 現在書き込み中の要素
-  constructor(outputEl: HTMLElement, avatarImg: HTMLImageElement) {
+  constructor(
+    outputEl: HTMLElement,
+    avatarImg: HTMLImageElement,
+    renderMarkdown: MarkdownRenderer
+  ) {
     this.outputEl = outputEl;
     this.avatarImg = avatarImg;
+    this.renderMarkdown = renderMarkdown;
     
     // アバター画像のパスを保存
     this.idleSrc = avatarImg.dataset.idle ?? avatarImg.src;
@@ -41,9 +51,11 @@ export class TerminalEngine {
    * 新しいメッセージ行を開始
    */
   public startNewMessage(className: string = "text-line", initialText: string = "") {
-    const line = document.createElement("p");
+    const line = document.createElement("div");
     line.className = className;
-    line.textContent = initialText;
+    // バッファを初期化し、初期テキストを Markdown 変換して表示
+    this.displayedText = initialText;
+    line.innerHTML = this.renderMarkdown(initialText);
     this.outputEl.appendChild(line);
     this.currentTarget = line;
     this.outputEl.scrollTop = this.outputEl.scrollHeight;
@@ -67,6 +79,7 @@ export class TerminalEngine {
    */
   public reset() {
     this.queue = [];
+    this.displayedText = "";
     this.isTyping = false;
     this.updateAvatar(false);
   }
@@ -88,7 +101,9 @@ export class TerminalEngine {
       if (timestamp - this.lastCharTime >= typeSpeed) {
         const char = this.queue.shift();
         if (char && this.currentTarget) {
-          this.currentTarget.textContent += char;
+          // バッファに追加して Markdown 変換
+          this.displayedText += char;
+          this.currentTarget.innerHTML = this.renderMarkdown(this.displayedText);
           this.outputEl.scrollTop = this.outputEl.scrollHeight;
           
           this.playBeep(); // 音を鳴らす

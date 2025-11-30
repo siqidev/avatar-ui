@@ -165,7 +165,30 @@ body {
 }
 
 .text-line { margin: 0 0 8px; }
-.text-line strong { color: var(--col-theme-main); }
+.text-line strong {
+  font-weight: 700;
+  color: var(--col-theme-main);
+  filter: brightness(1.3);
+}
+.text-line em {
+  font-style: italic;
+  opacity: 0.9;
+}
+.text-line code {
+  background: rgba(var(--theme-color-r), var(--theme-color-g), var(--theme-color-b), 0.15);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+.text-line ul, .text-line ol {
+  margin: 0;
+  padding-left: 1.5em;
+}
+.text-line li {
+  margin: 0;
+}
+.text-line p {
+  margin: 0;
+}
 
 .text-line--system { color: var(--col-theme-dim); }
 
@@ -269,4 +292,17 @@ body {
   font-size: 12px;
   color: var(--col-theme-dim);
   margin-top: -6px;
+}
+
+
+
+/* Tool output formatting */
+.tool-call { margin: 4px 0; }
+.tool-call summary { cursor: pointer; color: var(--col-tool-text); list-style: none; }
+.tool-call summary::before { content: "▶ "; }
+.tool-call[open] summary::before { content: "▼ "; }
+.tool-call-result { padding-left: 20px; color: var(--col-tool-text); opacity: 0.8; }
+.tool-call-result-body {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }

@@ -12,7 +12,9 @@
   "dependencies": {
     "@ag-ui/client": "^0.0.41",
     "@ag-ui/core": "^0.0.41",
-    "dotenv": "^17.2.3"
+    "dompurify": "^3.3.0",
+    "dotenv": "^17.2.3",
+    "marked": "^17.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
