@@ -3,7 +3,7 @@
 人と AI が共存する次世代インターフェース基盤。  
 AG-UI プロトコル準拠 / マルチ LLM 対応 / デスクトップ & 拡張可能。
 
-![screenshot](./app/src/renderer/assets/idle.png)
+![demo](./docs/assets/avatar-ui_demo_02.gif)
 
 ## 特徴
 

@@ -52,7 +52,10 @@ def build_agent() -> ADKAgent:
             name="search_agent",
             model=config.SEARCH_SUBAGENT_MODEL,
             description="Performs web searches using Google Search",
-            instruction="Search the web and return concise results.",
+            instruction=(
+                "Search the web and return concise results. "
+                "Use the same language as the latest user message. Phrase the search query in that language."
+            ),
             tools=[GoogleSearchTool(bypass_multi_tools_limit=True)],
         )
         search_tool = AgentTool(agent=search_agent)
