@@ -122,3 +122,7 @@ npm run package   # Electron パッケージ生成
 ## ライセンス
 
 [MIT License](LICENSE)
+
+© 2025 [SIQI](https://siqi.jp) (Sito Sikino)
+
+> ⚠️ 外部 API（Gemini / OpenAI / Anthropic 等）の利用は各サービスの利用規約に従ってください。API キーは本リポジトリに含まれていません。

@@ -26,7 +26,7 @@
     "themes": [
       {
         "name": "classic",
-        "themeColor": "#00f0a0",
+        "themeColor": "#00e676",
         "userColor": "#86ffe0",
         "toolColor": "#d4fff8",
       },
@@ -57,7 +57,7 @@
     "brightness": 1.2,
 
     // タイピング速度（ms/文字、0 で即時表示）
-    "typeSpeed": 40,
+    "typeSpeed": 30,
     // メインパネル透明度（0.0=透明, 1.0=不透明）
     "opacity": 0.75,
     // 効果音ボリューム（0.0-1.0）
