@@ -41,24 +41,36 @@ GOOGLE_API_KEY=ここにAPIキーを貼り付け
 
 > API キー取得先: [Gemini](https://aistudio.google.com/app/apikey) / [OpenAI](https://platform.openai.com/api-keys) / [Anthropic](https://console.anthropic.com/settings/keys)
 
-### 2. サーバー起動
+### 2. サーバー起動（初回セットアップ）
 
 ```bash
 cd server
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install .
-source ../.env              # Windows: 手動で環境変数を設定
-uvicorn main:app --port $SERVER_PORT
 ```
 
-### 3. クライアント起動（別ターミナル）
+### 3. 開発を一発起動（サーバー＋クライアント同時）
+
+```bash
+cd server
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m uvicorn main:app --host ${SERVER_HOST:-127.0.0.1} --port ${SERVER_PORT:-8000} --reload
+```
+
+別ターミナルで:
 
 ```bash
 cd app
-npm install
+npm install   # 初回のみ
 npm run dev
 ```
+
+※ venv を有効化した状態であれば、`cd app && npm run dev:all` でもサーバー＋クライアントを同時に起動できます（mac/Linux/Windows 共通）。
+
+### 4. 単体起動（従来手順）
+- サーバーだけ: `cd server && source .venv/bin/activate && uvicorn main:app --reload`
+- クライアントだけ: `cd app && npm run dev`
 
 ## 設定
 

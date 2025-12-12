@@ -9,7 +9,8 @@
     "build": "vite build",
     "package": "electron-builder",
     "clean": "rm -rf dist",
-    "dev:all": "concurrently -c \"cyan,magenta\" -n \"server,client\" \"cd ../server && source .venv/bin/activate && uvicorn main:app --host ${SERVER_HOST:-127.0.0.1} --port ${SERVER_PORT:-8000} --reload\" \"npm run dev\""
+    "dev:server": "cd ../server && python -m uvicorn main:app --reload",
+    "dev:all": "concurrently -c \"cyan,magenta\" -n \"server,client\" \"npm run dev:server\" \"npm run dev\""
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.41",
