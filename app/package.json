@@ -9,7 +9,7 @@
     "build": "vite build",
     "package": "electron-builder",
     "clean": "rm -rf dist",
-    "dev:server": "cd ../server && python -m uvicorn main:app --reload",
+    "dev:server": "cd ../server && ./.venv/bin/python -m uvicorn main:app --reload",
     "dev:all": "concurrently -c \"cyan,magenta\" -n \"server,client\" \"npm run dev:server\" \"npm run dev\""
   },
   "dependencies": {

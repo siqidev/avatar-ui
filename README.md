@@ -63,7 +63,7 @@ npm run dev:all
 1ターミナルで両方走ります。終了は Ctrl+C で OK。
 
 #### 代替: 2ターミナルで個別に起動したい場合
-- サーバーだけ: `cd server && source .venv/bin/activate && uvicorn main:app --reload`
+- サーバーだけ: `cd server && source .venv/bin/activate && ./.venv/bin/python -m uvicorn main:app --reload`
 - クライアントだけ: `cd app && npm run dev`
 
 ## 設定
