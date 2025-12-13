@@ -1,17 +1,17 @@
 # Avatar UI
 
 人と AI が共存する次世代インターフェース基盤。  
-AG-UI プロトコル準拠 / マルチ LLM 対応 / デスクトップ & 拡張可能。
+Gemini・GPT・Claude 対応。デスクトップで動くエージェント UI。
 
 ![demo](./docs/assets/avatar-ui_demo_02.gif)
 
 ## 特徴
 
-- **AG-UI 準拠** – 標準プロトコルでエージェントと UI を接続
-- **マルチ LLM** – Gemini / OpenAI / Anthropic を設定で切り替え
-- **拡張設計** – ツール追加・サブエージェント追加が容易
-- **デスクトップ動作** – Electron によるローカル実行
-- **フルカスタマイズ** – テーマ、アバター、プロンプトを自由に変更
+- **マルチLLM対応** – Google ADK 上に構築。Gemini / OpenAI / Anthropic を設定で切り替え
+- **ツール拡張対応** – 検索エージェントをプリセット。MCP連携やカスタムツールも追加可能
+- **パーソナライズUI** – キャラクター表示、リップシンク、3種のカラーテーマ。アバター変更も自由
+- **デスクトップアプリ** – ブラウザを開かずローカルで動作。macOS / Windows / Linux 対応
+- **商用利用可** – オープンソース（MIT）。個人・商用問わず自由に利用可能
 
 ## 使い方
 
@@ -19,63 +19,104 @@ AG-UI プロトコル準拠 / マルチ LLM 対応 / デスクトップ & 拡張
 2. 入力欄にメッセージを入力して Enter で送信
 3. アバターがリアルタイムで応答（タイピングアニメーション付き）
 4. Google 検索が必要な質問は自動で検索して回答
+5. 終了するときは `Ctrl+C`（Mac は `Cmd+C` でも可）
 
 ## クイックスタート
 
-**必要なもの**: Node.js 20+, Python 3.12+
+### 必要なもの
 
-### 1. 環境変数を設定
+- Node.js 20+
+- Python 3.12+
+- API キー（いずれか1つ以上）
+  - [Gemini](https://aistudio.google.com/app/apikey)
+  - [OpenAI](https://platform.openai.com/api-keys)
+  - [Anthropic](https://console.anthropic.com/settings/keys)
+
+### 1. リポジトリを取得
+
+GitHub からソースコードをダウンロードします（`git clone` コマンド）。
+
+```bash
+git clone https://github.com/siqidev/avatar-ui.git
+cd avatar-ui
+```
+
+### 2. 環境変数を設定
+
+API キーなどの秘密情報を `.env` ファイルに保存します。  
+まずテンプレートをコピー:
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` を開き、API キーを設定:
+`.env` を開き、使用する LLM の API キーを設定:
 
 ```dotenv
-# ══════════════════════════════════════════════════
-# ↓ ここを編集: あなたの API キーに置き換え
-# ══════════════════════════════════════════════════
-GOOGLE_API_KEY=ここにAPIキーを貼り付け
+GOOGLE_API_KEY=your-api-key-here
+# OpenAI / Anthropic を使う場合は対応するキーも設定
 ```
 
-> API キー取得先: [Gemini](https://aistudio.google.com/app/apikey) / [OpenAI](https://platform.openai.com/api-keys) / [Anthropic](https://console.anthropic.com/settings/keys)
+### 3. セットアップと起動
 
-### 2. セットアップと起動（コピペOK）
+#### macOS / Linux
 
-#### mac / Linux
 ```bash
-cd /Users/u/Projects/avatar-ui/server
-python3 -m venv .venv
+# サーバー準備（Python 仮想環境を作成し、依存をインストール）
+cd server
+python3 -m venv .venv   # 初回のみ
 source .venv/bin/activate
-pip install -e .
+pip install -e .        # 初回のみ
+
+# 起動（サーバー + クライアント同時）
 cd ../app
-npm install        # 初回のみ
-npm run dev:all    # サーバー + クライアント同時起動
+npm install             # 初回のみ
+npm run dev:all
 ```
 
 #### Windows (PowerShell)
+
 ```powershell
-cd C:\Users\<あなた>\Projects\avatar-ui\server
-py -3 -m venv .venv
+# サーバー準備（Python 仮想環境を作成し、依存をインストール）
+cd server
+py -3 -m venv .venv     # 初回のみ
 .\.venv\Scripts\activate
-pip install -e .
+pip install -e .        # 初回のみ
+
+# 起動（サーバー + クライアント同時）
 cd ..\app
-npm install        # 初回のみ
-npm run dev:all    # サーバー + クライアント同時起動
+npm install             # 初回のみ
+npm run dev:all
 ```
 
-起動後、クライアントは空いているポート（例: http://localhost:5173/）がログに表示されます。終了は Ctrl+C。
+起動すると Electron アプリが自動で開きます。開発中はターミナルに表示される URL（例: `http://localhost:5173`）からブラウザでも確認できます。
 
-#### 個別起動したい場合
-- サーバーだけ: `cd server && python -m uvicorn main:app --reload`
-- クライアントだけ: `cd app && npm run dev`
+### 個別起動
+
+2つのターミナルで別々に起動したい場合:
+
+```bash
+# ターミナル1: サーバー
+cd server
+source .venv/bin/activate   # Windows: .\.venv\Scripts\activate
+python -m uvicorn main:app --reload
+
+# ターミナル2: クライアント
+cd app
+npm run dev
+```
 
 ## 設定
 
-### LLM の切り替え
+設定ファイルをコピーして編集します:
 
-`settings.json5` を編集（なければ `settings.default.json5` をコピー）:
+```bash
+cp settings.default.json5 settings.json5
+```
+
+`settings.json5` で LLM やテーマなどを変更できます。
+
+### LLM の切り替え
 
 ```json5
 "server": {
@@ -84,11 +125,12 @@ npm run dev:all    # サーバー + クライアント同時起動
 }
 ```
 
-対応する API キーを `.env` に設定し、サーバーを再起動。
+対応する API キーを `.env` に設定し、サーバーを再起動してください。
 
-### Google 検索機能
+### 検索サブエージェント
 
-Gemini 使用時のみ有効。無効化する場合:
+デフォルトで Google 検索サブエージェントが有効です（Gemini モデルで動作）。  
+無効化する場合:
 
 ```json5
 "searchSubAgent": {
@@ -96,39 +138,22 @@ Gemini 使用時のみ有効。無効化する場合:
 }
 ```
 
-### カスタマイズ
+検索サブエージェントは Gemini API を使用するため、利用には `GOOGLE_API_KEY` の設定が必要です。
 
-| 項目 | 場所 |
-|------|------|
+### カスタマイズ一覧
+
+| 項目 | 設定場所 |
+|------|----------|
 | システムプロンプト | `settings.json5` → `server.systemPrompt` |
 | テーマ・色 | `settings.json5` → `ui.theme`, `ui.themes` |
-| アバター画像 | `app/src/renderer/assets/` |
+| アバター画像 | `app/src/renderer/assets/` に配置 |
 | ツール追加 | `server/main.py` → `tools` リスト |
 
-## ビルド
+## ドキュメント
 
-配布用パッケージを作成:
-
-```bash
-cd app
-npm run build     # レンダラービルド
-npm run package   # Electron パッケージ生成
-```
-
-成果物: `app/dist/`
-
-## 参考情報
-
-### 公式ドキュメント
-
-- [AG-UI Protocol](https://docs.ag-ui.com/)
-- [Google ADK](https://google.github.io/adk-docs/)
-- [ADK Built-in Tools](https://google.github.io/adk-docs/tools/built-in-tools/)
-
-### 技術的な注意
-
-- **セッション**: メモリ上で保持。サーバー再起動で会話履歴は消失
-- **Google 検索**: Gemini 2.x/3.x 系モデルのみ対応（詳細は公式ドキュメント参照）
+- [設計書](./docs/project.md) – アーキテクチャ、実装詳細、ロードマップ
+- [AG-UI Protocol](https://docs.ag-ui.com/) – プロトコル仕様（公式）
+- [Google ADK](https://google.github.io/adk-docs/) – エージェント開発キット（公式）
 
 ## ライセンス
 
@@ -136,4 +161,4 @@ npm run package   # Electron パッケージ生成
 
 © 2025 [SIQI](https://siqi.jp) (Sito Sikino)
 
-> ⚠️ 外部 API（Gemini / OpenAI / Anthropic 等）の利用は各サービスの利用規約に従ってください。API キーは本リポジトリに含まれていません。
+> 外部 API（Gemini / OpenAI / Anthropic 等）の利用は各サービスの利用規約に従ってください。
