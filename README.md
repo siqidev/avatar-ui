@@ -64,6 +64,10 @@ GOOGLE_API_KEY=your-api-key-here
 #### macOS / Linux
 
 ```bash
+# プロジェクトのルートへ移動（あなたのパスに置き換えてください）
+# 例：Documents フォルダに配置した場合
+cd /Users/<ユーザー名>/Documents/avatar-ui
+
 # サーバー準備（Python 仮想環境を作成し、依存をインストール）
 cd server
 python3 -m venv .venv   # 初回のみ
@@ -79,6 +83,10 @@ npm run dev:all
 #### Windows (PowerShell)
 
 ```powershell
+# プロジェクトのルートへ移動（あなたのパスに置き換えてください）
+# 例：Documents フォルダに配置した場合
+cd /Users/<ユーザー名>/Documents/avatar-ui
+
 # サーバー準備（Python 仮想環境を作成し、依存をインストール）
 cd server
 py -3 -m venv .venv     # 初回のみ
