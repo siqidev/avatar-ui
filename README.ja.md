@@ -1,4 +1,4 @@
-# Avatar UI
+# AVATAR UI
 
 人と AI が共存する次世代インターフェース基盤。  
 Gemini・GPT・Claude 対応。デスクトップで動くエージェント UI。
