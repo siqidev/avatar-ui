@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Robloxアダプタ（ルーター）。
+Roblox チャネル（ルーター）。
 旧WorkersのI/Fを維持しつつ、コアを直接呼び出す。
 """
 from __future__ import annotations

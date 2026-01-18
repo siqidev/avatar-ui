@@ -1,6 +1,6 @@
-# SPECTRA Roblox Adapter
+# SPECTRA Roblox Channel
 
-Roblox用のアダプタ（Python + Lua）。
+Roblox用のチャネル（Python + Lua）。
 
 ## ファイル一覧
 

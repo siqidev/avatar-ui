@@ -143,7 +143,7 @@ def health():
     return {"status": "ok"}
 
 
-# --- Robloxアダプタをルーターとして統合 ---
-from adapters.roblox import router as roblox_router
+# --- Robloxチャネルをルーターとして統合 ---
+from channels.roblox import router as roblox_router
 
 app.include_router(roblox_router)

@@ -1,8 +1,13 @@
 # requirements.txt - Python依存パッケージ
 # インストール: pip install -r requirements.txt
 
+# Core
 xai-sdk>=1.5.0      # xAI Grok API クライアント
 pyyaml>=6.0         # 設定ファイル読み込み
 python-dotenv>=1.0  # .env読み込み
 fastapi>=0.109.0    # コアAPIサーバー
 uvicorn>=0.27.0     # ASGIサーバー
+
+# Command (GUI)
+PyQt6>=6.6.0        # デスクトップGUI
+requests>=2.31.0    # HTTP クライアント

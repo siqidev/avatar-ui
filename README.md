@@ -38,26 +38,29 @@ spectra/
 ├── requirements.txt     # Python依存関係
 ├── .env                 # 環境変数（APIキー）※Git管理外
 │
-├── core/
+├── core/                # 脳（LLM + Context）
 │   ├── __init__.py
-│   └── main.py          # FastAPIサーバー（コア）
+│   └── main.py          # FastAPIサーバー
 │
-├── adapters/
-│   ├── __init__.py
-│   ├── cli.py           # CLIアダプタ
-│   └── roblox/          # Robloxアダプタ（まとまり）
+├── command/             # 指令室（将来実装）
+│   ├── gui/             # デスクトップ
+│   └── discord/         # モバイル
+│
+├── channels/            # 対話経路
+│   └── roblox/
 │       ├── __init__.py
-│       ├── router.py    # Pythonルーター（コアに統合済み）
-│       ├── GrokChat.server.lua     # Luaサーバースクリプト
-│       └── ChatClient.client.lua   # Luaクライアントスクリプト
+│       ├── router.py    # Pythonルーター
+│       ├── GrokChat.server.lua
+│       └── ChatClient.client.lua
 │
 ├── scripts/
-│   ├── install-services.sh      # サービスインストールスクリプト
-│   ├── spectra.service          # systemdサービス定義
-│   └── spectra-tunnel.service   # Tunnelサービス定義
+│   ├── install-services.sh
+│   ├── spectra.service
+│   └── spectra-tunnel.service
 │
 └── docs/
     ├── GrokスタックAIエージェント設計仕様書.md
+    ├── implementation_plan.md
     └── reference_catalog.md
 ```
 
@@ -244,14 +247,14 @@ POST https://spectra.siqi.jp/roblox
 
 ### Luaスクリプト
 
-Roblox用のスクリプトは [`adapters/roblox/`](adapters/roblox/) フォルダに格納しています。
+Roblox用のスクリプトは [`channels/roblox/`](channels/roblox/) フォルダに格納しています。
 
 | ファイル | 配置場所 | 説明 |
 |---------|---------|------|
-| [`GrokChat.server.lua`](adapters/roblox/GrokChat.server.lua) | ServerScriptService | サーバー側でSPECTRA APIを呼び出す |
-| [`ChatClient.client.lua`](adapters/roblox/ChatClient.client.lua) | StarterPlayerScripts | クライアント側でチャットを処理 |
+| [`GrokChat.server.lua`](channels/roblox/GrokChat.server.lua) | ServerScriptService | サーバー側でSPECTRA APIを呼び出す |
+| [`ChatClient.client.lua`](channels/roblox/ChatClient.client.lua) | StarterPlayerScripts | クライアント側でチャットを処理 |
 
-詳細は [`adapters/roblox/README.md`](adapters/roblox/README.md) を参照。
+詳細は [`channels/roblox/README.md`](channels/roblox/README.md) を参照。
 
 ### Roblox側の設定
 
