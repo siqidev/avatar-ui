@@ -9,6 +9,7 @@
     />
     <title>SPECTRA Command</title>
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./node_modules/xterm/css/xterm.css" />
   </head>
   <body>
     <!-- 画面全体をまとめるコンテナ -->
@@ -19,6 +20,10 @@
           <div class="surface surface--text">
             <div class="text-scroll" id="output"></div>
           </div>
+          <!-- 端末表示用の領域 -->
+          <div class="surface surface--terminal" id="terminal-surface">
+            <div class="terminal-host" id="terminal-host"></div>
+          </div>
         </div>
       </section>
 
@@ -26,6 +31,7 @@
       <footer data-slot="input" id="pane-input">
         <span class="prompt">&gt;</span>
         <input type="text" id="input" autofocus />
+        <div class="command-palette is-hidden" id="command-palette"></div>
       </footer>
 
       <!-- アバター表示 -->
@@ -46,6 +52,8 @@
       <div class="meta-bar" id="meta"></div>
     </main>
 
+    <script src="./node_modules/xterm/lib/xterm.js"></script>
+    <script src="./node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
     <script src="./main.js"></script>
   </body>
 </html>

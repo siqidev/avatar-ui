@@ -126,22 +126,57 @@ body {
 #pane-output {
   grid-column: 1 / 2;
   grid-row: 1 / 2;
-  border: 1px solid var(--col-border-main);
-  box-shadow: var(--glow-box);
-  background: var(--col-panel-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   filter: brightness(var(--ui-brightness));
 }
 
-.surface-host, .surface {
+ .surface-host, .surface {
+   display: flex;
+   flex-direction: column;
+   min-height: 0;
+   overflow: hidden;
+ }
+
+/* チャットと端末を上下に分割する。 */
+.surface-host {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  gap: 10px;
+  padding: 0;
 }
+
+.surface--text {
+  flex: 2;
+  border: 1px solid var(--col-border-main);
+  background: rgba(0, 20, 10, 0.25);
+  box-shadow: var(--glow-box);
+}
+
+/* 端末の表示領域。 */
+.surface--terminal {
+  flex: 1;
+  border: 1px solid var(--col-border-main);
+  background: rgba(0, 20, 10, 0.25);
+  box-shadow: var(--glow-box);
+}
+
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.terminal-host .xterm {
+  height: 100%;
+}
+
+.terminal-host .xterm-viewport {
+  overflow-y: auto;
+}
+
+ 
 
 /* ログ本文のスクロール領域。 */
 .text-scroll {
@@ -211,6 +246,7 @@ body {
   box-shadow: var(--glow-box);
   background: var(--col-panel-bg);
   filter: brightness(var(--ui-brightness));
+  position: relative;
 }
 
 #input {
@@ -220,6 +256,49 @@ body {
   color: inherit;
   font: inherit;
   outline: none;
+}
+
+/* コマンド候補を入力欄の直下に表示する。 */
+.command-palette {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  border: 1px solid var(--col-border-main);
+  background: rgba(0, 20, 10, 0.85);
+  box-shadow: var(--glow-box);
+  z-index: 10;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.command-palette.is-hidden {
+  display: none;
+}
+
+.command-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.command-item.is-active {
+  border-color: var(--col-border-high);
+  background: rgba(0, 20, 10, 0.4);
+}
+
+.command-label {
+  font-weight: 700;
+}
+
+.command-desc {
+  color: var(--col-theme-dim);
+  font-size: 12px;
 }
 
 /* アバター表示枠。 */

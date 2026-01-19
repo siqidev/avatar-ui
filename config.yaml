@@ -1,30 +1,16 @@
-# config.yaml - SPECTRAの設定ファイル
-# シークレット（APIキー等）は .env に記載すること
-
-# 使用するGrokモデル
 model: grok-4-1-fast-non-reasoning
-
-# ユーザー表示名
+temperature: 1.2
 user_name: USER
-
-# アバター表示名（短縮形）
 avatar_name: SPECTRA
-
-# アバターフルネーム
 avatar_fullname: Spectra Communicator
-
-# 人格の種（システムプロンプト）
-system_prompt: >
-  あなたはSpectraというAIアシスタントです。
-  技術的で直接的なスタイルで簡潔に応答してください。
-  回答は短く要点を押さえたものにしてください。
+system_prompt: 'あなたはSpectraというAIアシスタントです。 技術的で直接的なスタイルで簡潔に応答してください。 回答は短く要点を押さえたものにしてください。
   【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
 
-# Console UI設定（Command Consoleのみ）
+  '
 console_ui:
-  theme_color: "#00E676"
-  user_color: "#86FFE0"
-  tool_color: "#D4FFF8"
+  theme_color: '#00E676'
+  user_color: '#86FFE0'
+  tool_color: '#D4FFF8'
   opacity: 0.75
   brightness: 1.2
   glow_text: 1.0
@@ -32,9 +18,47 @@ console_ui:
   avatar_overlay_opacity: 1.0
   avatar_brightness: 1.5
   name_tags:
-    avatar: "SPECTRA"
-    avatar_fullname: "Spectra Communicator"
-    user: "USER"
+    avatar: SPECTRA
+    avatar_fullname: Spectra Communicator
+    user: USER
   system_messages:
-    banner1: "SYSTEM SPECTRA COMMAND ONLINE"
-    banner2: "SESSION STANDBY"
+    banner1: SYSTEM SPECTRA COMMAND ONLINE
+    banner2: SESSION STANDBY
+  command_palette:
+    commands:
+    - id: model
+      label: /model
+      description: choose model
+    - id: temperature
+      label: /temperature
+      description: set temperature
+    - id: system_prompt
+      label: /system_prompt
+      description: edit system prompt
+    options:
+      model:
+      - grok-4-1-fast-non-reasoning
+      - grok-4-1
+      temperature:
+      - 0.2
+      - 0.4
+      - 0.7
+      - 1.0
+      - 1.2
+      system_prompt:
+      - label: default
+        value: 'あなたはSpectraというAIアシスタントです。
+
+          技術的で直接的なスタイルで簡潔に応答してください。
+
+          回答は短く要点を押さえたものにしてください。
+
+          【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
+
+          '
+      - label: short
+        value: 'あなたはSpectraというAIアシスタントです。
+
+          簡潔に要点だけを答えてください。
+
+          '
