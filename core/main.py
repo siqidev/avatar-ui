@@ -5,6 +5,7 @@ SPECTRAのコアAPIサーバー（正本）。
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -59,6 +60,7 @@ if not _XAI_API_KEY:
 _SPECTRA_API_KEY = os.getenv("SPECTRA_API_KEY")
 if not _SPECTRA_API_KEY:
     raise RuntimeError("SPECTRA_API_KEY is not set")
+
 
 # リクエスト間で共有するSDKクライアント（初期化コストを節約）。
 _client = Client(api_key=_XAI_API_KEY)
@@ -146,11 +148,58 @@ def think_core(prompt: str, session_id: str) -> dict:
     if not response_id:
         raise RuntimeError("Core response_id is missing")
 
+    # 応答内容をもとに意図を分類する（LLMの判断のみを使う）。
+    intent_info = _classify_intent(prompt, text)
+    needs_approval = intent_info["intent"] == "action"
+
     return {
         "response": text,
         "session_id": session_id,
         "response_id": response_id,
+        "intent": intent_info["intent"],
+        "route": intent_info["route"],
+        "needs_approval": needs_approval,
+        "proposal": intent_info["proposal"],
     }
+
+
+def _classify_intent(prompt: str, response_text: str) -> dict:
+    # LLMに意図分類を依頼し、JSONで返させる。
+    classifier = _client.chat.create(model=CONFIG["model"], temperature=0.0)
+    classifier.append(
+        system(
+            "Return JSON only. Keys: intent (conversation|action), "
+            "route (chat|cli), proposal (object with command and summary or null). "
+            "If intent is action, proposal.command must be a concrete bash command."
+        )
+    )
+    classifier.append(
+        user(
+            "USER_PROMPT:\n"
+            f"{prompt}\n"
+            "ASSISTANT_RESPONSE:\n"
+            f"{response_text}"
+        )
+    )
+    result = classifier.sample()
+    raw = getattr(result, "content", "")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Intent classification returned invalid JSON") from exc
+    if data.get("intent") not in ("conversation", "action"):
+        raise RuntimeError("Intent classification intent is invalid")
+    if data.get("route") not in ("chat", "cli"):
+        raise RuntimeError("Intent classification route is invalid")
+    if "proposal" not in data:
+        raise RuntimeError("Intent classification proposal is missing")
+    if data["intent"] == "action":
+        proposal = data.get("proposal")
+        if not isinstance(proposal, dict):
+            raise RuntimeError("Intent classification proposal is invalid")
+        if not proposal.get("command"):
+            raise RuntimeError("Intent classification proposal.command is missing")
+    return data
 
 
 def _save_config(updated: dict) -> None:

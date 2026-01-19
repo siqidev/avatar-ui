@@ -34,6 +34,12 @@ const addLine = (className, text) => {
   line.textContent = text;
   outputEl.appendChild(line);
   outputEl.scrollTop = outputEl.scrollHeight;
+  const logger = requireLogger();
+  if (className.includes('text-line--tool')) {
+    logger.cli(text);
+  } else {
+    logger.chat(text);
+  }
 };
 
 // 応答中だけアバター画像を切り替える。
@@ -52,6 +58,8 @@ let consoleConfig = null;
 let adminConfig = null;
 let isFatal = false;
 let commandState = null;
+let pendingApproval = null;
+let terminalCapture = null;
 
 const requireSpectraApi = () => {
   if (!window.spectraApi) {
@@ -66,6 +74,14 @@ const requireTerminalApi = () => {
     failFast('spectraTerminal is not available');
   }
   return window.spectraTerminal;
+};
+
+// ログAPIが無ければ即停止する。
+const requireLogger = () => {
+  if (!window.spectraLogger) {
+    failFast('spectraLogger is not available');
+  }
+  return window.spectraLogger;
 };
 
 // 管理APIが無ければ即停止する。
@@ -207,6 +223,17 @@ const setupTerminal = () => {
   });
   terminalApi.onData((data) => {
     terminal.write(data);
+    if (terminalCapture) {
+      terminalCapture.buffer += data;
+      if (terminalCapture.buffer.length > terminalCapture.maxBytes) {
+        terminalCapture.buffer = terminalCapture.buffer.slice(0, terminalCapture.maxBytes);
+        terminalCapture.truncated = true;
+      }
+      clearTimeout(terminalCapture.timer);
+      terminalCapture.timer = setTimeout(() => {
+        terminalCapture.finish();
+      }, terminalCapture.idleMs);
+    }
   });
   terminal.onData((data) => {
     terminalApi.write(data);
@@ -218,12 +245,63 @@ const setupTerminal = () => {
   };
   window.addEventListener('resize', resizeTerminal);
   terminal.focus();
+
+  // ANSIエスケープを除去して読みやすくする。
+  const stripAnsi = (value) => value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/\u001b\][^\u0007]*\u0007/g, '');
+
+  // CLI実行の出力を一定時間だけ集めて確認する。
+  const runCommand = (command) => {
+    if (terminalCapture) {
+      failFast('CLI is busy');
+    }
+    const maxBytes = 2000;
+    const idleMs = 800;
+    return new Promise((resolve) => {
+      terminalCapture = {
+        buffer: '',
+        maxBytes,
+        idleMs,
+        truncated: false,
+        timer: null,
+        finish: () => {
+          const result = terminalCapture;
+          terminalCapture = null;
+          resolve(result);
+        },
+      };
+      terminalApi.write(`${command}\r`);
+    });
+  };
+
+  // 提案されたCLI操作を実行し、結果をチャットに返す。
+  window.runCliCommand = (command, label) => {
+    addLine('text-line--system', `> run ${label}`);
+    const logger = requireLogger();
+    logger.cli(`$ ${command}`);
+    runCommand(command)
+      .then((result) => {
+        if (!result.buffer.trim()) {
+          return;
+        }
+      })
+      .catch((error) => {
+        failFast(error instanceof Error ? error.message : String(error));
+      });
+  };
 };
 
 // 管理用の設定を読み込み、コマンドに使う。
 const loadAdminConfig = async () => {
   const api = requireAdminApi();
   return api.getAdminConfig();
+};
+
+// CLI提案を実行する。
+const runCliProposal = (command, label) => {
+  if (!window.runCliCommand) {
+    failFast('CLI runner is not available');
+  }
+  window.runCliCommand(command, label);
 };
 
 // コマンド候補の表示を制御する。
@@ -259,6 +337,46 @@ const renderPalette = (items, activeIndex) => {
 const resetCommandState = () => {
   commandState = null;
   hidePalette();
+};
+
+// 承認が必要な操作を記録する。
+const requestApproval = (commandId, value, label) => {
+  pendingApproval = { commandId, value, label };
+  addLine('text-line--system', `> approve ${label}? (y/n)`);
+  inputEl.value = '';
+  hidePalette();
+};
+
+// 承認入力を処理する。
+const handleApprovalInput = () => {
+  if (!pendingApproval) {
+    return false;
+  }
+  const answer = inputEl.value.trim().toLowerCase();
+  if (answer !== 'y' && answer !== 'n') {
+    addLine('text-line--system', '> type y or n');
+    inputEl.value = '';
+    return true;
+  }
+  const action = pendingApproval;
+  pendingApproval = null;
+  inputEl.value = '';
+  if (answer === 'n') {
+    addLine('text-line--system', `> canceled ${action.label}`);
+    return true;
+  }
+  if (action.commandId === '__cli__') {
+    runCliProposal(action.value, action.label);
+    return true;
+  }
+  applyAdminUpdate(action.commandId, action.value)
+    .then(() => {
+      inputEl.focus();
+    })
+    .catch((error) => {
+      failFast(error instanceof Error ? error.message : String(error));
+    });
+  return true;
 };
 
 // コマンドを選ぶ画面を表示する。
@@ -314,7 +432,6 @@ const applyAdminUpdate = (commandId, value) => {
   const payload = { [commandId]: value };
   return api.updateAdminConfig(payload).then((updated) => {
     adminConfig = updated;
-    addLine('text-line--system', `> updated ${commandId}`);
   });
 };
 
@@ -355,12 +472,13 @@ if (inputEl) {
       return;
     }
     if (type === 'options') {
+      const label = `${item.commandId}=${item.label}`;
       applyAdminUpdate(item.commandId, item.value)
         .then(() => {
           resetCommandState();
           inputEl.value = '';
-          inputEl.placeholder = '';
           inputEl.focus();
+          addLine('text-line--system', `> updated ${item.commandId}`);
         })
         .catch((error) => {
           failFast(error instanceof Error ? error.message : String(error));
@@ -401,8 +519,8 @@ if (inputEl) {
       .then(() => {
         resetCommandState();
         inputEl.value = '';
-        inputEl.placeholder = '';
         inputEl.focus();
+        addLine('text-line--system', `> updated ${commandState.commandId}`);
       })
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));
@@ -415,6 +533,10 @@ if (inputEl) {
       return;
     }
     event.preventDefault();
+
+    if (handleApprovalInput()) {
+      return;
+    }
 
     if (commandState?.type === 'value') {
       confirmValueInput();
@@ -460,6 +582,11 @@ if (inputEl) {
       .then((data) => {
         if (!data?.response) {
           failFast('Core response is missing.');
+        }
+        if (data.intent === 'action' && data.proposal?.command) {
+          const label = data.proposal.summary || data.proposal.command;
+          requestApproval('__cli__', data.proposal.command, label);
+          return;
         }
         addLine('text-line--assistant', `Spectra> ${data.response}`);
       })

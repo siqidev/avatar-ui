@@ -42,7 +42,7 @@
   --col-border-main: rgba(var(--theme-color-r), var(--theme-color-g), var(--theme-color-b), 0.5);
   --col-border-high: rgba(var(--theme-color-r), var(--theme-color-g), var(--theme-color-b), 0.8);
 
-  --col-panel-bg: rgba(0, 20, 10, 0.3);
+  --col-panel-bg: rgba(0, 0, 0, 0);
   --col-img-bg: rgba(var(--theme-color-r), var(--theme-color-g), var(--theme-color-b), 0.1);
 
   --glow-text:
@@ -149,7 +149,7 @@ body {
 .surface--text {
   flex: 2;
   border: 1px solid var(--col-border-main);
-  background: rgba(0, 20, 10, 0.25);
+  background: transparent;
   box-shadow: var(--glow-box);
 }
 
@@ -157,7 +157,7 @@ body {
 .surface--terminal {
   flex: 1;
   border: 1px solid var(--col-border-main);
-  background: rgba(0, 20, 10, 0.25);
+  background: transparent;
   box-shadow: var(--glow-box);
 }
 
@@ -244,7 +244,7 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--col-border-main);
   box-shadow: var(--glow-box);
-  background: var(--col-panel-bg);
+  background: transparent;
   filter: brightness(var(--ui-brightness));
   position: relative;
 }
@@ -307,7 +307,7 @@ body {
   grid-row: 1 / 2;
   border: 1px solid var(--col-border-main);
   box-shadow: var(--glow-box);
-  background: rgba(0, 40, 20, 0.25);
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;

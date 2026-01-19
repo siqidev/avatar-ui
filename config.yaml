@@ -1,5 +1,5 @@
 model: grok-4-1-fast-non-reasoning
-temperature: 1.2
+temperature: 1.0
 user_name: USER
 avatar_name: SPECTRA
 avatar_fullname: Spectra Communicator

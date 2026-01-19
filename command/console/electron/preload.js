@@ -122,3 +122,15 @@ contextBridge.exposeInMainWorld('spectraTerminal', {
     return () => ipcRenderer.removeListener('terminal:data', listener);
   },
 });
+
+// チャット/CLIのログ出力を公開する。
+contextBridge.exposeInMainWorld('spectraLogger', {
+  chat: (line) => ipcRenderer.send('log:chat', line),
+  cli: (line) => ipcRenderer.send('log:cli', line),
+});
+
+// チャット/CLIのログ出力を公開する。
+contextBridge.exposeInMainWorld('spectraLogger', {
+  chat: (line) => ipcRenderer.send('log:chat', line),
+  cli: (line) => ipcRenderer.send('log:cli', line),
+});
