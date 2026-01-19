@@ -10,8 +10,11 @@ if (!outputEl || !inputEl || !avatarImg || !metaBar || !avatarLabel) {
 }
 
 // 会話セッションIDはブラウザに保存し、次回も同じ文脈を使えるようにする。
-const idleSrc = avatarImg?.dataset.idle || avatarImg?.getAttribute('src');
-const talkSrc = avatarImg?.dataset.talk || avatarImg?.getAttribute('src');
+const idleSrc = avatarImg?.dataset?.idle;
+const talkSrc = avatarImg?.dataset?.talk;
+if (!idleSrc || !talkSrc) {
+  throw new Error('Avatar data attributes are missing');
+}
 const sessionKey = 'spectra-session-id';
 const storedSessionId = window.localStorage.getItem(sessionKey);
 const sessionId = storedSessionId || crypto.randomUUID();

@@ -1,10 +1,14 @@
 // Electronの起動に必要な標準モジュールを読み込む。
+const fs = require('fs');
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
-// .envの読み込み場所を明示し、ElectronからAPIキーを使えるようにする。
-const envPath =
-  process.env.SPECTRA_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
+// .envはプロジェクトルート直下が標準なので、環境変数があれば優先する。
+const envPath = process.env.SPECTRA_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
+// .envが存在しない場合は起動時に止める。
+if (!fs.existsSync(envPath)) {
+  throw new Error(`.env not found: ${envPath}`);
+}
 
 // 環境変数をロードしてpreloadで参照できるようにする。
 require('dotenv').config({ path: envPath });

@@ -1,10 +1,23 @@
+const fs = require('fs');
 const path = require('path');
 const { contextBridge } = require('electron');
 
-// Core APIのURLとAPIキーを環境変数から受け取る。
-const apiUrl =
-  process.env.SPECTRA_CORE_URL || 'http://127.0.0.1:8000/v1/think';
-const apiKey = process.env.SPECTRA_API_KEY || '';
+// .envは標準の場所があるので、環境変数があれば優先して読み込む。
+const envPath = process.env.SPECTRA_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
+if (!fs.existsSync(envPath)) {
+  throw new Error(`.env not found: ${envPath}`);
+}
+require('dotenv').config({ path: envPath });
+
+// Core APIのURLとAPIキーは必須。未設定なら起動時に止める。
+const apiUrl = process.env.SPECTRA_CORE_URL;
+const apiKey = process.env.SPECTRA_API_KEY;
+if (!apiUrl) {
+  throw new Error('SPECTRA_CORE_URL is not set');
+}
+if (!apiKey) {
+  throw new Error('SPECTRA_API_KEY is not set');
+}
 
 // UIからの入力をCoreに送信し、JSON応答を返す。
 const think = async ({ prompt, sessionId, channel }) => {

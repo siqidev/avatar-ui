@@ -21,7 +21,11 @@ from xai_sdk.chat import system, user
 # .envを読み込み、ローカル開発の環境変数を使えるようにする。
 load_dotenv()
 
+# config.yamlは標準の場所があるので、環境変数があれば優先する。
 CONFIG_PATH = os.getenv("SPECTRA_CONFIG", "config.yaml")
+# 設定ファイルが存在しない場合は起動時に止める。
+if not os.path.exists(CONFIG_PATH):
+    raise RuntimeError(f"config file not found: {CONFIG_PATH}")
 
 
 def _load_config() -> dict:
