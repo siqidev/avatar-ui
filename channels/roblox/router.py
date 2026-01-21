@@ -120,7 +120,7 @@ def roblox(payload: RobloxRequest, request: Request):
         session_id = f"roblox-{uuid.uuid4().hex}"
 
     try:
-        core_result = think_core(prompt, session_id)
+        core_result = think_core("roblox", prompt, session_id)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

@@ -1,6 +1,6 @@
 # SPECTRA 実装計画
 
-> 最終更新: 2026-01-18  
+> 最終更新: 2026-01-21  
 > 前提: `GrokスタックAIエージェント設計仕様書.md` Section 1 を参照
 
 ---
@@ -181,45 +181,55 @@ spectra/
 - [x] UIの文字列や色は CSS 変数で反映（JSでの分岐を最小化）
 - [x] 既存の Console UI のハードコード文字列を削減し、設定由来に寄せる
 
-### Phase 1.5: Command（指令室）最小実装（後送り）
-- [ ] Console: 統制エージェント機構（スペクトラの統制・メタ認知の中核）
-  - 問題: 実行/承認/観測の状態が一貫して保持されず、応答が不整合になる
-  - 問題: CLI実行結果がCoreに届かず、次の判断で誤った前提を置く
-  - 問題: 会話系と実行系の境界が曖昧で、承認フローが安定しない
-  - 統合方針: 中央統制がチャンネル行動とタスク優先度を一元管理する
-  - 目的定義: ユーザー指示の達成を最優先とし、安全・承認・失敗停止を必須にする
-  - 開発者特権: Commandは開発者のみが介入でき、意図・タスク・目標の変更はCommand経由に限定する
-  - 状態管理: 実行中/承認待ち/保留/完了を共通フォーマットで保持する
-  - 意思決定: 「何を実行するか」「どのチャンネルで実行するか」を中央が決める
-  - 観測連携: 実行結果は必ず中央統制に戻し、次の判断に反映する
-  - 優先順位: 緊急度、ユーザー指示の直接性、失敗コストで順位を決める
-  - 制約: 承認が必要な操作は実行前に必ず確認する
-  - 例外処理: 失敗時は原因と停止理由を明示し、再実行は明示承認を要求する
-- [ ] Console: 観測/状態/計画の可視化ペイン追加（検討）
-  - Agent Inspector: 内部思考/次の行動/状態遷移を可視化する
-  - State Dashboard: CPU/Memory/Network など実行環境と「身体バイタル」を可視化する
-  - 計画ペイン: タスクと長期目標（目的/優先度）を可視化する（名称未定）
-  - ログ導線: エラー/システムログをチャットかCLIに流すかを設計で決める
-- [ ] Console: Electron + xterm.js で基本画面
-- [ ] Console: Core API との通信（/v1/think）
-- [ ] Discord: 承認/拒否 + 対話の最小フロー（予定）
+### Phase 2: 統制エージェント機構
 
-### Phase 2: Coreの最小骨格
+> 設計: `docs/agent_design.md`
+
+#### 2.1 下準備
+- [x] config.yaml: `avatar`/`user`/`grok` セクションを追加
+- [x] core/main.py: 入力形式を `source`/`authority`/`text` に変更
+- [x] 用語変更: SPECTRA → Avatar（コード内）
+
+#### 2.2 状態管理
+- [x] `data/state.json` の読み書き
+- [x] `data/events.jsonl` の追記
+- [x] 状態要素（input/plan/thought/action/result）の管理
+
+#### 2.3 計画モデル
+- [x] purpose/goal/task 階層の実装
+- [x] 目標・タスク生成ロジック（APIエンドポイント経由）
+
+#### 2.4 コアサイクル
+- [x] サイクル（入力→計画→思考→行動→結果）の実装
+- [x] 承認フロー（approving/executing）
+
+#### 2.5 システムプロンプト
+- [x] テンプレート化（state.json内容の注入）
+
+#### 2.6 UI拡張
+- [ ] planペイン追加
+- [ ] inspectorペイン追加
+- [ ] vitalsペイン追加
+- [ ] config重複解消: `avatar`/`user` と `console_ui.name_tags` の統一
+  - 現状: Console UIは `console_ui.name_tags` を参照
+  - 目標: `avatar`/`user` を正本とし、Console UIがそれを参照
+
+### Phase 3: Coreの最小骨格
 - [ ] `core/brain.py` — LLM + Context の統合
 - [ ] `core/policy.py` — 承認判定の最小版
 - [ ] `core/tools/` — 最小セット（read-only中心）
 - [ ] Event/Response の型定義
 
-### Phase 3: Channels（対話経路）拡張
+### Phase 4: Channels（対話経路）拡張
 - [x] Roblox: 動作確認済み
 - [ ] X: 最小の投稿/返信フロー（承認必須）
 
-### Phase 4: 安全柵
+### Phase 5: 安全柵
 - [ ] Tool Runnerの危険コマンド禁止リスト
 - [ ] 変更実行時の差分表示
 - [ ] .env へのアクセス禁止
 
-### Phase 5: 結合テスト
+### Phase 6: 結合テスト
 - [ ] 承認フローの通しテスト（Console/Discord）
 - [ ] Roblox往復テスト
 - [ ] X承認投稿テスト

@@ -34,12 +34,6 @@ const addLine = (className, text) => {
   line.textContent = text;
   outputEl.appendChild(line);
   outputEl.scrollTop = outputEl.scrollHeight;
-  const logger = requireLogger();
-  if (className.includes('text-line--tool')) {
-    logger.cli(text);
-  } else {
-    logger.chat(text);
-  }
 };
 
 // 応答中だけアバター画像を切り替える。
@@ -74,14 +68,6 @@ const requireTerminalApi = () => {
     failFast('spectraTerminal is not available');
   }
   return window.spectraTerminal;
-};
-
-// ログAPIが無ければ即停止する。
-const requireLogger = () => {
-  if (!window.spectraLogger) {
-    failFast('spectraLogger is not available');
-  }
-  return window.spectraLogger;
 };
 
 // 管理APIが無ければ即停止する。
@@ -285,9 +271,7 @@ const setupTerminal = () => {
   // 提案されたCLI操作を実行し、結果をコアに渡す。
   window.runCliCommand = (command, label) => {
     addLine('text-line--system', `> run ${label}`);
-    const logger = requireLogger();
     const observationApi = requireObservationApi();
-    logger.cli(`$ ${command}`);
     runCommand(command)
       .then((result) => {
         if (!result.buffer.trim()) {
@@ -596,7 +580,7 @@ if (inputEl) {
       failFast('Core API is unavailable.');
     }
 
-    api.think({ prompt: value, sessionId, channel: 'command' })
+    api.think({ source: 'chat', text: value, sessionId })
       .then((data) => {
         if (!data?.response) {
           failFast('Core response is missing.');
@@ -606,7 +590,7 @@ if (inputEl) {
           requestApproval('__cli__', data.proposal.command, label);
           return;
         }
-        addLine('text-line--assistant', `Spectra> ${data.response}`);
+        addLine('text-line--assistant', `Avatar> ${data.response}`);
       })
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));

@@ -20,7 +20,7 @@ if (!apiKey) {
 }
 
 // UIからの入力をCoreに送信し、JSON応答を返す。
-const think = async ({ prompt, sessionId, channel }) => {
+const think = async ({ source, text, sessionId }) => {
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
@@ -28,9 +28,9 @@ const think = async ({ prompt, sessionId, channel }) => {
       ...(apiKey ? { 'x-api-key': apiKey } : {}),
     },
     body: JSON.stringify({
-      prompt,
+      source,
+      text,
       session_id: sessionId,
-      channel,
     }),
   });
 
@@ -141,16 +141,4 @@ contextBridge.exposeInMainWorld('spectraTerminal', {
     ipcRenderer.on('terminal:data', listener);
     return () => ipcRenderer.removeListener('terminal:data', listener);
   },
-});
-
-// チャット/CLIのログ出力を公開する。
-contextBridge.exposeInMainWorld('spectraLogger', {
-  chat: (line) => ipcRenderer.send('log:chat', line),
-  cli: (line) => ipcRenderer.send('log:cli', line),
-});
-
-// チャット/CLIのログ出力を公開する。
-contextBridge.exposeInMainWorld('spectraLogger', {
-  chat: (line) => ipcRenderer.send('log:chat', line),
-  cli: (line) => ipcRenderer.send('log:cli', line),
 });

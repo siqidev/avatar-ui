@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-SPECTRAのコアAPIサーバー（正本）。
-アダプタはここだけを呼び、xai-sdkはここでのみ使う。
+Avatar Core API Server.
+全てのチャネルはここを経由し、xai-sdkはここでのみ使う。
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import threading
@@ -18,6 +19,23 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from xai_sdk import Client
 from xai_sdk.chat import system, user
+
+from core.state import (
+    load_state,
+    save_state,
+    append_event,
+    update_input,
+    update_thought,
+    update_action,
+    update_result,
+    clear_action,
+    clear_result,
+    set_purpose,
+    add_goal,
+    add_task,
+    update_task_status,
+    complete_goal,
+)
 
 # .envを読み込み、ローカル開発の環境変数を使えるようにする。
 load_dotenv()
@@ -38,18 +56,31 @@ def _load_config() -> dict:
     # 設定が空や不正な型なら起動を止める。
     if not isinstance(config, dict):
         raise RuntimeError("config must be a mapping")
-    # コアに必須のキーは起動時に検証しておく。
-    for key in ("model", "system_prompt", "temperature"):
-        if key not in config:
-            raise RuntimeError(f"{key} is missing in config")
-    if not isinstance(config["temperature"], (int, float)):
-        raise RuntimeError("temperature must be a number")
-    if not 0.0 <= float(config["temperature"]) <= 2.0:
-        raise RuntimeError("temperature must be between 0.0 and 2.0")
+    # 必須セクションを検証する。
+    for section in ("avatar", "user", "grok"):
+        if section not in config:
+            raise RuntimeError(f"{section} section is missing in config")
+    if "system_prompt" not in config:
+        raise RuntimeError("system_prompt is missing in config")
+    # grokセクションの必須キーを検証する。
+    grok = config["grok"]
+    if not isinstance(grok, dict):
+        raise RuntimeError("grok must be a mapping")
+    for key in ("model", "temperature"):
+        if key not in grok:
+            raise RuntimeError(f"grok.{key} is missing in config")
+    if not isinstance(grok["temperature"], (int, float)):
+        raise RuntimeError("grok.temperature must be a number")
+    if not 0.0 <= float(grok["temperature"]) <= 2.0:
+        raise RuntimeError("grok.temperature must be between 0.0 and 2.0")
     return config
 
 
 CONFIG = _load_config()
+
+# 起動時にstate.jsonを読み込む。
+STATE = load_state()
+_state_lock = threading.Lock()
 
 # xai-sdkはAPIキー必須なので、未設定なら即エラーにする。
 _XAI_API_KEY = os.getenv("XAI_API_KEY")
@@ -66,13 +97,58 @@ if not _SPECTRA_API_KEY:
 _client = Client(api_key=_XAI_API_KEY)
 
 
+def _build_system_prompt() -> str:
+    """人格と行動原則を定義する。"""
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+    user_name = CONFIG.get("user", {}).get("name", "User")
+
+    return f"""あなたは{avatar_name}です。
+{user_name}が設定した目的を達成するために、自律的に思考・行動します。
+
+## 行動原則
+1. 目的（purpose）を常に意識し、達成に向けて行動する
+2. 目標（goal）がなければ、目的から目標を生成する
+3. タスク（task）がなければ、目標からタスクを生成する
+4. 次の1手を決定し、実行する
+5. 会話以外のアクションは承認を求める
+
+## 基本設定
+{CONFIG.get("system_prompt", "")}
+"""
+
+
+def _build_state_context() -> str:
+    """現在の状態をコンテキストとして生成する（毎回呼ばれる）。"""
+    with _state_lock:
+        state_copy = copy.deepcopy(STATE)
+
+    plan = state_copy.get("plan", {})
+    purpose = plan.get("purpose") or "（未設定）"
+    goals = plan.get("goals", [])
+
+    goals_summary = ""
+    if goals:
+        for g in goals:
+            goals_summary += f"- {g['id']}: {g['name']} ({g['status']})\n"
+            for t in g.get("tasks", []):
+                goals_summary += f"  - {t['id']}: {t['name']} ({t['status']})\n"
+    else:
+        goals_summary = "（なし）"
+
+    return f"""[現在の状態]
+目的: {purpose}
+目標とタスク:
+{goals_summary}"""
+
+
 def _new_chat():
-    # 新規チャットを作成し、人格プロンプトを注入する。
+    # 新規チャットを作成し、動的システムプロンプトを注入する。
+    grok = CONFIG["grok"]
     chat = _client.chat.create(
-        model=CONFIG["model"],
-        temperature=float(CONFIG["temperature"]),
+        model=grok["model"],
+        temperature=float(grok["temperature"]),
     )
-    chat.append(system(CONFIG["system_prompt"]))
+    chat.append(system(_build_system_prompt()))
     return chat
 
 
@@ -118,10 +194,24 @@ _sessions = _SessionStore()
 
 
 class ThinkRequest(BaseModel):
-    # 最小構成: 入力とセッションIDのみ。
-    prompt: str
+    # 新設計: source/text/session_id。authorityはsourceから自動導出。
+    source: str  # chat | cli | discord | roblox | x
+    text: str
     session_id: str
-    channel: Optional[str] = None
+
+
+# sourceからauthorityを導出するマッピング。
+_AUTHORITY_MAP = {
+    "chat": "user",
+    "cli": "user",
+    "discord": "user",
+    "roblox": "public",
+    "x": "public",
+}
+
+
+def _get_authority(source: str) -> str:
+    return _AUTHORITY_MAP.get(source, "public")
 
 
 class AdminConfigUpdate(BaseModel):
@@ -137,29 +227,55 @@ class ObservationRequest(BaseModel):
     content: str
 
 
-def think_core(prompt: str, session_id: str) -> dict:
+def think_core(source: str, text: str, session_id: str) -> dict:
     """
     コア推論関数（内部用）。
-    アダプタはこの関数を直接呼び出す。
+    全てのチャネルはこの関数を経由する。
     """
+    authority = _get_authority(source)
+
+    # 入力状態を更新し、イベントを記録する。
+    with _state_lock:
+        update_input(STATE, source, authority, text)
+        save_state(STATE)
+    append_event("input", source=source, text=text)
+
     chat = _sessions.get_chat(session_id)
-    chat.append(user(prompt))
+    # 状態コンテキストを付加してLLMに渡す
+    context = _build_state_context()
+    chat.append(user(f"{context}\n\n{text}"))
     response = chat.sample()
 
     # 応答本文とレスポンスIDは必須。欠落時は即エラーにする。
-    text = getattr(response, "content", None)
+    response_text = getattr(response, "content", None)
     response_id = getattr(response, "id", None)
-    if not text:
+    if not response_text:
         raise RuntimeError("Core response content is missing")
     if not response_id:
         raise RuntimeError("Core response_id is missing")
 
     # 応答内容をもとに意図を分類する（LLMの判断のみを使う）。
-    intent_info = _classify_intent(prompt, text)
+    intent_info = _classify_intent(text, response_text)
     needs_approval = intent_info["intent"] == "action"
 
+    # 思考状態を更新し、イベントを記録する。
+    judgment = f"入力: {text[:50]}..." if len(text) > 50 else f"入力: {text}"
+    intent = "会話応答" if intent_info["intent"] == "conversation" else f"実行: {intent_info['proposal']['summary'] if intent_info.get('proposal') else '不明'}"
+    with _state_lock:
+        update_thought(STATE, judgment, intent)
+        # 行動が必要な場合は承認待ち状態にする
+        if needs_approval:
+            summary = intent_info["proposal"]["summary"] if intent_info.get("proposal") else "不明な操作"
+            update_action(STATE, "approving", summary)
+        else:
+            clear_action(STATE)
+        save_state(STATE)
+    append_event("thought", judgment=judgment, intent=intent)
+
     return {
-        "response": text,
+        "response": response_text,
+        "source": source,
+        "authority": authority,
         "session_id": session_id,
         "response_id": response_id,
         "intent": intent_info["intent"],
@@ -171,7 +287,7 @@ def think_core(prompt: str, session_id: str) -> dict:
 
 def _classify_intent(prompt: str, response_text: str) -> dict:
     # LLMに意図分類を依頼し、JSONで返させる。
-    classifier = _client.chat.create(model=CONFIG["model"], temperature=0.0)
+    classifier = _client.chat.create(model=CONFIG["grok"]["model"], temperature=0.0)
     classifier.append(
         system(
             "Return JSON only. Keys: intent (conversation|action), "
@@ -230,7 +346,7 @@ def think(payload: ThinkRequest, request: Request):
     # コア推論エンドポイント（外部API用）。
     _check_api_key(request)
 
-    result = think_core(payload.prompt, payload.session_id)
+    result = think_core(payload.source, payload.text, payload.session_id)
     return JSONResponse(result)
 
 
@@ -253,11 +369,101 @@ def console_config(request: Request):
 def admin_config(request: Request):
     # 管理者向けに変更可能項目だけ返す。
     _check_api_key(request)
+    grok = CONFIG["grok"]
     return {
-        "model": CONFIG["model"],
-        "temperature": CONFIG["temperature"],
+        "model": grok["model"],
+        "temperature": grok["temperature"],
         "system_prompt": CONFIG["system_prompt"],
     }
+
+
+@app.get("/state")
+def get_state(request: Request):
+    # 現在の状態を返す。
+    _check_api_key(request)
+    with _state_lock:
+        return copy.deepcopy(STATE)
+
+
+class PurposeRequest(BaseModel):
+    purpose: str
+
+
+@app.post("/admin/purpose")
+def set_purpose_endpoint(payload: PurposeRequest, request: Request):
+    # 目的を設定する。
+    _check_api_key(request)
+    if not payload.purpose.strip():
+        raise HTTPException(status_code=400, detail="purpose is empty")
+    with _state_lock:
+        set_purpose(STATE, payload.purpose.strip())
+        save_state(STATE)
+    return {"purpose": STATE["plan"]["purpose"]}
+
+
+class GoalRequest(BaseModel):
+    goal_id: str
+    name: str
+
+
+@app.post("/admin/goal")
+def add_goal_endpoint(payload: GoalRequest, request: Request):
+    # 目標を追加する。
+    _check_api_key(request)
+    if not payload.goal_id.strip() or not payload.name.strip():
+        raise HTTPException(status_code=400, detail="goal_id or name is empty")
+    with _state_lock:
+        add_goal(STATE, payload.goal_id.strip(), payload.name.strip())
+        save_state(STATE)
+    return {"goals": STATE["plan"]["goals"]}
+
+
+class TaskRequest(BaseModel):
+    goal_id: str
+    task_id: str
+    name: str
+
+
+@app.post("/admin/task")
+def add_task_endpoint(payload: TaskRequest, request: Request):
+    # タスクを追加する。
+    _check_api_key(request)
+    if not payload.goal_id.strip() or not payload.task_id.strip() or not payload.name.strip():
+        raise HTTPException(status_code=400, detail="goal_id, task_id or name is empty")
+    with _state_lock:
+        add_task(STATE, payload.goal_id.strip(), payload.task_id.strip(), payload.name.strip())
+        save_state(STATE)
+    return {"goals": STATE["plan"]["goals"]}
+
+
+@app.post("/admin/approve")
+def approve_action(request: Request):
+    # 現在の行動を承認し、実行フェーズに移行する。
+    _check_api_key(request)
+    with _state_lock:
+        if not STATE.get("action"):
+            raise HTTPException(status_code=400, detail="No action to approve")
+        if STATE["action"]["phase"] != "approving":
+            raise HTTPException(status_code=400, detail="Action is not awaiting approval")
+        update_action(STATE, "executing", STATE["action"]["summary"])
+        save_state(STATE)
+    append_event("action", summary=STATE["action"]["summary"])
+    return {"action": STATE["action"]}
+
+
+@app.post("/admin/reject")
+def reject_action(request: Request):
+    # 現在の行動を拒否し、クリアする。
+    _check_api_key(request)
+    with _state_lock:
+        if not STATE.get("action"):
+            raise HTTPException(status_code=400, detail="No action to reject")
+        summary = STATE["action"]["summary"]
+        clear_action(STATE)
+        update_result(STATE, "fail", f"拒否: {summary}")
+        save_state(STATE)
+    append_event("result", status="fail", summary=f"拒否: {summary}")
+    return {"result": STATE["result"]}
 
 
 @app.post("/admin/config")
@@ -268,15 +474,15 @@ def admin_config_update(payload: AdminConfigUpdate, request: Request):
     if all(value is None for value in updates):
         raise HTTPException(status_code=400, detail="No config values provided")
 
-    updated = dict(CONFIG)
+    updated = copy.deepcopy(CONFIG)
     if payload.model is not None:
         if not payload.model.strip():
             raise HTTPException(status_code=400, detail="model is empty")
-        updated["model"] = payload.model.strip()
+        updated["grok"]["model"] = payload.model.strip()
     if payload.temperature is not None:
         if not 0.0 <= float(payload.temperature) <= 2.0:
             raise HTTPException(status_code=400, detail="temperature must be between 0.0 and 2.0")
-        updated["temperature"] = float(payload.temperature)
+        updated["grok"]["temperature"] = float(payload.temperature)
     if payload.system_prompt is not None:
         if not payload.system_prompt.strip():
             raise HTTPException(status_code=400, detail="system_prompt is empty")
@@ -286,9 +492,10 @@ def admin_config_update(payload: AdminConfigUpdate, request: Request):
     CONFIG.clear()
     CONFIG.update(updated)
     _sessions.reset()
+    grok = CONFIG["grok"]
     return {
-        "model": CONFIG["model"],
-        "temperature": CONFIG["temperature"],
+        "model": grok["model"],
+        "temperature": grok["temperature"],
         "system_prompt": CONFIG["system_prompt"],
     }
 

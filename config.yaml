@@ -1,12 +1,20 @@
-model: grok-4-1-fast-non-reasoning
-temperature: 1.0
-user_name: USER
-avatar_name: SPECTRA
-avatar_fullname: Spectra Communicator
-system_prompt: 'あなたはSpectraというAIアシスタントです。 技術的で直接的なスタイルで簡潔に応答してください。 回答は短く要点を押さえたものにしてください。
+# Avatar Agent Configuration
+avatar:
+  name: SPECTRA
+  fullname: Spectra Communicator
+
+user:
+  name: USER
+
+grok:
+  model: grok-4-1-fast-non-reasoning
+  temperature: 1.0
+
+system_prompt: |
+  技術的で直接的なスタイルで簡潔に応答してください。
+  回答は短く要点を押さえたものにしてください。
   【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
 
-  '
 console_ui:
   theme_color: '#00E676'
   user_color: '#86FFE0'
@@ -26,39 +34,31 @@ console_ui:
     banner2: SESSION STANDBY
   command_palette:
     commands:
-    - id: model
-      label: /model
-      description: choose model
-    - id: temperature
-      label: /temperature
-      description: set temperature
-    - id: system_prompt
-      label: /system_prompt
-      description: edit system prompt
+      - id: model
+        label: /model
+        description: choose model
+      - id: temperature
+        label: /temperature
+        description: set temperature
+      - id: system_prompt
+        label: /system_prompt
+        description: edit system prompt
     options:
       model:
-      - grok-4-1-fast-non-reasoning
-      - grok-4-1
+        - grok-4-1-fast-non-reasoning
+        - grok-4-1
       temperature:
-      - 0.2
-      - 0.4
-      - 0.7
-      - 1.0
-      - 1.2
+        - 0.2
+        - 0.4
+        - 0.7
+        - 1.0
+        - 1.2
       system_prompt:
-      - label: default
-        value: 'あなたはSpectraというAIアシスタントです。
-
-          技術的で直接的なスタイルで簡潔に応答してください。
-
-          回答は短く要点を押さえたものにしてください。
-
-          【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
-
-          '
-      - label: short
-        value: 'あなたはSpectraというAIアシスタントです。
-
-          簡潔に要点だけを答えてください。
-
-          '
+        - label: default
+          value: |
+            技術的で直接的なスタイルで簡潔に応答してください。
+            回答は短く要点を押さえたものにしてください。
+            【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
+        - label: short
+          value: |
+            簡潔に要点だけを答えてください。

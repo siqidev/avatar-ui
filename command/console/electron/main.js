@@ -14,11 +14,6 @@ if (!fs.existsSync(envPath)) {
 // 環境変数をロードしてpreloadで参照できるようにする。
 require('dotenv').config({ path: envPath });
 
-// ログの保存先を用意する。
-const logDir = path.join(__dirname, '..', '..', '..', 'logs');
-const chatLogPath = path.join(logDir, 'chat.log');
-const cliLogPath = path.join(logDir, 'cli.log');
-
 // メインウィンドウを作成し、UI（index.html）を読み込む。
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -123,20 +118,6 @@ ipcMain.on('terminal:resize', (event, payload) => {
     throw new Error('terminal is not initialized');
   }
   terminal.resize(payload.cols, payload.rows);
-});
-
-// チャット/CLIのログをファイルに書き込む。
-ipcMain.on('log:chat', (_, line) => {
-  if (!line) {
-    throw new Error('chat log line is missing');
-  }
-  fs.appendFileSync(chatLogPath, `${line}\n`, 'utf8');
-});
-ipcMain.on('log:cli', (_, line) => {
-  if (!line) {
-    throw new Error('cli log line is missing');
-  }
-  fs.appendFileSync(cliLogPath, `${line}\n`, 'utf8');
 });
 
 // ウィンドウが閉じたら端末プロセスも破棄する。
