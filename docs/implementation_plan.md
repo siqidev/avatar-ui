@@ -224,25 +224,30 @@ spectra/
 > 設計: `docs/agent_design.md` > 実行アーキテクチャ
 
 ##### 2.7.1 現行実装の修正
-- [ ] プロンプトカスタマイズ（PS1環境変数でディレクトリ名表示）
-- [ ] cwd設定（spectra-workspace/をデフォルトに）
-- [ ] シェル選択のOS標準化（macOS=zsh, Windows=PowerShell, Linux=bash）
+- [x] シェル選択のOS標準化（環境変数優先、未設定ならOS標準）
+- [x] シェル制限の拡張（bash/zsh/PowerShell許可）
+- [x] cwd設定（環境変数優先、未設定ならspectra-workspace/）
+- [x] ワークスペース自動作成（未作成なら作成）
 
 ##### 2.7.2 Exec Contract
-- [ ] ExecRequest型定義（backend, action, params, cwd, capability_ref）
-- [ ] ExecStream型定義（type, data, timestamp）
-- [ ] ExecResult型定義（status, exit_code, summary, artifacts）
-- [ ] 型定義をドキュメントに追加
+- [x] ExecRequest型定義（backend, action, params, cwd, capability_ref）
+- [x] ExecStream型定義（type, data, timestamp）
+- [x] ExecResult型定義（status, exit_code, summary, artifacts）
+- [x] 型定義をドキュメントに追加
 
 ##### 2.7.3 Backend Router
-- [ ] Terminal BackendとしてPTYをラップ
-- [ ] Backend Router最小実装（Terminal/Dialogue分岐）
-- [ ] ExecRequest→Backend→ExecResultのフロー実装
+- [x] Terminal BackendとしてPTYをラップ（Console側維持、Core側は通知のみ）
+- [x] Backend Router最小実装（Terminal/Dialogue分岐）
+- [x] ExecRequest→Backend→ExecResultのフロー実装
+- [x] `/v1/exec`エンドポイント追加
+- [x] Dialogue Backend実装（think_core連携）
 
 ##### 2.7.4 ワークスペース制約
-- [ ] Runtime層でcwd検証（workspace内のみ許可）
-- [ ] アバター操作: workspace外アクセスを拒否
-- [ ] ユーザー操作: workspace外アクセスは警告のみ
+- [x] Runtime層でcwd検証（workspace内のみ許可）
+- [x] アバター操作: workspace外アクセスを拒否
+- [x] ユーザー操作: workspace外アクセスは警告のみ
+- [x] プロンプトカスタマイズ（PS1でディレクトリ名表示）
+- [x] PowerShellバナー消去（-NoLogo, -NoProfile）
 
 ##### 2.7.5 Roblox Backend（将来）
 - [ ] Roblox Backend最小実装

@@ -35,30 +35,72 @@ const createWindow = () => {
 // 端末プロセスは1つだけ保持する。
 const terminals = new Map();
 
+// OS標準のシェルを返す。
+const getDefaultShell = () => {
+  if (process.platform === 'win32') return 'powershell.exe';
+  if (process.platform === 'darwin') return '/bin/zsh';
+  return '/bin/bash';
+};
+
+// デフォルトのワークスペースパスを返す。
+const getDefaultWorkspace = () => {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  return path.join(home, 'Projects', 'spectra-workspace');
+};
+
+// シェルが許可されているか確認する。
+const isAllowedShell = (shell) => {
+  const lower = shell.toLowerCase();
+  return lower.includes('bash') || lower.includes('zsh') || lower.includes('powershell');
+};
+
+// シェル起動時の引数を返す（バナー消去等）。
+const getShellArgs = (shell) => {
+  const lower = shell.toLowerCase();
+  if (lower.includes('powershell')) {
+    return ['-NoLogo', '-NoProfile'];  // バナー消去 + プロファイル無効化
+  }
+  return [];
+};
+
+// プロンプトカスタマイズ用の環境変数を返す。
+const getShellEnv = (shell) => {
+  const lower = shell.toLowerCase();
+  const env = { ...process.env };
+  
+  if (lower.includes('bash') || lower.includes('zsh')) {
+    // ディレクトリ名を表示するプロンプト
+    env.PS1 = '\\W$ ';
+  }
+  // PowerShellはプロンプト関数が必要だが、-NoProfileでは効かないため別対応が必要
+  // 現状はデフォルトプロンプトを使用
+  
+  return env;
+};
+
 // 端末プロセスを作成し、レンダラに入出力を流す。
 const createTerminal = (webContents, cols, rows) => {
   if (terminals.has(webContents.id)) {
     return;
   }
-  // OS非依存にするため、シェルは環境変数で明示する。
-  const shell = process.env.SPECTRA_SHELL;
-  if (!shell) {
-    throw new Error('SPECTRA_SHELL is not set');
+  // シェル選択: 環境変数優先、未設定ならOS標準。
+  const shell = process.env.SPECTRA_SHELL || getDefaultShell();
+  // bash/zsh/PowerShellを許可する。
+  if (!isAllowedShell(shell)) {
+    throw new Error('SPECTRA_SHELL must be bash, zsh, or powershell');
   }
-  // bash または zsh を許可する。
-  if (!shell.toLowerCase().includes('bash') && !shell.toLowerCase().includes('zsh')) {
-    throw new Error('SPECTRA_SHELL must be bash or zsh');
+  // cwd選択: 環境変数優先、未設定ならspectra-workspace。
+  const shellCwd = process.env.SPECTRA_SHELL_CWD || getDefaultWorkspace();
+  // ワークスペースが存在しない場合は作成する。
+  if (!fs.existsSync(shellCwd)) {
+    fs.mkdirSync(shellCwd, { recursive: true });
   }
-  const shellCwd = process.env.SPECTRA_SHELL_CWD;
-  if (!shellCwd) {
-    throw new Error('SPECTRA_SHELL_CWD is not set');
-  }
-  const terminal = pty.spawn(shell, [], {
+  const terminal = pty.spawn(shell, getShellArgs(shell), {
     name: 'xterm-256color',
     cols,
     rows,
     cwd: shellCwd,
-    env: process.env,
+    env: getShellEnv(shell),
   });
   const dataSubscription = terminal.onData((data) => {
     webContents.send('terminal:data', data);

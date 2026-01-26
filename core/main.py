@@ -37,6 +37,14 @@ from core.state import (
     update_task_status,
     complete_goal,
 )
+from core.exec import (
+    Authority,
+    Backend,
+    ExecRequest,
+    ExecResult,
+    ExecStatus,
+    BackendRouter,
+)
 
 # .envを読み込み、ローカル開発の環境変数を使えるようにする。
 load_dotenv()
@@ -875,6 +883,87 @@ def admin_observation(payload: ObservationRequest, request: Request):
     chat = _sessions.get_chat(payload.session_id)
     chat.append(system(f"TERMINAL_RESULT:\n{payload.content}"))
     return {"status": "ok"}
+
+
+# --- Exec Contract: Backend Router ---
+
+def _dialogue_backend_handler(request: ExecRequest) -> ExecResult:
+    """Dialogue Backend: think_coreを使って対話を処理する。"""
+    import time
+    start_time = time.time()
+
+    content = request.params.get("content", "")
+    if not content:
+        return ExecResult(
+            request_id=request.id,
+            status=ExecStatus.FAIL,
+            summary="No content provided",
+            error="params.content is required for dialogue",
+        )
+
+    try:
+        # think_coreを呼び出して対話を処理する。
+        result = think_core(
+            source="dialogue",
+            text=content,
+            session_id=request.params.get("session_id", "default"),
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        return ExecResult(
+            request_id=request.id,
+            status=ExecStatus.DONE,
+            summary=result.get("response", "")[:100],  # 最初の100文字
+            duration_ms=duration_ms,
+        )
+    except Exception as e:
+        return ExecResult(
+            request_id=request.id,
+            status=ExecStatus.FAIL,
+            summary="Dialogue execution failed",
+            error=str(e),
+        )
+
+
+# Backend Routerインスタンス
+_backend_router = BackendRouter(dialogue_handler=_dialogue_backend_handler)
+
+
+class ExecRequestPayload(BaseModel):
+    backend: str
+    action: str
+    params: dict = {}
+    cwd: str = None
+    timeout: int = None
+    capability_ref: str = None
+    authority: str = "avatar"  # user or avatar
+
+
+@app.post("/v1/exec")
+def exec_request(payload: ExecRequestPayload, request: Request):
+    """ExecRequestを受けてBackend Routerにルーティングする。"""
+    _check_api_key(request)
+
+    try:
+        authority = Authority(payload.authority)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid authority: {payload.authority}")
+
+    try:
+        exec_req = ExecRequest(
+            backend=Backend(payload.backend),
+            action=payload.action,
+            params=payload.params,
+            cwd=payload.cwd,
+            timeout=payload.timeout,
+            capability_ref=payload.capability_ref,
+            authority=authority,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid backend: {payload.backend}")
+
+    result = _backend_router.route(exec_req)
+    return result.to_dict()
 
 
 # --- Robloxチャネルをルーターとして統合 ---

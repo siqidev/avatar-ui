@@ -699,11 +699,53 @@ Avatar = Core + Body
 
 #### Exec Contract
 
-| 契約 | 内容 |
-|------|------|
-| **ExecRequest** | backend, action, params, cwd, capability_ref |
-| **ExecStream** | type(stdout/stderr/status), data, timestamp |
-| **ExecResult** | status(done/fail), exit_code, summary, artifacts |
+##### ExecRequest（実行要求）
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `id` | string | ✓ | 要求ID（UUID） |
+| `backend` | string | ✓ | 実行先（terminal / roblox / dialogue / x） |
+| `action` | string | ✓ | 何をするか（execute, build, say, post等） |
+| `params` | object | ✓ | アクション固有のパラメータ |
+| `cwd` | string | - | Terminal用: 作業ディレクトリ |
+| `timeout` | number | - | タイムアウト（ms） |
+| `capability_ref` | string | - | 必要な権限参照 |
+
+**params の例:**
+- Terminal: `{ command: "ls -la" }`
+- Dialogue: `{ content: "こんにちは" }`
+- Roblox: `{ object: "bookshelf", location: "room_01" }`
+- X: `{ content: "投稿内容", reply_to?: "tweet_id" }`
+
+##### ExecStream（実行中ストリーム）
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `request_id` | string | ✓ | 対応するExecRequestのID |
+| `type` | string | ✓ | stdout / stderr / status / progress |
+| `data` | string | ✓ | 出力データ |
+| `timestamp` | string | ✓ | ISO8601形式 |
+
+##### ExecResult（結果）
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `request_id` | string | ✓ | 対応するExecRequestのID |
+| `status` | string | ✓ | done / fail / timeout / cancelled |
+| `exit_code` | number | - | Terminal用: 終了コード |
+| `summary` | string | ✓ | 人間可読な結果概要 |
+| `artifacts` | string[] | - | 成果物参照（ファイルパス等） |
+| `duration_ms` | number | - | 実行時間（ミリ秒） |
+| `error` | string | - | 失敗理由 |
+
+##### Backend別アクション
+
+| Backend | action例 | 説明 |
+|---------|----------|------|
+| **terminal** | execute | シェルコマンド実行 |
+| **dialogue** | say | 対話応答 |
+| **roblox** | build, move, interact | ゲーム内行動 |
+| **x** | post, reply, like | SNS操作 |
 
 #### Terminal Backend
 
