@@ -85,55 +85,15 @@
         </div>
         <div id="avatar-label" class="avatar-label">SPECTRA</div>
         </div>
-        <!-- インスペクターペイン -->
+        <!-- インスペクターペイン（タイムライン形式） -->
         <div class="surface surface--inspector" id="inspector-surface">
           <div class="inspector-header">
             <span class="inspector-header-line"></span>
             <span class="inspector-title">INSPECTOR</span>
             <span class="inspector-header-line"></span>
           </div>
-          <div class="inspector-content" id="inspector-content">
-            <div class="inspector-flow">
-              <div class="inspector-item" data-step="judgment">
-                <div class="inspector-dot-wrap">
-                  <span class="inspector-dot"></span>
-                  <span class="inspector-line"></span>
-                </div>
-                <div class="inspector-text">
-                  <span class="inspector-label">JUDGMENT</span>
-                  <span class="inspector-value" id="inspector-judgment">-</span>
-                </div>
-              </div>
-              <div class="inspector-item" data-step="intent">
-                <div class="inspector-dot-wrap">
-                  <span class="inspector-dot"></span>
-                  <span class="inspector-line"></span>
-                </div>
-                <div class="inspector-text">
-                  <span class="inspector-label">INTENT</span>
-                  <span class="inspector-value" id="inspector-intent">-</span>
-                </div>
-              </div>
-              <div class="inspector-item" data-step="action">
-                <div class="inspector-dot-wrap">
-                  <span class="inspector-dot"></span>
-                  <span class="inspector-line"></span>
-                </div>
-                <div class="inspector-text">
-                  <span class="inspector-label">ACTION</span>
-                  <span class="inspector-value" id="inspector-action">-</span>
-                </div>
-              </div>
-              <div class="inspector-item" data-step="result">
-                <div class="inspector-dot-wrap">
-                  <span class="inspector-dot"></span>
-                </div>
-                <div class="inspector-text">
-                  <span class="inspector-label">RESULT</span>
-                  <span class="inspector-value" id="inspector-result">-</span>
-                </div>
-              </div>
-            </div>
+          <div class="inspector-timeline" id="inspector-timeline">
+            <!-- タイムラインエントリはJSで動的に追加 -->
           </div>
         </div>
         <!-- バイタルペイン -->

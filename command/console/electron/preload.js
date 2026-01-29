@@ -195,6 +195,42 @@ const completeAction = async (payload = {}) => {
   return data;
 };
 
+// Core の状態をリセットする。
+const resetState = async () => {
+  const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
+  const response = await fetch(`${baseUrl}/admin/reset`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.detail ?? response.statusText;
+    throw new Error(message);
+  }
+  return data;
+};
+
+// Core のループを続行する。
+const continueLoop = async () => {
+  const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
+  const response = await fetch(`${baseUrl}/admin/continue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.detail ?? response.statusText;
+    throw new Error(message);
+  }
+  return data;
+};
+
 // レンダラに必要最小限のAPIだけ公開する。
 contextBridge.exposeInMainWorld('spectraApi', {
   think,
@@ -207,6 +243,8 @@ contextBridge.exposeInMainWorld('spectraApi', {
   sendObservation,
   approveAction,
   completeAction,
+  resetState,
+  continueLoop,
 });
 
 // 端末操作をレンダラに公開する。

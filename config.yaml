@@ -22,6 +22,20 @@ system_prompt: |
   - アクション提案時は実行可能なコマンドを1行で提示してください。
   - 複雑な操作は単純なコマンドに分割してください。
 
+autonomous_loop:
+  # 結果をdialogueに出力（常にtrue推奨）
+  notify_result: true
+  # 結果後のインターバル秒
+  result_interval: 3.0
+
+goal_framework:
+  # 目的の完了判定: auto / manual
+  purpose_completion: manual
+  # 目標の完了判定: auto / manual
+  goal_completion: auto
+  # タスクの完了判定: auto / manual
+  task_completion: auto
+
 console_ui:
   theme_color: '#00E676'
   user_color: '#86FFE0'
@@ -47,6 +61,9 @@ console_ui:
       - id: system_prompt
         label: /system_prompt
         description: edit system prompt
+      - id: reset
+        label: /reset
+        description: reset all state (purpose, goals, tasks)
     options:
       model:
         - grok-4-1-fast-non-reasoning

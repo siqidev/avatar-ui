@@ -207,11 +207,28 @@ _CORE_SESSION_ID = "core-autonomous"
 # ループ制御用の状態。
 _loop_running = False
 _loop_thread: Optional[threading.Thread] = None
-_loop_stop_event = threading.Event()
+_loop_stop_event = threading.Event()  # ループ停止用
+_loop_wake_event = threading.Event()  # ループを起こす用
 
-# ループ間隔（秒）。承認待ちや待機中は長めにする。
-_LOOP_INTERVAL_ACTIVE = 3.0
-_LOOP_INTERVAL_IDLE = 10.0
+# ループ間隔（秒）。
+_LOOP_INTERVAL_DEFAULT = 3.0
+
+def _get_loop_config():
+    """自律ループ設定を取得する。"""
+    loop_cfg = CONFIG.get("autonomous_loop", {})
+    return {
+        "notify_result": loop_cfg.get("notify_result", True),
+        "on_conversation_complete": loop_cfg.get("on_conversation_complete", "idle"),
+        "result_interval": loop_cfg.get("result_interval", _LOOP_INTERVAL_DEFAULT),
+    }
+
+def _loop_interval_result():
+    """結果後のインターバルを返す。"""
+    return _get_loop_config()["result_interval"]
+
+def _loop_interval_idle():
+    """idle時は無期限待機（Noneを返してwait()をブロックさせる）。"""
+    return None
 
 
 def _run_autonomous_loop() -> None:
@@ -228,10 +245,12 @@ def _run_autonomous_loop() -> None:
         except Exception as exc:
             # ループ内のエラーはログに記録して継続（fail-fastはリクエスト単位）。
             print(f"[LOOP ERROR] {exc}")
-            interval = _LOOP_INTERVAL_IDLE
+            interval = _loop_interval_result()
 
         # 次のサイクルまで待機（中断可能）。
-        _loop_stop_event.wait(timeout=interval)
+        # interval=None の場合は無期限待機（idleモード）。
+        _loop_wake_event.wait(timeout=interval)
+        _loop_wake_event.clear()  # 次の待機に備えてクリア
 
     _loop_running = False
 
@@ -249,43 +268,72 @@ def _cycle_step() -> float:
 
     # 承認待ち中はサイクルを一時停止。
     if action and action.get("phase") == "approving":
-        return _LOOP_INTERVAL_IDLE
+        return _loop_interval_idle()
 
     # 実行中はサイクルを一時停止（UIからの完了通知を待つ）。
     if action and action.get("phase") == "executing":
-        return _LOOP_INTERVAL_IDLE
+        return _loop_interval_idle()
+
+    # 続行確認待ち中はサイクルを一時停止。
+    if action and action.get("phase") == "awaiting_continue":
+        return _loop_interval_idle()
+
+    # 目的達成確認待ち中はサイクルを一時停止。
+    if action and action.get("phase") == "awaiting_purpose_confirm":
+        return _loop_interval_idle()
 
     # purposeがなければ問いかけを生成。
     if not purpose:
         _ask_for_purpose()
-        return _LOOP_INTERVAL_IDLE
+        return _loop_interval_idle()
 
-    # 目標がなければ目標を生成。
+    # 目標がなければ1つ生成。
     goals = mission.get("goals", [])
     if not goals:
-        _generate_goals(purpose)
-        return _LOOP_INTERVAL_ACTIVE
+        if _generate_next_goal(purpose, goals):
+            return _loop_interval_result()
+        return _loop_interval_idle()
 
     # activeな目標を取得。
     active_goals = [g for g in goals if g.get("status") == "active"]
     if not active_goals:
-        # 全目標完了。新しい目標を生成するか待機。
-        return _LOOP_INTERVAL_IDLE
+        # 全目標完了 → 目的達成判定へ。
+        return _check_purpose_completion(purpose, goals)
 
     # 最初のactive目標のタスクを確認。
     current_goal = active_goals[0]
     tasks = current_goal.get("tasks", [])
+    
+    # activeなタスクがあれば、それを実行（再開）
+    active_tasks = [t for t in tasks if t.get("status") == "active"]
+    if active_tasks:
+        # activeなタスクがあるのにactionがない → 実行を再開
+        return _execute_task(current_goal, active_tasks[0])
+    
     pending_tasks = [t for t in tasks if t.get("status") == "pending"]
 
+    # 前回の結果を取得（タスク生成に反映）
+    last_result = state_copy.get("result", {})
+    last_result_summary = last_result.get("summary") if last_result else None
+
     if not pending_tasks:
-        # タスクがなければタスクを生成。
-        _generate_tasks(current_goal)
-        return _LOOP_INTERVAL_ACTIVE
+        # pendingタスクがない → 次のタスクを生成するか、目標完了。
+        if _generate_next_task(current_goal, tasks, last_result_summary):
+            return _loop_interval_result()
+        else:
+            # タスク生成がFalse → 目標完了と判断。
+            with _state_lock:
+                for g in STATE["mission"]["goals"]:
+                    if g["id"] == current_goal["id"]:
+                        g["status"] = "done"
+                        break
+                save_state(STATE)
+            append_event("thought", judgment=f"目標完了: {current_goal['name']}", intent="次の目標へ")
+            return _loop_interval_result()
 
     # 次のタスクを実行（承認が必要なら承認待ちに移行）。
     next_task = pending_tasks[0]
-    _execute_task(current_goal, next_task)
-    return _LOOP_INTERVAL_ACTIVE
+    return _execute_task(current_goal, next_task)
 
 
 def _ask_for_purpose() -> None:
@@ -307,13 +355,158 @@ def _ask_for_purpose() -> None:
     append_event("output", pane="dialogue", text=message)
 
 
-def _generate_goals(purpose: str) -> None:
-    """purposeから目標を生成する（LLMに依頼）。"""
+def _handle_purpose_confirm_response(text: str, session_id: str) -> dict:
+    """目的達成確認への応答を処理する。"""
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+    text_lower = text.strip().lower()
+    purpose = STATE["mission"]["purpose"]
+
+    if text_lower in ("y", "yes", "はい"):
+        # 達成とみなす → 次の目的を待つ
+        with _state_lock:
+            STATE["mission"]["purpose"] = ""
+            STATE["mission"]["goals"] = []
+            clear_action(STATE)
+            update_thought(STATE, "目的達成", f"ユーザー確認: {purpose}")
+            save_state(STATE)
+        append_event("output", pane="dialogue", text=f"{avatar_name}> 目的「{purpose}」を達成しました。")
+        append_event("output", pane="dialogue", text=f"{avatar_name}> 次の目的を設定しますか？")
+        _loop_wake_event.set()
+        return {
+            "response": f"目的「{purpose}」を達成しました。次の目的を設定しますか？",
+            "source": "dialogue",
+            "authority": "user",
+            "session_id": session_id,
+            "response_id": "purpose_confirm",
+            "intent": "conversation",
+            "route": "dialogue",
+            "needs_approval": False,
+            "proposal": None,
+        }
+    elif text_lower in ("n", "no", "いいえ"):
+        # 未達成 → 続行（新しい目標を生成）
+        existing_goals = STATE["mission"]["goals"]
+        with _state_lock:
+            clear_action(STATE)
+            update_thought(STATE, "目的続行", "新しい目標を生成")
+            save_state(STATE)
+        append_event("output", pane="dialogue", text=f"{avatar_name}> 目的「{purpose}」の達成に向けて続行します。")
+        
+        # 新しい目標を生成
+        _generate_next_goal(purpose, existing_goals)
+        _loop_wake_event.set()
+        
+        return {
+            "response": f"目的「{purpose}」の達成に向けて続行します。",
+            "source": "dialogue",
+            "authority": "user",
+            "session_id": session_id,
+            "response_id": "purpose_continue",
+            "intent": "conversation",
+            "route": "dialogue",
+            "needs_approval": False,
+            "proposal": None,
+        }
+    else:
+        # 新しい目的として設定
+        with _state_lock:
+            STATE["mission"]["purpose"] = text.strip()
+            STATE["mission"]["goals"] = []
+            clear_action(STATE)
+            update_thought(STATE, "新目的設定", f"目的: {text.strip()}")
+            save_state(STATE)
+        append_event("output", pane="dialogue", text=f"{avatar_name}> 新しい目的「{text.strip()}」を設定しました。")
+        _loop_wake_event.set()
+        return {
+            "response": f"新しい目的「{text.strip()}」を設定しました。",
+            "source": "dialogue",
+            "authority": "user",
+            "session_id": session_id,
+            "response_id": "purpose_new",
+            "intent": "conversation",
+            "route": "dialogue",
+            "needs_approval": False,
+            "proposal": None,
+        }
+
+
+def _check_purpose_completion(purpose: str, completed_goals: list) -> float:
+    """目的達成を判定する。達成型: 全目標完了で目的達成とみなす。"""
+    framework_cfg = CONFIG.get("goal_framework", {})
+    purpose_mode = framework_cfg.get("purpose_completion", "manual")
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+
+    if purpose_mode == "auto":
+        # 自動判定: LLMに問い合わせ
+        chat = _client.chat.create(model=CONFIG["grok"]["model"], temperature=0.3)
+        chat.append(
+            system(
+                "あなたは目的達成判定AIです。与えられた目的と完了した目標を見て、目的が達成されたか判断してください。\n"
+                "JSON形式で返してください: {\"achieved\": true/false, \"reason\": \"理由\"}"
+            )
+        )
+        goal_names = [g["name"] for g in completed_goals]
+        chat.append(user(f"目的: {purpose}\n完了した目標: {', '.join(goal_names)}"))
+        result = chat.sample()
+        raw = getattr(result, "content", "")
+
+        try:
+            data = json.loads(raw)
+            achieved = data.get("achieved", False)
+            reason = data.get("reason", "")
+        except json.JSONDecodeError:
+            achieved = True  # パース失敗時は達成とみなす
+            reason = "判定不能のため達成とみなす"
+
+        if achieved:
+            # 目的達成 → 次の目的を待つ
+            with _state_lock:
+                STATE["mission"]["purpose"] = ""
+                STATE["mission"]["goals"] = []
+                update_thought(STATE, "目的達成", reason)
+                save_state(STATE)
+            append_event("output", pane="dialogue", text=f"{avatar_name}> 目的「{purpose}」を達成しました。{reason}")
+            append_event("output", pane="dialogue", text=f"{avatar_name}> 次の目的を設定しますか？")
+            return _loop_interval_idle()
+        else:
+            # 未達成 → 新しい目標を生成
+            if _generate_next_goal(purpose, completed_goals):
+                return _loop_interval_result()
+            return _loop_interval_idle()
+    else:
+        # manual: ユーザーに確認
+        with _state_lock:
+            update_action(STATE, "awaiting_purpose_confirm", f"目的達成確認: {purpose}")
+            update_thought(STATE, "全目標完了", "目的達成を確認中")
+            save_state(STATE)
+        append_event("output", pane="dialogue", text=f"{avatar_name}> 全ての目標が完了しました。目的「{purpose}」は達成されましたか？")
+        append_event("output", pane="dialogue", text=f"{avatar_name}> [y] 達成 / [n] 続行 / 新しい目的を入力")
+        return _loop_interval_idle()
+
+
+def _generate_next_goal(purpose: str, existing_goals: list) -> bool:
+    """purposeから次の1つの目標を生成する。生成成功時Trueを返す。"""
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+    
+    # 思考開始を出力
+    append_event("output", pane="dialogue", text=f"{avatar_name}> 目的について考えています...")
+    
+    # 既存目標のコンテキストを構築
+    existing_names = [g["name"] for g in existing_goals]
+    existing_context = ""
+    if existing_names:
+        existing_context = f"\n既に設定した目標: {', '.join(existing_names)}\nこれらとは別の新しい目標を1つ提案してください。"
+    
     chat = _client.chat.create(model=CONFIG["grok"]["model"], temperature=0.3)
     chat.append(
         system(
-            "あなたは目標生成AIです。与えられた目的に対して、達成可能な目標を1〜3個生成してください。\n"
-            "JSON形式で返してください: {\"goals\": [{\"id\": \"G1\", \"name\": \"目標名\"}]}"
+            "あなたは目標生成AIです。与えられた目的に対して、次に取り組むべき目標を**1つだけ**生成してください。\n"
+            "【制約】\n"
+            "- シンプルで実行可能な目標にすること\n"
+            "- セキュリティスキャン、ネットワーク攻撃、システム侵入は禁止\n"
+            "- ファイル操作は作業ディレクトリ内のみ\n"
+            f"{existing_context}\n"
+            "JSON形式で返してください: {\"goal\": {\"name\": \"目標名\"}}"
         )
     )
     chat.append(user(f"目的: {purpose}"))
@@ -322,48 +515,101 @@ def _generate_goals(purpose: str) -> None:
 
     try:
         data = json.loads(raw)
-        goals = data.get("goals", [])
+        goal_data = data.get("goal", {})
+        goal_name = goal_data.get("name")
+        if not goal_name:
+            return False
     except json.JSONDecodeError:
-        # パース失敗時は再試行。
-        return
+        return False
 
+    # 新しい目標IDを生成
+    goal_id = f"G{len(existing_goals) + 1}"
+    
     with _state_lock:
-        for g in goals:
-            add_goal(STATE, g["id"], g["name"])
+        add_goal(STATE, goal_id, goal_name)
         save_state(STATE)
 
-    append_event("thought", judgment=f"目標生成: {len(goals)}個", intent="タスク生成へ")
+    # 思考結果を出力
+    append_event("output", pane="dialogue", text=f"{avatar_name}> {goal_name}を目指します。")
+    append_event("thought", judgment=f"目標設定: {goal_name}", intent="タスク生成へ")
+    return True
 
 
-def _generate_tasks(goal: dict) -> None:
-    """目標からタスクを生成する（LLMに依頼）。"""
+def _generate_next_task(goal: dict, existing_tasks: list, last_result: Optional[str] = None) -> bool:
+    """目標に対する次の1つのタスクを生成する。生成成功時Trueを返す。"""
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+    
+    # 思考開始を出力
+    append_event("output", pane="dialogue", text=f"{avatar_name}> 次のステップを考えています...")
+    
+    # 既存タスクと結果のコンテキストを構築
+    context_parts = []
+    completed_tasks = [t for t in existing_tasks if t.get("status") == "done"]
+    if completed_tasks:
+        completed_names = [t["name"] for t in completed_tasks]
+        context_parts.append(f"完了済みタスク: {', '.join(completed_names)}")
+    if last_result:
+        context_parts.append(f"前回の結果: {last_result[:100]}")
+    
+    context = "\n".join(context_parts) if context_parts else ""
+    
     chat = _client.chat.create(model=CONFIG["grok"]["model"], temperature=0.3)
     chat.append(
         system(
-            "あなたはタスク生成AIです。与えられた目標に対して、具体的なタスクを3〜5個生成してください。\n"
-            "JSON形式で返してください: {\"tasks\": [{\"id\": \"G1-T1\", \"name\": \"タスク名\"}]}"
+            "あなたはタスク生成AIです。与えられた目標に対して、次に実行すべきタスクを生成してください。\n"
+            "【制約】\n"
+            "- シンプルで実行可能なタスクにすること\n"
+            "- セキュリティスキャン、ネットワーク攻撃ツール（nmap, nikto等）は禁止\n"
+            "- ファイル操作は作業ディレクトリ内のみ\n"
+            "- 完了済みタスクは繰り返さない\n"
+            f"{context}\n"
+            "【出力形式】\n"
+            "目標達成時: {\"task\": null, \"goal_complete\": true}\n"
+            "タスク生成時: {\"task\": {\"name\": \"タスク名\", \"trigger\": \"実行条件(if)\", \"response\": \"実行内容(then)\"}, \"goal_complete\": false}"
         )
     )
-    chat.append(user(f"目標: {goal['name']}"))
+    chat.append(user(f"目標: {goal['name']}\nこの目標を達成するために必要なステップ（タスク）は何ですか？"))
     result = chat.sample()
     raw = getattr(result, "content", "")
 
     try:
         data = json.loads(raw)
-        tasks = data.get("tasks", [])
+        goal_complete = data.get("goal_complete", False)
+        task_data = data.get("task")
+        
+        if goal_complete or not task_data:
+            # 目標達成と判断
+            append_event("output", pane="dialogue", text=f"{avatar_name}> {goal['name']}を達成しました。")
+            return False
+        
+        task_name = task_data.get("name")
+        task_trigger = task_data.get("trigger", "")
+        task_response = task_data.get("response", "")
+        if not task_name:
+            return False
     except json.JSONDecodeError:
-        return
+        return False
 
+    # 新しいタスクIDを生成
+    task_id = f"{goal['id']}-T{len(existing_tasks) + 1}"
+    
     with _state_lock:
-        for t in tasks:
-            add_task(STATE, goal["id"], t["id"], t["name"])
+        add_task(STATE, goal["id"], task_id, task_name, trigger=task_trigger, response=task_response)
         save_state(STATE)
 
-    append_event("thought", judgment=f"タスク生成: {len(tasks)}個", intent="実行へ")
+    # 思考結果を出力
+    task_desc = f"{task_name}"
+    if task_trigger and task_response:
+        task_desc = f"if {task_trigger} then {task_response}"
+    append_event("output", pane="dialogue", text=f"{avatar_name}> {task_name}から始めます。")
+    append_event("thought", judgment=task_desc, intent="実行へ")
+    return True
 
 
-def _execute_task(goal: dict, task: dict) -> None:
-    """タスクを実行する（LLMに実行方法を聞いて承認待ちに移行）。"""
+def _execute_task(goal: dict, task: dict) -> float:
+    """タスクを実行する（LLMに実行方法を聞いて承認待ちに移行）。待機時間を返す。"""
+    loop_cfg = _get_loop_config()
+
     with _state_lock:
         update_task_status(STATE, task["id"], "active")
         save_state(STATE)
@@ -383,7 +629,7 @@ def _execute_task(goal: dict, task: dict) -> None:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        return
+        return _loop_interval_idle()
 
     command = data.get("command")
     summary = data.get("summary", task["name"])
@@ -392,7 +638,7 @@ def _execute_task(goal: dict, task: dict) -> None:
         update_thought(STATE, f"タスク: {task['name']}", f"実行: {summary}")
         if command:
             # コマンド実行が必要 → 承認待ち。
-            update_action(STATE, "approving", summary)
+            update_action(STATE, "approving", summary, command=command)
         else:
             # 会話のみで完了 → 即完了。
             update_task_status(STATE, task["id"], "done")
@@ -401,8 +647,25 @@ def _execute_task(goal: dict, task: dict) -> None:
 
     if command:
         append_event("thought", judgment=f"タスク: {task['name']}", intent=f"承認待ち: {summary}")
+        # 結果をdialogueに出力（設定で有効な場合）
+        if loop_cfg["notify_result"]:
+            append_event("output", pane="dialogue", text=f"⏳ 承認待ち: {summary}")
+        return _loop_interval_idle()
     else:
         append_event("result", status="done", summary=summary)
+        # 結果をdialogueに出力
+        if loop_cfg["notify_result"]:
+            append_event("output", pane="dialogue", text=f"✓ 完了: {summary}")
+        # 会話完了後の動作: idle or continue
+        if loop_cfg["on_conversation_complete"] == "idle":
+            # 続行確認待ちに移行
+            with _state_lock:
+                update_action(STATE, "awaiting_continue", summary)
+                save_state(STATE)
+            append_event("output", pane="dialogue", text="[Enter] で続行")
+            return _loop_interval_idle()
+        else:
+            return _loop_interval_result()
 
 
 def start_loop() -> None:
@@ -463,6 +726,16 @@ def think_core(source: str, text: str, session_id: str) -> dict:
     """
     authority = _get_authority(source)
 
+    # 目的達成確認待ちの場合、ユーザー入力を処理（ロック外でチェック）
+    with _state_lock:
+        action = STATE.get("action") or {}
+        is_awaiting_purpose_confirm = (
+            action.get("phase") == "awaiting_purpose_confirm"
+            and source == "dialogue"
+        )
+    if is_awaiting_purpose_confirm:
+        return _handle_purpose_confirm_response(text, session_id)
+
     # 入力状態を更新し、イベントを記録する。
     with _state_lock:
         update_input(STATE, source, authority, text)
@@ -498,12 +771,17 @@ def think_core(source: str, text: str, session_id: str) -> dict:
         update_thought(STATE, judgment, intent)
         # 行動が必要な場合は承認待ち状態にする
         if needs_approval:
-            summary = intent_info["proposal"]["summary"] if intent_info.get("proposal") else "不明な操作"
-            update_action(STATE, "approving", summary)
+            proposal = intent_info.get("proposal") or {}
+            summary = proposal.get("summary", "不明な操作")
+            command = proposal.get("command")
+            update_action(STATE, "approving", summary, command=command)
         else:
             clear_action(STATE)
         save_state(STATE)
     append_event("thought", judgment=judgment, intent=intent)
+
+    # ユーザー入力後にループを起こす（idle待機から抜ける）
+    _loop_wake_event.set()
 
     return {
         "response": response_text,
@@ -735,21 +1013,6 @@ def add_task_endpoint(payload: TaskRequest, request: Request):
     return {"goals": STATE["mission"]["goals"]}
 
 
-@app.post("/admin/approve")
-def approve_action(request: Request):
-    # 現在の行動を承認し、実行フェーズに移行する。
-    _check_api_key(request)
-    with _state_lock:
-        if not STATE.get("action"):
-            raise HTTPException(status_code=400, detail="No action to approve")
-        if STATE["action"]["phase"] != "approving":
-            raise HTTPException(status_code=400, detail="Action is not awaiting approval")
-        update_action(STATE, "executing", STATE["action"]["summary"])
-        save_state(STATE)
-    append_event("action", summary=STATE["action"]["summary"])
-    return {"action": STATE["action"]}
-
-
 @app.post("/admin/reject")
 def reject_action(request: Request):
     # 現在の行動を拒否し、クリアする。
@@ -812,7 +1075,47 @@ def complete_action(payload: CompleteRequest, request: Request):
         save_state(STATE)
 
     append_event("result", status=status, summary=summary)
+
+    # ループを起こす（次のタスクへ進む）
+    _loop_wake_event.set()
+
     return {"result": STATE["result"]}
+
+
+@app.post("/admin/reset")
+def reset_state(request: Request):
+    """状態を初期化する。"""
+    _check_api_key(request)
+    with _state_lock:
+        STATE["input"] = {"source": None, "authority": None, "text": None}
+        STATE["mission"] = {"purpose": None, "goals": []}
+        STATE["thought"] = {"judgment": None, "intent": None}
+        STATE["action"] = None
+        STATE["result"] = None
+        save_state(STATE)
+    append_event("system", action="reset", summary="状態がリセットされました")
+    # 目的を聞く
+    _ask_for_purpose()
+    # ループを起こす（無期限待機から抜ける）
+    _loop_wake_event.set()
+    return {"status": "reset", "message": "状態がリセットされました"}
+
+
+@app.post("/admin/continue")
+def continue_loop(request: Request):
+    """続行確認に応答してループを再開する。"""
+    _check_api_key(request)
+    with _state_lock:
+        if not STATE.get("action"):
+            raise HTTPException(status_code=400, detail="No action awaiting continue")
+        if STATE["action"]["phase"] != "awaiting_continue":
+            raise HTTPException(status_code=400, detail="Action is not awaiting continue")
+        clear_action(STATE)
+        save_state(STATE)
+    # ループを起こす（無期限待機から抜ける）
+    _loop_wake_event.set()
+    append_event("system", action="continue", summary="ループを続行")
+    return {"status": "continued", "message": "ループを続行しました"}
 
 
 def _mark_active_task(status: str) -> None:

@@ -101,11 +101,12 @@ def update_thought(state: dict, judgment: str, intent: str) -> dict:
     return state
 
 
-def update_action(state: dict, phase: str, summary: str) -> dict:
+def update_action(state: dict, phase: str, summary: str, command: str = None) -> dict:
     """行動状態を更新する。"""
     state["action"] = {
         "phase": phase,
         "summary": summary,
+        "command": command,
     }
     return state
 
@@ -152,15 +153,30 @@ def add_goal(state: dict, goal_id: str, name: str, tasks: Optional[list] = None)
     return state
 
 
-def add_task(state: dict, goal_id: str, task_id: str, name: str) -> dict:
-    """タスクを追加する。"""
+def add_task(
+    state: dict,
+    goal_id: str,
+    task_id: str,
+    name: str,
+    trigger: Optional[str] = None,
+    response: Optional[str] = None,
+) -> dict:
+    """タスクを追加する。重複IDは無視。trigger/responseはオプション。"""
     for goal in state["mission"]["goals"]:
         if goal["id"] == goal_id:
+            # 重複チェック
+            existing_ids = {t["id"] for t in goal["tasks"]}
+            if task_id in existing_ids:
+                return state  # 重複は無視
             task = {
                 "id": task_id,
                 "name": name,
                 "status": "pending",
             }
+            if trigger:
+                task["trigger"] = trigger
+            if response:
+                task["response"] = response
             goal["tasks"].append(task)
             break
     return state

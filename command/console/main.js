@@ -9,10 +9,7 @@ const terminalHost = document.getElementById('terminal-host');
 const commandPaletteEl = document.getElementById('command-palette');
 const missionPurposeEl = document.getElementById('mission-purpose');
 const missionGoalsEl = document.getElementById('mission-goals');
-const inspectorJudgmentEl = document.getElementById('inspector-judgment');
-const inspectorIntentEl = document.getElementById('inspector-intent');
-const inspectorActionEl = document.getElementById('inspector-action');
-const inspectorResultEl = document.getElementById('inspector-result');
+const inspectorTimelineEl = document.getElementById('inspector-timeline');
 const vitalsCpuEl = document.getElementById('vitals-cpu');
 const vitalsCpuBarEl = document.getElementById('vitals-cpu-bar');
 const vitalsMemoryEl = document.getElementById('vitals-memory');
@@ -367,68 +364,114 @@ const updateMissionPane = async () => {
   }
 };
 
-// Inspectorペインを更新する。
+// Inspectorタイムラインに表示済みのイベントIDを追跡
+let inspectorDisplayedEvents = new Set();
+const INSPECTOR_MAX_ENTRIES = 10;
+
+// Inspectorタイムラインにエントリを追加する（THINKのみ、2行表示）。
+const addInspectorEntry = (text, isNew = true) => {
+  if (!inspectorTimelineEl) return;
+
+  // 「タスク：」「目標設定:」などのプレフィックスを除去
+  const cleanText = text
+    .replace(/^(タスク|目標|目標設定|判断|意図)[：:]\s*/gi, '')
+    .trim();
+
+  if (!cleanText) return;
+
+  // 重複チェック（同じテキストが直前にあればスキップ）
+  const firstChild = inspectorTimelineEl.firstElementChild;
+  if (firstChild) {
+    const existingText = firstChild.querySelector('.inspector-entry-text')?.textContent;
+    if (existingText === cleanText) return;
+  }
+
+  // 既存のis-latestを削除
+  inspectorTimelineEl.querySelectorAll('.is-latest').forEach((el) => {
+    el.classList.remove('is-latest');
+  });
+
+  // 2行（約50文字）を超えるかどうかの判定
+  const hasMore = cleanText.length > 50;
+
+  // 新しいエントリを作成
+  const entry = document.createElement('div');
+  entry.className = `inspector-entry is-latest${isNew ? ' is-new' : ''}${hasMore ? ' has-more' : ''}`;
+
+  // プロンプトとテキストを同じ行に
+  const lineEl = document.createElement('div');
+  lineEl.className = 'inspector-entry-line';
+
+  const promptEl = document.createElement('span');
+  promptEl.className = 'inspector-entry-prompt';
+  promptEl.textContent = '>';
+
+  const textEl = document.createElement('span');
+  textEl.className = 'inspector-entry-text';
+  textEl.textContent = cleanText;
+
+  lineEl.appendChild(promptEl);
+  lineEl.appendChild(textEl);
+  entry.appendChild(lineEl);
+
+  // クリックで展開/折りたたみ
+  entry.addEventListener('click', () => {
+    if (hasMore) {
+      entry.classList.toggle('is-expanded');
+    }
+  });
+
+  // 先頭に追加
+  inspectorTimelineEl.insertBefore(entry, inspectorTimelineEl.firstChild);
+
+  // アニメーション後にis-newを削除
+  if (isNew) {
+    setTimeout(() => entry.classList.remove('is-new'), 400);
+  }
+
+  // 最大数を超えたら古いエントリを削除
+  while (inspectorTimelineEl.children.length > INSPECTOR_MAX_ENTRIES) {
+    inspectorTimelineEl.removeChild(inspectorTimelineEl.lastChild);
+  }
+};
+
+// Inspectorペインを更新する（イベントベース）。
 const updateInspectorPane = async () => {
   const api = requireSpectraApi();
-  if (!api.getState) {
+  if (!api.getState || !api.getRecentEvents) {
     return;
   }
   try {
     const state = await api.getState();
-    const thought = state?.thought || {};
     const action = state?.action;
-    const result = state?.result;
 
-    // 各要素の値を更新
-    const judgment = thought.judgment || '-';
-    const intent = thought.intent || '-';
-
-    let actionText = '-';
-    if (action) {
-      actionText = action.phase ? `${action.phase} | ${action.summary || '-'}` : (action.summary || '-');
+    // 自律ループからの承認待ちを検知（未処理の場合のみ）
+    // approving のみ処理（awaiting_continue, awaiting_purpose_confirm は別処理）
+    if (action?.phase === 'approving' && action?.command && !pendingApproval && !pendingContinue) {
+      requestApproval('__terminal__', action.command, action.summary || action.command);
     }
 
-    let resultText = '-';
-    if (result) {
-      resultText = result.status ? `${result.status} | ${result.summary || '-'}` : (result.summary || '-');
-    }
+    // 最近のイベントを取得してタイムラインに追加
+    const data = await api.getRecentEvents();
+    const events = data?.events || [];
+    if (events.length === 0) return;
 
-    if (inspectorJudgmentEl) inspectorJudgmentEl.textContent = judgment;
-    if (inspectorIntentEl) inspectorIntentEl.textContent = intent;
-    if (inspectorActionEl) inspectorActionEl.textContent = actionText;
-    if (inspectorResultEl) inspectorResultEl.textContent = resultText;
+    // 新しいイベントを古い順に処理（タイムラインの先頭に追加するため）
+    const newEvents = events.filter((e) => !inspectorDisplayedEvents.has(e.time + e.type));
+    
+    // 古い順にソート
+    newEvents.sort((a, b) => new Date(a.time) - new Date(b.time));
 
-    // フローの進捗状態を更新
-    const items = document.querySelectorAll('.inspector-item');
-    items.forEach((item) => {
-      item.classList.remove('is-done', 'is-active');
-    });
+    for (const event of newEvents) {
+      const eventId = event.time + event.type;
+      inspectorDisplayedEvents.add(eventId);
 
-    // 進捗判定: thought → action → result の順
-    const hasThought = thought.judgment || thought.intent;
-    const hasAction = action && action.phase;
-    const hasResult = result && result.status;
-
-    const judgmentItem = document.querySelector('.inspector-item[data-step="judgment"]');
-    const intentItem = document.querySelector('.inspector-item[data-step="intent"]');
-    const actionItem = document.querySelector('.inspector-item[data-step="action"]');
-    const resultItem = document.querySelector('.inspector-item[data-step="result"]');
-
-    if (hasResult) {
-      // 全完了
-      judgmentItem?.classList.add('is-done');
-      intentItem?.classList.add('is-done');
-      actionItem?.classList.add('is-done');
-      resultItem?.classList.add('is-done');
-    } else if (hasAction) {
-      // 実行中
-      judgmentItem?.classList.add('is-done');
-      intentItem?.classList.add('is-done');
-      actionItem?.classList.add('is-active');
-    } else if (hasThought) {
-      // 思考完了、実行待ち
-      judgmentItem?.classList.add('is-done');
-      intentItem?.classList.add('is-active');
+      // THINKのみ表示（ACT/DONEはDialogueに表示されるため）
+      if (event.type === 'thought') {
+        const text = event.judgment || event.intent || '-';
+        addInspectorEntry(text);
+      }
+      // action, result は無視（Dialogueで表示）
     }
   } catch (error) {
     console.error('Failed to update inspector pane:', error);
@@ -647,6 +690,27 @@ const requestApproval = (commandId, value, label) => {
   hidePalette();
 };
 
+// 空入力時に awaiting_continue なら続行する。
+const handleEmptyContinue = async () => {
+  const api = requireSpectraApi();
+  try {
+    const state = await api.getState();
+    if (state?.action?.phase === 'awaiting_continue') {
+      api.continueLoop()
+        .then(() => {
+          addLine('text-line--system', '> 続行');
+          updateMissionPane();
+          updateInspectorPane();
+        })
+        .catch((error) => {
+          console.error('Continue failed:', error);
+        });
+    }
+  } catch (error) {
+    console.error('Failed to check continue state:', error);
+  }
+};
+
 // 承認入力を処理する。
 const handleApprovalInput = () => {
   if (!pendingApproval) {
@@ -665,8 +729,40 @@ const handleApprovalInput = () => {
     addLine('text-line--system', `> canceled ${action.label}`);
     return true;
   }
-  // 承認をCoreに通知してからコマンドを実行。
+  // 承認処理
   const api = requireSpectraApi();
+
+  // リセットは特別処理（Coreへの承認通知不要）
+  if (action.commandId === '__reset__') {
+    api.resetState()
+      .then(() => {
+        addLine('text-line--system', '> 状態がリセットされました');
+        updateMissionPane();
+        updateInspectorPane();
+        inputEl.focus();
+      })
+      .catch((error) => {
+        failFast(error instanceof Error ? error.message : String(error));
+      });
+    return true;
+  }
+
+  // 続行確認は特別処理
+  if (action.commandId === '__continue__') {
+    api.continueLoop()
+      .then(() => {
+        addLine('text-line--system', '> 続行');
+        updateMissionPane();
+        updateInspectorPane();
+        inputEl.focus();
+      })
+      .catch((error) => {
+        failFast(error instanceof Error ? error.message : String(error));
+      });
+    return true;
+  }
+
+  // 通常の承認をCoreに通知してからコマンドを実行。
   api.approveAction()
     .then(() => {
       if (action.commandId === '__terminal__') {
@@ -706,6 +802,13 @@ const openCommandPalette = (filterText) => {
 
 // 選んだコマンドの値を選択する。
 const openCommandOptions = (commandId) => {
+  // /reset は特別処理: 警告を出して確認を求める
+  if (commandId === 'reset') {
+    requestApproval('__reset__', null, '⚠️ 全ての状態（目的・目標・タスク）をリセット');
+    resetCommandState();
+    return;
+  }
+
   const options = consoleConfig?.command_palette?.options?.[commandId];
   if (!options) {
     commandState = { type: 'value', commandId };
@@ -756,13 +859,36 @@ try {
       updateMissionPane();
       updateInspectorPane();
       updateVitalsPane();
-      // purpose未設定なら問いかけを表示
+      // 起動時に現在の状態に応じたプロンプトを再表示
       const api = requireSpectraApi();
       api.getState().then((state) => {
         const purpose = state?.mission?.purpose;
         const judgment = state?.thought?.judgment;
+        const action = state?.action;
+        const avatarName = data?.avatar?.name || 'SPECTRA';
+
+        // 承認待ち → 承認プロンプトを再表示
+        if (action?.phase === 'approving' && action?.command) {
+          requestApproval('__terminal__', action.command, action.summary || action.command);
+          return;
+        }
+
+        // 継続待ち → [Enter] で続行を再表示
+        if (action?.phase === 'awaiting_continue') {
+          pendingContinue = { label: action.summary || 'タスク完了' };
+          addLine('text-line--system', `> ${pendingContinue.label} [Enter] で続行`);
+          return;
+        }
+
+        // 目的確認待ち → 確認プロンプトを再表示
+        if (action?.phase === 'awaiting_purpose_confirm') {
+          addLine('text-line--avatar', `${avatarName}> 全ての目標が完了しました。目的「${purpose}」は達成されましたか？`);
+          addLine('text-line--avatar', `${avatarName}> [y] 達成 / [n] 続行 / 新しい目的を入力`);
+          return;
+        }
+
+        // purpose未設定 → 問いかけを表示
         if (!purpose && judgment === 'purpose未設定') {
-          const avatarName = data?.avatar?.name || 'SPECTRA';
           addLine('text-line--avatar', `${avatarName}> 目的が設定されていません。何を達成しましょうか？`);
         }
       }).catch(() => {});
@@ -879,6 +1005,8 @@ if (inputEl) {
 
     const value = inputEl.value.trim();
     if (!value) {
+      // 空入力時: awaiting_continue なら続行
+      handleEmptyContinue();
       return;
     }
 
@@ -913,7 +1041,8 @@ if (inputEl) {
           requestApproval('__terminal__', data.proposal.command, label);
           return;
         }
-        addLine('text-line--assistant', `Avatar> ${data.response}`);
+        const avatarName = consoleConfig?.name_tags?.avatar || 'SPECTRA';
+        addLine('text-line--assistant', `${avatarName}> ${data.response}`);
       })
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));
