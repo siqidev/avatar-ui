@@ -889,13 +889,9 @@ body.is-resizing-vertical {
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(
-    to right,
-    var(--col-theme-main) 0%,
-    rgba(var(--theme-color-r), var(--theme-color-g), var(--theme-color-b), 0.6) 100%
-  );
-  box-shadow: 0 0 8px var(--col-theme-main);
-  transition: width 0.5s ease;
+  width: 0%;
+  background: var(--col-theme-main);
+  box-shadow: 0 0 4px var(--col-theme-main);
 }
 
 /* 右下のステータス表示。 */

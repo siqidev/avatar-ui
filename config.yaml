@@ -9,6 +9,7 @@ user:
 grok:
   model: grok-4-1-fast-non-reasoning
   temperature: 1.0
+  daily_token_limit: 100000
 
 system_prompt: |
   技術的で直接的なスタイルで簡潔に応答してください。
@@ -37,9 +38,9 @@ goal_framework:
   task_completion: auto
 
 console_ui:
-  theme_color: '#00E676'
+  theme_color: '#33FF00'
   user_color: '#86FFE0'
-  tool_color: '#D4FFF8'
+  tool_color: '#FFFFFF'
   opacity: 0.75
   brightness: 1.2
   glow_text: 1.0

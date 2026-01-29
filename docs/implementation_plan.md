@@ -1,6 +1,6 @@
 # SPECTRA 実装計画
 
-> 最終更新: 2026-01-21  
+> 最終更新: 2026-01-29  
 > 前提: `GrokスタックAIエージェント設計仕様書.md` Section 1 を参照
 
 ---
@@ -198,6 +198,10 @@ spectra/
 #### 2.3 計画モデル
 - [x] purpose/goal/task 階層の実装
 - [x] 目標・タスク生成ロジック（APIエンドポイント経由）
+- [x] Goal Framework（Purpose → Goal → Task の三層構造）
+- [x] OKRベースのタスク構造（trigger/response）
+- [x] 完了モード設定（purpose_completion, goal_completion, task_completion）
+- [x] 達成型Purpose（完了後に次の目的を問いかけ）
 
 #### 2.4 コアサイクル
 - [x] サイクル（入力→計画→思考→行動→結果）の実装
@@ -207,6 +211,13 @@ spectra/
 - [x] 目標・タスク自動生成（LLM）
 - [x] タスク完了通知（/admin/complete）
 - [x] Console完了通知連携
+- [x] 継続待ち機構（awaiting_continue）
+- [x] 目的達成確認（awaiting_purpose_confirm: y/n/新しい目的）
+- [x] 逐次的な目標・タスク生成（バッチではなくストリーミング的に）
+- [x] タスク重複防止（ID一意性チェック）
+- [x] ループ再開イベント（_loop_wake_event）
+- [x] /admin/reset エンドポイント
+- [x] /admin/continue エンドポイント
 
 #### 2.5 システムプロンプト
 - [x] テンプレート化（state.json内容の注入）
@@ -215,9 +226,14 @@ spectra/
 - [x] missionペイン追加
 - [x] inspectorペイン追加
 - [x] vitalsペイン追加
+- [x] vitalsペイン実データ化（CPU/メモリ/ネットワーク/トークン使用量）
 - [x] config重複解消: `avatar`/`user` と `console_ui.name_tags` の統一
   - `/console-config`で`avatar`/`user`を`name_tags`に注入
   - `config.yaml`から重複した`name_tags`を削除
+- [x] Inspectorタイムライン化（THINKイベントのストリーム表示）
+- [x] /reset スラッシュコマンド（command_palette経由）
+- [x] 再起動時の状態復元（承認待ち/継続待ち/目的確認待ちの再表示）
+- [x] Avatar名のconfig参照（ハードコード排除）
 
 #### 2.7 実行アーキテクチャ
 
@@ -290,6 +306,12 @@ spectra/
 | 2026-01-18 | 同一プロセス構成を採用（分離は不要、シンプル優先） |
 | 2026-01-18 | Core は Windows自動起動、Console は手動起動 |
 | 2026-01-18 | 状態管理（/status等）は今は不要、拡張時に検討 |
+| 2026-01-29 | Goal Framework採用（Purpose → Goal → Task 三層構造） |
+| 2026-01-29 | OKRベースのタスク構造（trigger/response） |
+| 2026-01-29 | 達成型Purpose（完了→次の目的を問いかけ） |
+| 2026-01-29 | Inspectorタイムライン化（THINKイベントのみ表示） |
+| 2026-01-29 | 逐次的な目標・タスク生成（バッチ→ストリーミング的） |
+| 2026-01-29 | 再起動時の状態復元（承認待ち等の再表示） |
 
 ---
 

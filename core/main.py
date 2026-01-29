@@ -105,6 +105,60 @@ if not _SPECTRA_API_KEY:
 # リクエスト間で共有するSDKクライアント（初期化コストを節約）。
 _client = Client(api_key=_XAI_API_KEY)
 
+# トークン使用量の追跡（日次リセット、永続化）
+_token_lock = threading.Lock()
+_start_time = time.time()
+
+
+def _load_token_usage() -> dict:
+    """state.jsonからトークン使用量を読み込む。"""
+    today = time.strftime("%Y-%m-%d")
+    token_data = STATE.get("token_usage", {})
+    if token_data.get("date") != today:
+        return {"used": 0, "date": today}
+    return {"used": token_data.get("used", 0), "date": today}
+
+
+_token_usage = _load_token_usage()
+
+
+def _add_token_usage(tokens: int) -> None:
+    """トークン使用量を加算する。日付が変わったらリセット。永続化する。"""
+    today = time.strftime("%Y-%m-%d")
+    with _token_lock:
+        if _token_usage["date"] != today:
+            _token_usage["used"] = 0
+            _token_usage["date"] = today
+        _token_usage["used"] += tokens
+        # state.jsonに永続化
+        with _state_lock:
+            STATE["token_usage"] = dict(_token_usage)
+            save_state(STATE)
+
+
+def _track_usage(response) -> None:
+    """レスポンスからトークン使用量を抽出して加算する。"""
+    usage = getattr(response, "usage", None)
+    if usage:
+        total = getattr(usage, "total_tokens", 0)
+        if total > 0:
+            _add_token_usage(total)
+
+
+def _get_token_usage() -> dict:
+    """現在のトークン使用量を返す。"""
+    today = time.strftime("%Y-%m-%d")
+    limit = CONFIG.get("grok", {}).get("daily_token_limit", 100000)
+    with _token_lock:
+        if _token_usage["date"] != today:
+            _token_usage["used"] = 0
+            _token_usage["date"] = today
+        return {
+            "used": _token_usage["used"],
+            "limit": limit,
+            "percent": min(100, int((_token_usage["used"] / limit) * 100)) if limit > 0 else 0,
+        }
+
 
 def _build_system_prompt() -> str:
     """人格と行動原則を定義する。"""
@@ -391,9 +445,7 @@ def _handle_purpose_confirm_response(text: str, session_id: str) -> dict:
             update_thought(STATE, "目的続行", "新しい目標を生成")
             save_state(STATE)
         append_event("output", pane="dialogue", text=f"{avatar_name}> 目的「{purpose}」の達成に向けて続行します。")
-        
-        # 新しい目標を生成
-        _generate_next_goal(purpose, existing_goals)
+        # ループを起こして自律的に新しい目標を生成させる（ここで直接生成しない）
         _loop_wake_event.set()
         
         return {
@@ -448,6 +500,7 @@ def _check_purpose_completion(purpose: str, completed_goals: list) -> float:
         goal_names = [g["name"] for g in completed_goals]
         chat.append(user(f"目的: {purpose}\n完了した目標: {', '.join(goal_names)}"))
         result = chat.sample()
+        _track_usage(result)
         raw = getattr(result, "content", "")
 
         try:
@@ -511,6 +564,7 @@ def _generate_next_goal(purpose: str, existing_goals: list) -> bool:
     )
     chat.append(user(f"目的: {purpose}"))
     result = chat.sample()
+    _track_usage(result)
     raw = getattr(result, "content", "")
 
     try:
@@ -570,6 +624,7 @@ def _generate_next_task(goal: dict, existing_tasks: list, last_result: Optional[
     )
     chat.append(user(f"目標: {goal['name']}\nこの目標を達成するために必要なステップ（タスク）は何ですか？"))
     result = chat.sample()
+    _track_usage(result)
     raw = getattr(result, "content", "")
 
     try:
@@ -624,6 +679,7 @@ def _execute_task(goal: dict, task: dict) -> float:
     )
     chat.append(user(f"タスク: {task['name']}"))
     result = chat.sample()
+    _track_usage(result)
     raw = getattr(result, "content", "")
 
     try:
@@ -751,6 +807,7 @@ def think_core(source: str, text: str, session_id: str) -> dict:
     context = _build_state_context()
     chat.append(user(f"{context}\n\n{text}"))
     response = chat.sample()
+    _track_usage(response)
 
     # 応答本文とレスポンスIDは必須。欠落時は即エラーにする。
     response_text = getattr(response, "content", None)
@@ -815,6 +872,7 @@ def _classify_intent(prompt: str, response_text: str) -> dict:
         )
     )
     result = classifier.sample()
+    _track_usage(result)
     raw = getattr(result, "content", "")
     try:
         data = json.loads(raw)
@@ -875,8 +933,13 @@ def think(payload: ThinkRequest, request: Request):
 
 @app.get("/health")
 def health():
-    # 死活監視用のシンプルな応答。
-    return {"status": "ok"}
+    # 死活監視用の応答（トークン使用量・起動時間を含む）。
+    uptime = int(time.time() - _start_time)
+    return {
+        "status": "ok",
+        "uptime": uptime,
+        "tokens": _get_token_usage(),
+    }
 
 
 @app.get("/loop/status")

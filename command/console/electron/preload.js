@@ -231,6 +231,27 @@ const continueLoop = async () => {
   return data;
 };
 
+// Core のヘルス情報を取得する。
+const getHealth = async () => {
+  const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
+  const response = await fetch(`${baseUrl}/health`, {
+    headers: {
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.detail ?? response.statusText;
+    throw new Error(message);
+  }
+  return data;
+};
+
+// システム情報を取得する（IPC経由）。
+const getSystemInfo = async () => {
+  return ipcRenderer.invoke('system:info');
+};
+
 // レンダラに必要最小限のAPIだけ公開する。
 contextBridge.exposeInMainWorld('spectraApi', {
   think,
@@ -245,6 +266,8 @@ contextBridge.exposeInMainWorld('spectraApi', {
   completeAction,
   resetState,
   continueLoop,
+  getHealth,
+  getSystemInfo,
 });
 
 // 端末操作をレンダラに公開する。

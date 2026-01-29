@@ -478,32 +478,45 @@ const updateInspectorPane = async () => {
   }
 };
 
-// Vitalsペインを更新する（現在はモックデータ）。
-const updateVitalsPane = () => {
-  // TODO: 実際のシステム情報を取得する（Electron IPC経由）
-  // 現在はモックデータを表示
-  const mockData = {
-    cpu: { value: 23, unit: '%', max: 100 },
-    memory: { value: 4.2, unit: 'GB', max: 16 },
-    network: { value: 12, unit: 'Mbps', max: 100 },
-    api: { value: 34, unit: '%', max: 100 },
-  };
+// Vitalsペインを更新する（CSSバー、1秒更新）。
+const updateVitalsPane = async () => {
+  const api = requireSpectraApi();
+  
+  try {
+    // システム情報とヘルス情報を並列取得
+    const [sysInfo, health] = await Promise.all([
+      api.getSystemInfo ? api.getSystemInfo() : null,
+      api.getHealth ? api.getHealth() : null,
+    ]);
 
-  if (vitalsCpuEl && vitalsCpuBarEl) {
-    vitalsCpuEl.textContent = `${mockData.cpu.value}${mockData.cpu.unit}`;
-    vitalsCpuBarEl.style.width = `${(mockData.cpu.value / mockData.cpu.max) * 100}%`;
-  }
-  if (vitalsMemoryEl && vitalsMemoryBarEl) {
-    vitalsMemoryEl.textContent = `${mockData.memory.value}${mockData.memory.unit}`;
-    vitalsMemoryBarEl.style.width = `${(mockData.memory.value / mockData.memory.max) * 100}%`;
-  }
-  if (vitalsNetworkEl && vitalsNetworkBarEl) {
-    vitalsNetworkEl.textContent = `${mockData.network.value}${mockData.network.unit}`;
-    vitalsNetworkBarEl.style.width = `${(mockData.network.value / mockData.network.max) * 100}%`;
-  }
-  if (vitalsApiEl && vitalsApiBarEl) {
-    vitalsApiEl.textContent = `${mockData.api.value}${mockData.api.unit}`;
-    vitalsApiBarEl.style.width = `${(mockData.api.value / mockData.api.max) * 100}%`;
+    // CPU
+    if (vitalsCpuEl && vitalsCpuBarEl && sysInfo?.cpu) {
+      vitalsCpuEl.textContent = `${sysInfo.cpu.value}%`;
+      vitalsCpuBarEl.style.width = `${sysInfo.cpu.value}%`;
+    }
+    
+    // メモリ
+    if (vitalsMemoryEl && vitalsMemoryBarEl && sysInfo?.memory) {
+      const percent = Math.round((sysInfo.memory.value / sysInfo.memory.max) * 100);
+      vitalsMemoryEl.textContent = `${sysInfo.memory.value}GB`;
+      vitalsMemoryBarEl.style.width = `${percent}%`;
+    }
+    
+    // ネットワーク
+    if (vitalsNetworkEl && vitalsNetworkBarEl && sysInfo?.network) {
+      const percent = Math.min(100, Math.round((sysInfo.network.value / sysInfo.network.max) * 100));
+      const speed = sysInfo.network.value < 1 ? `${(sysInfo.network.value * 1000).toFixed(0)}Kbps` : `${sysInfo.network.value.toFixed(1)}Mbps`;
+      vitalsNetworkEl.textContent = speed;
+      vitalsNetworkBarEl.style.width = `${percent}%`;
+    }
+    
+    // API（トークン使用量）
+    if (vitalsApiEl && vitalsApiBarEl && health?.tokens) {
+      vitalsApiEl.textContent = `${health.tokens.percent}%`;
+      vitalsApiBarEl.style.width = `${health.tokens.percent}%`;
+    }
+  } catch (error) {
+    console.error('Failed to update vitals:', error);
   }
 };
 
@@ -895,6 +908,8 @@ try {
       // イベントポーリング開始（3秒間隔）
       setInterval(pollEvents, 3000);
       pollEvents();
+      // Vitals更新（1秒間隔）
+      setInterval(updateVitalsPane, 1000);
     })
     .catch((error) => {
       failFast(error instanceof Error ? error.message : String(error));

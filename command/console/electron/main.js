@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { app, BrowserWindow, ipcMain } = require('electron');
 const pty = require('node-pty');
+const si = require('systeminformation');
 
 // .envはプロジェクトルート直下が標準なので、環境変数があれば優先する。
 const envPath = process.env.SPECTRA_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
@@ -161,6 +162,37 @@ ipcMain.on('terminal:resize', (event, payload) => {
     throw new Error('terminal is not initialized');
   }
   terminal.resize(payload.cols, payload.rows);
+});
+
+// システム情報を取得する（CPU, メモリ, ネットワーク）。
+ipcMain.handle('system:info', async () => {
+  const [load, mem, net] = await Promise.all([
+    si.currentLoad(),
+    si.mem(),
+    si.networkStats(),
+  ]);
+  
+  // ネットワーク速度はプライマリインターフェースから取得
+  const primaryNet = net.find(n => n.operstate === 'up') || net[0] || {};
+  const netSpeed = ((primaryNet.rx_sec || 0) + (primaryNet.tx_sec || 0)) / 1e6; // Mbps
+  
+  return {
+    cpu: {
+      value: Math.round(load.currentLoad),
+      unit: '%',
+      max: 100,
+    },
+    memory: {
+      value: parseFloat((mem.used / 1e9).toFixed(1)),
+      unit: 'GB',
+      max: Math.round(mem.total / 1e9),
+    },
+    network: {
+      value: parseFloat(netSpeed.toFixed(1)),
+      unit: 'Mbps',
+      max: 100, // 仮の上限
+    },
+  };
 });
 
 // ウィンドウが閉じたら端末プロセスも破棄する。
