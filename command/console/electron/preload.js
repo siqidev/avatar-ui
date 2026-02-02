@@ -158,6 +158,25 @@ const sendObservation = async (payload) => {
   return data;
 };
 
+// Consoleの出力ログを保存する。
+const logConsole = async (payload) => {
+  const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
+  const response = await fetch(`${baseUrl}/admin/console-log`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.detail ?? response.statusText;
+    throw new Error(message);
+  }
+  return data;
+};
+
 // Core に承認を通知する。
 const approveAction = async () => {
   const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
@@ -262,6 +281,7 @@ contextBridge.exposeInMainWorld('spectraApi', {
   getState,
   getRecentEvents,
   sendObservation,
+  logConsole,
   approveAction,
   completeAction,
   resetState,

@@ -122,29 +122,34 @@ class ExecResult:
         }
 
 
-def get_default_workspace() -> str:
-    """デフォルトのワークスペースパスを返す。"""
+def get_avatar_space(config: dict = None) -> str:
+    """Avatar Spaceのパスを返す（優先順位: 環境変数 > config > デフォルト）。"""
     home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or ""
-    return os.path.join(home, "Projects", "spectra-workspace")
+    default = os.path.join(home, "Avatar", "space")
+    return (
+        os.environ.get("AVATAR_SPACE") or
+        (config.get("avatar_space") if config else None) or
+        default
+    )
 
 
-def is_path_in_workspace(path: str, workspace: str) -> bool:
-    """指定されたパスがワークスペース内にあるか確認する。"""
-    if not path or not workspace:
+def is_path_in_space(path: str, space: str) -> bool:
+    """指定されたパスがAvatar Space内にあるか確認する。"""
+    if not path or not space:
         return False
     try:
         path_resolved = Path(path).resolve()
-        workspace_resolved = Path(workspace).resolve()
-        return path_resolved == workspace_resolved or workspace_resolved in path_resolved.parents
+        space_resolved = Path(space).resolve()
+        return path_resolved == space_resolved or space_resolved in path_resolved.parents
     except Exception:
         return False
 
 
 @dataclass
-class WorkspaceViolation:
-    """ワークスペース制約違反。"""
+class AvatarSpaceViolation:
+    """Avatar Space制約違反。"""
     path: str
-    workspace: str
+    space: str
     authority: Authority
     is_blocked: bool  # True=拒否, False=警告のみ
     message: str
@@ -153,18 +158,18 @@ class WorkspaceViolation:
 class BackendRouter:
     """Backend Router: ExecRequestを適切なBackendにルーティングする。"""
 
-    def __init__(self, dialogue_handler=None, workspace: Optional[str] = None):
+    def __init__(self, dialogue_handler=None, space: Optional[str] = None):
         """
         Args:
             dialogue_handler: Dialogue Backend用のハンドラ関数。
                               (action, params) -> ExecResult を返す。
-            workspace: ワークスペースパス。未指定ならデフォルト。
+            space: Avatar Spaceパス。未指定ならデフォルト。
         """
         self._dialogue_handler = dialogue_handler
-        self._workspace = workspace or os.environ.get("SPECTRA_SHELL_CWD") or get_default_workspace()
+        self._space = space or get_avatar_space()
 
-    def check_workspace_constraint(self, request: ExecRequest) -> Optional[WorkspaceViolation]:
-        """ワークスペース制約を確認する。違反がなければNone。"""
+    def check_space_constraint(self, request: ExecRequest) -> Optional[AvatarSpaceViolation]:
+        """Avatar Space制約を確認する。違反がなければNone。"""
         # Terminal Backendのみcwd検証
         if request.backend != Backend.TERMINAL:
             return None
@@ -173,19 +178,19 @@ class BackendRouter:
         if not cwd:
             return None
 
-        if is_path_in_workspace(cwd, self._workspace):
+        if is_path_in_space(cwd, self._space):
             return None
 
-        # ワークスペース外へのアクセス
+        # Avatar Space外へのアクセス
         is_blocked = request.authority == Authority.AVATAR
         message = (
-            f"Workspace violation: {cwd} is outside workspace {self._workspace}"
+            f"Avatar Space violation: {cwd} is outside Avatar Space {self._space}"
             if is_blocked
-            else f"Warning: {cwd} is outside workspace {self._workspace}"
+            else f"Warning: {cwd} is outside Avatar Space {self._space}"
         )
-        return WorkspaceViolation(
+        return AvatarSpaceViolation(
             path=cwd,
-            workspace=self._workspace,
+            space=self._space,
             authority=request.authority,
             is_blocked=is_blocked,
             message=message,
@@ -193,13 +198,13 @@ class BackendRouter:
 
     def route(self, request: ExecRequest) -> ExecResult:
         """ExecRequestを適切なBackendにルーティングして実行する。"""
-        # ワークスペース制約を確認
-        violation = self.check_workspace_constraint(request)
+        # Avatar Space制約を確認
+        violation = self.check_space_constraint(request)
         if violation and violation.is_blocked:
             return ExecResult(
                 request_id=request.id,
                 status=ExecStatus.FAIL,
-                summary="Workspace constraint violation",
+                summary="Avatar Space constraint violation",
                 error=violation.message,
             )
         # 警告の場合はログ出力（将来的にはイベント記録）

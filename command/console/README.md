@@ -6,7 +6,9 @@ Consoleはfail-fast方針で、設定/APIの欠落は即エラー表示して停
 
 必須環境変数:
 - `SPECTRA_SHELL`（bashのフルパス）
-- `SPECTRA_SHELL_CWD`（シェルの作業ディレクトリ）
+
+任意環境変数:
+- `AVATAR_SPACE`（Avatar Spaceの作業ディレクトリ。未指定なら `~/Avatar/space`）
 
 ## Run
 
@@ -15,4 +17,3 @@ cd command/console
 npm install
 npm run start
 ```
-

@@ -35,8 +35,44 @@ const sessionId = storedSessionId || crypto.randomUUID();
 if (!storedSessionId) {
   window.localStorage.setItem(sessionKey, sessionId);
 }
+const runId = crypto.randomUUID();
+let consoleLogSeq = 0;
 
 inputEl.disabled = true;
+
+const getConsoleKind = (className) => {
+  if (!className) return 'system';
+  if (className.includes('text-line--avatar')) return 'avatar';
+  if (className.includes('text-line--assistant')) return 'avatar';
+  if (className.includes('text-line--user')) return 'user';
+  if (className.includes('text-line--error')) return 'error';
+  if (className.includes('text-line--system')) return 'system';
+  return 'system';
+};
+
+const logConsoleEntry = ({ kind, text, pane }) => {
+  if (!text || !text.trim()) {
+    return;
+  }
+  const api = window.spectraApi;
+  if (!api || !api.logConsole) {
+    return;
+  }
+  const payload = {
+    session_id: sessionId,
+    run_id: runId,
+    seq: consoleLogSeq++,
+    kind,
+    text,
+    pane,
+    client_time: new Date().toISOString(),
+  };
+  api.logConsole(payload).catch(() => {});
+};
+
+const logConsoleLine = (className, text) => {
+  logConsoleEntry({ kind: getConsoleKind(className), text, pane: 'dialogue' });
+};
 
 // 画面に1行追加し、自動でスクロールする。
 const addLine = (className, text) => {
@@ -45,6 +81,7 @@ const addLine = (className, text) => {
   line.textContent = text;
   outputEl.appendChild(line);
   outputEl.scrollTop = outputEl.scrollHeight;
+  logConsoleLine(className, text);
 };
 
 // 応答中だけアバター画像を切り替える。
@@ -244,15 +281,10 @@ const updateMissionPane = async () => {
     const goals = mission.goals || [];
     missionGoalsEl.innerHTML = '';
 
-    // 全体進捗を計算
-    let totalDone = 0;
-    let totalTasks = 0;
-    goals.forEach((g) => {
-      const tasks = g.tasks || [];
-      totalTasks += tasks.length;
-      totalDone += tasks.filter((t) => t.status === 'done').length;
-    });
-    const totalRate = totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0;
+    // 全体進捗を計算（ゴール達成数 / ゴール数）
+    const totalGoals = goals.length;
+    const doneGoals = goals.filter((g) => g.status === 'done').length;
+    const totalRate = totalGoals > 0 ? Math.round((doneGoals / totalGoals) * 100) : 0;
 
     // 全体進捗バーを更新
     const barFill = document.getElementById('mission-bar-fill');
@@ -261,7 +293,7 @@ const updateMissionPane = async () => {
       barFill.style.width = `${totalRate}%`;
     }
     if (summaryRate) {
-      summaryRate.textContent = `[${totalDone}/${totalTasks}, ${totalRate}%]`;
+      summaryRate.textContent = `[${doneGoals}/${totalGoals}, ${totalRate}%]`;
     }
 
     if (goals.length === 0) {
@@ -446,8 +478,8 @@ const updateInspectorPane = async () => {
     const action = state?.action;
 
     // 自律ループからの承認待ちを検知（未処理の場合のみ）
-    // approving のみ処理（awaiting_continue, awaiting_purpose_confirm は別処理）
-    if (action?.phase === 'approving' && action?.command && !pendingApproval && !pendingContinue) {
+    // approving のみ処理（awaiting_purpose_confirm は別処理）
+    if (action?.phase === 'approving' && action?.command && !pendingApproval) {
       requestApproval('__terminal__', action.command, action.summary || action.command);
     }
 
@@ -565,7 +597,7 @@ const setupTerminal = () => {
     if (terminalCapture) {
       terminalCapture.buffer += data;
       if (terminalCapture.buffer.length > terminalCapture.maxBytes) {
-        terminalCapture.buffer = terminalCapture.buffer.slice(0, terminalCapture.maxBytes);
+        terminalCapture.buffer = terminalCapture.buffer.slice(-terminalCapture.maxBytes);
         terminalCapture.truncated = true;
       }
       clearTimeout(terminalCapture.timer);
@@ -587,6 +619,7 @@ const setupTerminal = () => {
 
   // ANSIエスケープを除去して読みやすくする。
   const stripAnsi = (value) => value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/\u001b\][^\u0007]*\u0007/g, '');
+  const EXIT_MARKER = '__SPECTRA_EXIT_CODE__:';
 
   // ターミナル実行の出力を一定時間だけ集めて確認する。
   const runCommand = (command) => {
@@ -608,7 +641,8 @@ const setupTerminal = () => {
           resolve(result);
         },
       };
-      terminalApi.write(`${command}\r`);
+      const wrapped = `${command}; echo ${EXIT_MARKER}$?\r`;
+      terminalApi.write(wrapped);
     });
   };
 
@@ -616,24 +650,44 @@ const setupTerminal = () => {
   window.runTerminalCommand = (command, label) => {
     addLine('text-line--system', `> run ${label}`);
     const api = requireSpectraApi();
+    let exitCode = null;
+    let success = false;
     runCommand(command)
       .then((result) => {
-        const cleaned = stripAnsi(result.buffer).trimEnd();
+        const markerMatch = result.buffer.match(/__SPECTRA_EXIT_CODE__:(\d+|True|False)/);
+        if (markerMatch) {
+          const rawCode = markerMatch[1];
+          if (rawCode === 'True') {
+            exitCode = 0;
+          } else if (rawCode === 'False') {
+            exitCode = 1;
+          } else {
+            exitCode = Number(rawCode);
+          }
+        }
+        success = exitCode === 0;
+        const cleaned = stripAnsi(result.buffer).replace(/\r/g, '').trimEnd();
+        const content = cleaned.replace(/__SPECTRA_EXIT_CODE__:(\d+|True|False)\n?/g, '').trimEnd();
         const suffix = result.truncated ? '\n... (truncated)' : '';
-        const content = cleaned + suffix;
+        const output = content + suffix;
+        if (output.trim()) {
+          logConsoleEntry({ kind: 'terminal', text: output, pane: 'terminal' });
+        }
 
         // 観測結果を送信。
-        const observationPromise = content
-          ? api.sendObservation({ session_id: sessionId, content })
+        const observationPromise = output
+          ? api.sendObservation({ session_id: sessionId, content: output })
           : Promise.resolve();
 
         // タスク完了を通知。
         return observationPromise.then(() => {
-          return api.completeAction({ success: true, summary: label });
+          const summary = success ? label : `${label} (exit code ${exitCode ?? 'unknown'})`;
+          return api.completeAction({ success, summary });
         });
       })
       .then(() => {
-        addLine('text-line--system', `> done ${label}`);
+        const statusLabel = success ? 'done' : 'failed';
+        addLine('text-line--system', `> ${statusLabel} ${label}`);
         // ペインを更新。
         updateMissionPane();
         updateInspectorPane();
@@ -881,15 +935,15 @@ try {
         const avatarName = data?.avatar?.name || 'SPECTRA';
 
         // 承認待ち → 承認プロンプトを再表示
-        if (action?.phase === 'approving' && action?.command) {
+        if (action?.phase === 'approving' && action?.command && !pendingApproval) {
           requestApproval('__terminal__', action.command, action.summary || action.command);
           return;
         }
 
         // 継続待ち → [Enter] で続行を再表示
         if (action?.phase === 'awaiting_continue') {
-          pendingContinue = { label: action.summary || 'タスク完了' };
-          addLine('text-line--system', `> ${pendingContinue.label} [Enter] で続行`);
+          const label = action.summary || 'タスク完了';
+          addLine('text-line--system', `> ${label} [Enter] で続行`);
           return;
         }
 
@@ -897,6 +951,45 @@ try {
         if (action?.phase === 'awaiting_purpose_confirm') {
           addLine('text-line--avatar', `${avatarName}> 全ての目標が完了しました。目的「${purpose}」は達成されましたか？`);
           addLine('text-line--avatar', `${avatarName}> [y] 達成 / [n] 続行 / 新しい目的を入力`);
+          return;
+        }
+
+        // 目的タイプ確認待ち → 再表示
+        if (action?.phase === 'awaiting_purpose_type') {
+          addLine('text-line--avatar', `${avatarName}> 目的「${purpose}」は達成型ですか？`);
+          addLine('text-line--avatar', `${avatarName}> [y] 達成 / [n] 継続`);
+          return;
+        }
+
+        // Goal候補承認待ち → 再表示
+        if (action?.phase === 'awaiting_goals_confirm') {
+          const goals = action?.data?.goals || [];
+          addLine('text-line--avatar', `${avatarName}> 目標案を提案します。`);
+          goals.forEach((goal, index) => {
+            addLine('text-line--avatar', `${avatarName}> ${index + 1}. ${goal.name}`);
+          });
+          addLine('text-line--avatar', `${avatarName}> この目標群で進めますか？ [y] 承認 / [n] 再提案 / 修正内容を入力`);
+          return;
+        }
+
+        // Task候補承認待ち → 再表示
+        if (action?.phase === 'awaiting_tasks_confirm') {
+          const tasks = action?.data?.tasks || [];
+          addLine('text-line--avatar', `${avatarName}> タスク案を提案します。`);
+          tasks.forEach((task, index) => {
+            addLine('text-line--avatar', `${avatarName}> ${index + 1}. ${task.name}`);
+          });
+          addLine('text-line--avatar', `${avatarName}> このタスク群で進めますか？ [y] 承認 / [n] 再提案 / 修正内容を入力`);
+          return;
+        }
+
+        // 目標完了承認待ち → 再表示
+        if (action?.phase === 'awaiting_goal_complete') {
+          const goalId = action?.data?.goal_id;
+          const goal = state?.mission?.goals?.find((g) => g.id === goalId);
+          const goalName = goal?.name || action?.summary || '目標';
+          addLine('text-line--avatar', `${avatarName}> 全てのタスクが完了しました。目標「${goalName}」は達成されましたか？`);
+          addLine('text-line--avatar', `${avatarName}> [y] 達成 / [n] 続行`);
           return;
         }
 
@@ -1000,7 +1093,9 @@ if (inputEl) {
     }
     event.preventDefault();
 
-    if (handleApprovalInput()) {
+    // パレット選択中はエンターで確定
+    if (commandState?.type === 'commands' || commandState?.type === 'options') {
+      confirmPaletteSelection();
       return;
     }
 
@@ -1009,8 +1104,20 @@ if (inputEl) {
       return;
     }
 
-    if (commandState?.type === 'commands' || commandState?.type === 'options') {
-      confirmPaletteSelection();
+    const value = inputEl.value.trim();
+
+    // スラッシュコマンドは承認待ちより優先
+    if (value.startsWith('/')) {
+      // 承認待ちや継続待ちをキャンセル
+      if (pendingApproval) {
+        addLine('text-line--system', `> canceled ${pendingApproval.label}`);
+        pendingApproval = null;
+      }
+      openCommandPalette(value.slice(1));
+      return;
+    }
+
+    if (handleApprovalInput()) {
       return;
     }
 
@@ -1018,15 +1125,9 @@ if (inputEl) {
       return;
     }
 
-    const value = inputEl.value.trim();
     if (!value) {
       // 空入力時: awaiting_continue なら続行
       handleEmptyContinue();
-      return;
-    }
-
-    if (value.startsWith('/')) {
-      openCommandPalette(value.slice(1));
       return;
     }
 

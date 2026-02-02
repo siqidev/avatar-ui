@@ -6,6 +6,10 @@ avatar:
 user:
   name: USER
 
+# Avatar Space: アバターの生命活動空間
+# 優先順位: AVATAR_SPACE > この設定 > デフォルト(~/Avatar/space)
+# avatar_space: /path/to/space
+
 grok:
   model: grok-4-1-fast-non-reasoning
   temperature: 1.0
@@ -18,7 +22,7 @@ system_prompt: |
 
   ## 実行環境
   - ターミナルで任意のシェルコマンドを実行できます。
-  - 作業ディレクトリ: /Users/u/Projects/spectra-workspace
+  - 作業ディレクトリ: Avatar Space（AVATAR_SPACE または config.avatar_space）
   - ファイル操作（cat, echo, sed等）やgitコマンドが使えます。
   - アクション提案時は実行可能なコマンドを1行で提示してください。
   - 複雑な操作は単純なコマンドに分割してください。
@@ -38,7 +42,7 @@ goal_framework:
   task_completion: auto
 
 console_ui:
-  theme_color: '#33FF00'
+  theme_color: '#00FF41'
   user_color: '#86FFE0'
   tool_color: '#FFFFFF'
   opacity: 0.75

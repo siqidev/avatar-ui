@@ -15,6 +15,8 @@ _BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 _STATE_PATH = os.path.join(_DATA_DIR, "state.json")
 _EVENTS_PATH = os.path.join(_DATA_DIR, "events.jsonl")
+_LOGS_DIR = os.path.join(_DATA_DIR, "logs")
+_CONSOLE_LOG_PATH = os.path.join(_LOGS_DIR, "console.jsonl")
 
 
 def _ensure_data_dir() -> None:
@@ -23,12 +25,20 @@ def _ensure_data_dir() -> None:
         os.makedirs(_DATA_DIR)
 
 
+def _ensure_logs_dir() -> None:
+    """logsディレクトリが存在しなければ作成する。"""
+    _ensure_data_dir()
+    if not os.path.exists(_LOGS_DIR):
+        os.makedirs(_LOGS_DIR)
+
+
 def _empty_state() -> dict:
     """空の状態を返す。"""
     return {
         "input": None,
         "mission": {
             "purpose": None,
+            "purpose_type": None,
             "goals": [],
         },
         "thought": None,
@@ -79,6 +89,17 @@ def append_event(event_type: str, **fields: Any) -> None:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def append_console_log(**fields: Any) -> None:
+    """
+    console.jsonlにコンソール出力ログを追記する。
+    書き込み失敗時は例外を投げる（fail-fast）。
+    """
+    _ensure_logs_dir()
+    entry = {"time": _utc_now(), **fields}
+    with open(_CONSOLE_LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
 # --- 状態更新ヘルパー ---
 
 
@@ -101,13 +122,21 @@ def update_thought(state: dict, judgment: str, intent: str) -> dict:
     return state
 
 
-def update_action(state: dict, phase: str, summary: str, command: str = None) -> dict:
+def update_action(
+    state: dict,
+    phase: str,
+    summary: str,
+    command: str = None,
+    data: Optional[dict] = None,
+) -> dict:
     """行動状態を更新する。"""
     state["action"] = {
         "phase": phase,
         "summary": summary,
         "command": command,
     }
+    if data is not None:
+        state["action"]["data"] = data
     return state
 
 
@@ -138,15 +167,23 @@ def clear_result(state: dict) -> dict:
 def set_purpose(state: dict, purpose: str) -> dict:
     """目的を設定する。"""
     state["mission"]["purpose"] = purpose
+    state["mission"]["purpose_type"] = None
+    state["mission"]["goals"] = []
     return state
 
 
-def add_goal(state: dict, goal_id: str, name: str, tasks: Optional[list] = None) -> dict:
+def add_goal(
+    state: dict,
+    goal_id: str,
+    name: str,
+    tasks: Optional[list] = None,
+    status: str = "active",
+) -> dict:
     """目標を追加する。"""
     goal = {
         "id": goal_id,
         "name": name,
-        "status": "active",
+        "status": status,
         "tasks": tasks or [],
     }
     state["mission"]["goals"].append(goal)

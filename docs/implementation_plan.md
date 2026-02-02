@@ -242,7 +242,7 @@ spectra/
 ##### 2.7.1 現行実装の修正
 - [x] シェル選択のOS標準化（環境変数優先、未設定ならOS標準）
 - [x] シェル制限の拡張（bash/zsh/PowerShell許可）
-- [x] cwd設定（環境変数優先、未設定ならspectra-workspace/）
+- [x] cwd設定（環境変数優先、未設定ならAvatar/space）
 - [x] ワークスペース自動作成（未作成なら作成）
 
 ##### 2.7.2 Exec Contract
@@ -259,11 +259,20 @@ spectra/
 - [x] Dialogue Backend実装（think_core連携）
 
 ##### 2.7.4 ワークスペース制約
-- [x] Runtime層でcwd検証（workspace内のみ許可）
-- [x] アバター操作: workspace外アクセスを拒否
-- [x] ユーザー操作: workspace外アクセスは警告のみ
+- [x] Runtime層でcwd検証（Avatar Space内のみ許可）
+- [x] アバター操作: Avatar Space外アクセスを拒否
+- [x] ユーザー操作: Avatar Space外アクセスは警告のみ
 - [x] プロンプトカスタマイズ（PS1でディレクトリ名表示）
 - [x] PowerShellバナー消去（-NoLogo, -NoProfile）
+- [x] Avatar Space汎用化（環境変数 > config > デフォルト）
+
+##### 2.7.6 目的/目標/タスクの承認フロー（ユーザー主導）
+- [ ] Goal候補の提示と承認（y/n）をRuntimeに追加
+- [ ] Task候補の提示と承認（y/n）をRuntimeに追加
+- [ ] Goal完了承認（全タスク完了後のy/n）を追加
+- [ ] 達成型Purpose完了承認（全Goal完了後のy/n）を追加
+- [ ] 継続型Purposeは自動完了しない（ユーザー明示のみ）
+- [ ] 承認待ち状態の再起動復元（Goal/Task/Purpose）
 
 ##### 2.7.5 Roblox Backend（将来）
 - [ ] Roblox Backend最小実装

@@ -43,11 +43,55 @@ const getDefaultShell = () => {
   return '/bin/bash';
 };
 
-// デフォルトのワークスペースパスを返す。
-const getDefaultWorkspace = () => {
+// Avatar Spaceのパスを返す（優先順位: 環境変数 > 設定 > デフォルト）。
+const getDefaultAvatarSpace = () => {
   const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, 'Projects', 'spectra-workspace');
+  return path.join(home, 'Avatar', 'space');
 };
+
+const getConfigPath = () => (
+  process.env.AVATAR_CONFIG ||
+  process.env.SPECTRA_CONFIG ||  // 後方互換（非推奨）
+  path.join(__dirname, '..', '..', '..', 'config.yaml')
+);
+
+const readAvatarSpaceFromConfig = () => {
+  const configPath = getConfigPath();
+  if (!fs.existsSync(configPath)) {
+    return null;
+  }
+  try {
+    const raw = fs.readFileSync(configPath, 'utf-8');
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      if (!trimmed.startsWith('avatar_space:')) {
+        continue;
+      }
+      let value = trimmed.slice('avatar_space:'.length).trim();
+      if (!value) {
+        return null;
+      }
+      value = value.split('#')[0].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      return value || null;
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+};
+
+const getAvatarSpace = () => (
+  process.env.AVATAR_SPACE ||
+  readAvatarSpaceFromConfig() ||
+  getDefaultAvatarSpace()
+);
 
 // シェルが許可されているか確認する。
 const isAllowedShell = (shell) => {
@@ -90,9 +134,9 @@ const createTerminal = (webContents, cols, rows) => {
   if (!isAllowedShell(shell)) {
     throw new Error('SPECTRA_SHELL must be bash, zsh, or powershell');
   }
-  // cwd選択: 環境変数優先、未設定ならspectra-workspace。
-  const shellCwd = process.env.SPECTRA_SHELL_CWD || getDefaultWorkspace();
-  // ワークスペースが存在しない場合は作成する。
+  // Avatar Space: アバターの生命活動空間
+  const shellCwd = getAvatarSpace();
+  // Avatar Spaceが存在しない場合は作成する。
   if (!fs.existsSync(shellCwd)) {
     fs.mkdirSync(shellCwd, { recursive: true });
   }
