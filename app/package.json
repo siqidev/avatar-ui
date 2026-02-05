@@ -1,0 +1,33 @@
+{
+  "name": "avatar-ui",
+  "productName": "Avatar UI",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist-electron/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "package": "electron-builder",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dev:server": "cd ../server && python -m uvicorn main:app --reload",
+    "dev:all": "concurrently -c \"cyan,magenta\" -n \"server,client\" \"npm run dev:server\" \"npm run dev\""
+  },
+  "dependencies": {
+    "@ag-ui/client": "^0.0.41",
+    "@ag-ui/core": "^0.0.41",
+    "dompurify": "^3.3.0",
+    "dotenv": "^17.2.3",
+    "marked": "^17.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.2",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.7.0",
+    "typescript": "^5",
+    "vite": "^7.2.2",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  }
+}
