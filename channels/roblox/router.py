@@ -23,9 +23,9 @@ CORS_HEADERS = {
 }
 
 # 共有APIキーは必須。未設定なら起動時に止める。
-_SPECTRA_API_KEY = os.getenv("SPECTRA_API_KEY")
-if not _SPECTRA_API_KEY:
-    raise RuntimeError("SPECTRA_API_KEY is not set")
+_AVATAR_API_KEY = os.getenv("AVATAR_API_KEY")
+if not _AVATAR_API_KEY:
+    raise RuntimeError("AVATAR_API_KEY is not set")
 
 
 class RobloxRequest(BaseModel):
@@ -82,7 +82,7 @@ router = APIRouter(tags=["roblox"])
 def _check_api_key(request: Request) -> None:
     """APIキー認証。共有APIキーは必須。"""
     provided = request.headers.get("x-api-key")
-    if provided != _SPECTRA_API_KEY:
+    if provided != _AVATAR_API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 

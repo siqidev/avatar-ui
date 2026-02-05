@@ -57,7 +57,7 @@ load_dotenv()
 # config.yamlはプロジェクトルート直下を正本とする。
 _BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 _DEFAULT_CONFIG_PATH = os.path.join(_BASE_DIR, "config.yaml")
-CONFIG_PATH = os.getenv("SPECTRA_CONFIG", _DEFAULT_CONFIG_PATH)
+CONFIG_PATH = os.getenv("AVATAR_CONFIG", _DEFAULT_CONFIG_PATH)
 # 設定ファイルが存在しない場合は起動時に止める。
 if not os.path.exists(CONFIG_PATH):
     raise RuntimeError(f"config file not found: {CONFIG_PATH}")
@@ -137,13 +137,14 @@ if not _XAI_API_KEY:
     raise RuntimeError("XAI_API_KEY is not set")
 
 # 共有APIキーは必須。未設定なら起動時に止める。
-_SPECTRA_API_KEY = os.getenv("SPECTRA_API_KEY")
-if not _SPECTRA_API_KEY:
-    raise RuntimeError("SPECTRA_API_KEY is not set")
+_AVATAR_API_KEY = os.getenv("AVATAR_API_KEY")
+if not _AVATAR_API_KEY:
+    raise RuntimeError("AVATAR_API_KEY is not set")
 
 
 # リクエスト間で共有するSDKクライアント（初期化コストを節約）。
-_client = Client(api_key=_XAI_API_KEY)
+# timeout: ネットワークレベルのタイムアウト（秒）。executor枯渇防止。
+_client = Client(api_key=_XAI_API_KEY, timeout=30.0)
 
 # トークン使用量の追跡（日次リセット、永続化）
 _token_lock = threading.Lock()
@@ -344,10 +345,20 @@ _llm_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm")
 
 def _sample_with_timeout(chat, timeout: float = _LLM_TIMEOUT):
     """chat.sample()をタイムアウト付きで実行。タイムアウト時は例外を投げる。"""
+    import time as _time
+    start = _time.time()
+    print(f"[LLM] sample start (timeout={timeout}s, executor_threads={_llm_executor._max_workers})")
     future = _llm_executor.submit(chat.sample)
     try:
-        return future.result(timeout=timeout)
+        result = future.result(timeout=timeout)
+        elapsed = _time.time() - start
+        print(f"[LLM] sample done in {elapsed:.2f}s")
+        return result
     except FuturesTimeoutError:
+        elapsed = _time.time() - start
+        # executor の状態を記録
+        pending = sum(1 for t in _llm_executor._threads if t.is_alive())
+        print(f"[LLM] TIMEOUT after {elapsed:.2f}s (alive_threads={pending}/{_llm_executor._max_workers})")
         future.cancel()
         raise TimeoutError(f"LLM response timed out after {timeout}s")
 
@@ -415,6 +426,7 @@ def _cycle_step() -> float:
         "awaiting_goals_confirm",
         "awaiting_tasks_confirm",
         "awaiting_goal_complete",
+        "awaiting_task_fail",
     }
     if action and action.get("phase") in pause_phases:
         return _loop_interval_idle()
@@ -651,12 +663,10 @@ def _check_purpose_completion(purpose: str, completed_goals: list) -> float:
     append_event(
         "output",
         pane="dialogue",
-        text=f"{avatar_name}> {_msg(f'全ての目標が完了しました。目的「{purpose}」は達成されましたか？', f'All goals are complete. Has the purpose \"{purpose}\" been achieved?')}",
-    )
-    append_event(
-        "output",
-        pane="dialogue",
-        text=f"{avatar_name}> [y] Achieve / [n] Continue / {_msg('新しい目的を入力', 'Enter a new purpose')}",
+        text=(
+            f"{avatar_name}> {_msg(f'全ての目標が完了しました。目的「{purpose}」は達成されましたか？', f'All goals are complete. Has the purpose \"{purpose}\" been achieved?')}\n"
+            f"[y] Achieve / [n] Continue / {_msg('新しい目的を入力', 'Enter a new purpose')}"
+        ),
     )
     return _loop_interval_idle()
 
@@ -1019,10 +1029,10 @@ def _prompt_goal_completion(goal: dict) -> None:
         pane="dialogue",
         text=(
             f"{avatar_name}> "
-            f"{_msg(f'全てのタスクが完了しました。目標「{goal_name}」は達成されましたか？', f'All tasks are complete. Has the goal \"{goal_name}\" been achieved?')}"
+            f"{_msg(f'全てのタスクが完了しました。目標「{goal_name}」は達成されましたか？', f'All tasks are complete. Has the goal \"{goal_name}\" been achieved?')}\n"
+            f"[y] Achieve / [n] Continue"
         ),
     )
-    append_event("output", pane="dialogue", text=f"{avatar_name}> [y] Achieve / [n] Continue")
 
 
 def _handle_goal_complete_response(text: str, session_id: str) -> dict:
@@ -1074,6 +1084,83 @@ def _handle_goal_complete_response(text: str, session_id: str) -> dict:
         "authority": "user",
         "session_id": session_id,
         "response_id": "goal_complete_no",
+        "intent": "conversation",
+        "route": "dialogue",
+        "needs_approval": False,
+        "proposal": None,
+    }
+
+
+def _handle_task_fail_response(text: str, session_id: str) -> dict:
+    """タスク失敗後の応答を処理する。[r]再試行/[s]スキップ/コンテキスト入力。"""
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
+    text_lower = text.strip().lower()
+    action = STATE.get("action") or {}
+    data = action.get("data") or {}
+    task_id = data.get("task_id")
+
+    if text_lower in ("r", "retry", "再試行"):
+        # 再試行: タスクをpendingに戻して再実行
+        with _state_lock:
+            for goal in STATE["mission"]["goals"]:
+                for task in goal.get("tasks", []):
+                    if task["id"] == task_id:
+                        task["status"] = "pending"
+                        break
+            clear_action(STATE)
+            update_thought(STATE, "タスク再試行", task_id)
+            save_state(STATE)
+        _loop_wake_event.set()
+        return {
+            "response": _msg("タスクを再試行します。", "Retrying task."),
+            "source": "dialogue",
+            "authority": "user",
+            "session_id": session_id,
+            "response_id": "task_fail_retry",
+            "intent": "conversation",
+            "route": "dialogue",
+            "needs_approval": False,
+            "proposal": None,
+        }
+
+    if text_lower in ("s", "skip", "スキップ"):
+        # スキップ: タスクをfailのままにして次へ
+        with _state_lock:
+            clear_action(STATE)
+            update_thought(STATE, "タスクスキップ", task_id)
+            save_state(STATE)
+        _loop_wake_event.set()
+        return {
+            "response": _msg("タスクをスキップしました。", "Task skipped."),
+            "source": "dialogue",
+            "authority": "user",
+            "session_id": session_id,
+            "response_id": "task_fail_skip",
+            "intent": "conversation",
+            "route": "dialogue",
+            "needs_approval": False,
+            "proposal": None,
+        }
+
+    # コンテキスト入力: フィードバックとして再試行
+    feedback = text.strip()
+    with _state_lock:
+        for goal in STATE["mission"]["goals"]:
+            for task in goal.get("tasks", []):
+                if task["id"] == task_id:
+                    task["status"] = "pending"
+                    task["feedback"] = feedback  # フィードバックを保存
+                    break
+        clear_action(STATE)
+        update_thought(STATE, "タスク再試行（コンテキスト付き）", feedback)
+        save_state(STATE)
+    _loop_wake_event.set()
+    return {
+        "response": _msg(f"コンテキストを追加して再試行します: {feedback}", f"Retrying with context: {feedback}"),
+        "source": "dialogue",
+        "authority": "user",
+        "session_id": session_id,
+        "response_id": "task_fail_context",
         "intent": "conversation",
         "route": "dialogue",
         "needs_approval": False,
@@ -1272,6 +1359,8 @@ def think_core(source: str, text: str, session_id: str) -> dict:
             return _handle_tasks_confirm_response(text, session_id)
         if phase == "awaiting_goal_complete":
             return _handle_goal_complete_response(text, session_id)
+        if phase == "awaiting_task_fail":
+            return _handle_task_fail_response(text, session_id)
         if phase == "awaiting_purpose_confirm":
             return _handle_purpose_confirm_response(text, session_id)
 
@@ -1478,7 +1567,7 @@ def on_shutdown():
 def _check_api_key(request: Request) -> None:
     # 共有APIキーは必須なので一致しない場合は即拒否する。
     provided = request.headers.get("x-api-key")
-    if provided != _SPECTRA_API_KEY:
+    if provided != _AVATAR_API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -1751,6 +1840,7 @@ class CompleteRequest(BaseModel):
 def complete_action(payload: CompleteRequest, request: Request):
     # 現在の行動を完了し、タスクを更新する。
     _check_api_key(request)
+    avatar_name = CONFIG.get("avatar", {}).get("name", "Avatar")
     with _state_lock:
         if not STATE.get("action"):
             raise HTTPException(status_code=400, detail="No action to complete")
@@ -1758,19 +1848,36 @@ def complete_action(payload: CompleteRequest, request: Request):
             raise HTTPException(status_code=400, detail="Action is not executing")
 
         summary = payload.summary or STATE["action"]["summary"]
-        status = "done" if payload.success else "fail"
+        success = payload.success
 
-        # activeなタスクを更新。
-        _mark_active_task(status)
-
-        clear_action(STATE)
-        update_result(STATE, status, summary)
-        save_state(STATE)
-
-    append_event("result", status=status, summary=summary)
-
-    # 次のタスクを同期的に処理（ループに委任せず即座に実行）
-    _cycle_step()
+        if success:
+            # 成功: タスクをdoneにして次へ
+            _mark_active_task("done")
+            clear_action(STATE)
+            update_result(STATE, "done", summary)
+            save_state(STATE)
+            append_event("result", status="done", summary=summary)
+            # 次のタスクを同期的に処理
+            _cycle_step()
+        else:
+            # 失敗: 再試行/スキップ/コンテキスト入力を求める
+            active_task = _get_active_task()
+            task_name = active_task["name"] if active_task else "タスク"
+            update_action(
+                STATE,
+                "awaiting_task_fail",
+                f"タスク失敗: {summary}",
+                data={"task_id": active_task["id"] if active_task else None, "summary": summary},
+            )
+            update_result(STATE, "fail", summary)
+            save_state(STATE)
+            append_event("result", status="fail", summary=summary)
+            # 失敗通知と選択肢を出力
+            append_event(
+                "output",
+                pane="dialogue",
+                text=f"{avatar_name}> {_msg(f'タスク「{task_name}」が失敗しました: {summary}', f'Task \"{task_name}\" failed: {summary}')}\n[r] {_msg('再試行', 'Retry')} / [s] {_msg('スキップ', 'Skip')} / {_msg('コンテキストを入力', 'Enter context')}",
+            )
 
     # 次のアクション情報を含めて返す
     with _state_lock:
@@ -1815,6 +1922,15 @@ def continue_loop(request: Request):
     _loop_wake_event.set()
     append_event("system", action="continue", summary="ループを続行")
     return {"status": "continued", "message": "ループを続行しました"}
+
+
+def _get_active_task() -> Optional[dict]:
+    """activeなタスクを取得する（ロック内で呼ぶこと）。"""
+    for goal in STATE["mission"]["goals"]:
+        for task in goal.get("tasks", []):
+            if task["status"] == "active":
+                return task
+    return None
 
 
 def _mark_active_task(status: str) -> None:

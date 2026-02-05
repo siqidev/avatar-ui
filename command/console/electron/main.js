@@ -6,7 +6,7 @@ const pty = require('node-pty');
 const si = require('systeminformation');
 
 // .envはプロジェクトルート直下が標準なので、環境変数があれば優先する。
-const envPath = process.env.SPECTRA_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
+const envPath = process.env.AVATAR_ENV_PATH || path.join(__dirname, '..', '..', '..', '.env');
 // .envが存在しない場合は起動時に止める。
 if (!fs.existsSync(envPath)) {
   throw new Error(`.env not found: ${envPath}`);
@@ -51,7 +51,7 @@ const getDefaultAvatarSpace = () => {
 
 const getConfigPath = () => (
   process.env.AVATAR_CONFIG ||
-  process.env.SPECTRA_CONFIG ||  // 後方互換（非推奨）
+  process.env.AVATAR_CONFIG ||  // 後方互換（非推奨）
   path.join(__dirname, '..', '..', '..', 'config.yaml')
 );
 
@@ -129,10 +129,10 @@ const createTerminal = (webContents, cols, rows) => {
     return;
   }
   // シェル選択: 環境変数優先、未設定ならOS標準。
-  const shell = process.env.SPECTRA_SHELL || getDefaultShell();
+  const shell = process.env.AVATAR_SHELL || getDefaultShell();
   // bash/zsh/PowerShellを許可する。
   if (!isAllowedShell(shell)) {
-    throw new Error('SPECTRA_SHELL must be bash, zsh, or powershell');
+    throw new Error('AVATAR_SHELL must be bash, zsh, or powershell');
   }
   // Avatar Space: アバターの生命活動空間
   const shellCwd = getAvatarSpace();
@@ -150,7 +150,7 @@ const createTerminal = (webContents, cols, rows) => {
   const dataSubscription = terminal.onData((data) => {
     webContents.send('terminal:data', data);
   });
-  terminal._spectraDataSubscription = dataSubscription;
+  terminal._avatarDataSubscription = dataSubscription;
   terminals.set(webContents.id, terminal);
 };
 
@@ -160,9 +160,9 @@ const disposeTerminal = (webContentsId) => {
   if (!terminal) {
     return;
   }
-  if (terminal._spectraDataSubscription) {
-    terminal._spectraDataSubscription.dispose();
-    delete terminal._spectraDataSubscription;
+  if (terminal._avatarDataSubscription) {
+    terminal._avatarDataSubscription.dispose();
+    delete terminal._avatarDataSubscription;
   }
   terminal.kill();
   terminals.delete(webContentsId);
@@ -224,11 +224,11 @@ const collectAppPids = (allProcs) => {
   };
   addDescendants(mainPid);
   
-  // Python Core（spectraまたはuvicornを含む）
+  // Python Core（uvicorn + core.main を含む）
   for (const p of allProcs) {
     if (p.name?.toLowerCase().includes('python')) {
       const cmd = (p.command || '').toLowerCase();
-      if (cmd.includes('spectra') || cmd.includes('uvicorn')) {
+      if (cmd.includes('uvicorn') || cmd.includes('core.main') || cmd.includes('core/main')) {
         pids.add(p.pid);
       }
     }

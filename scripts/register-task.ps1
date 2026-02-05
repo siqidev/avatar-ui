@@ -1,6 +1,6 @@
 Param(
-  [string]$ProjectRoot = "C:\\dev\\spectra",
-  [string]$TaskName = "SPECTRA Core",
+  [string]$ProjectRoot = "C:\\dev\\avatar-ui",
+  [string]$TaskName = "Avatar Core",
   [string]$UserId = "S-1-5-18"
 )
 
@@ -43,7 +43,7 @@ Register-ScheduledTask `
   -Trigger $trigger `
   -Settings $settings `
   -Principal $principal `
-  -Description "SPECTRA Core (uvicorn)" `
+  -Description "Avatar Core (uvicorn)" `
   -Force
 
 Write-Host "Registered scheduled task: $TaskName"

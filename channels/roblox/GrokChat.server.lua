@@ -7,10 +7,10 @@ local TextService = game:GetService("TextService")
 
 -- SPECTRA API設定
 local PROXY_URL = "https://spectra.siqi.jp/roblox"
-local API_KEY = "YOUR_SPECTRA_API_KEY_HERE"  -- .envのSPECTRA_API_KEYと同じ値を設定
+local API_KEY = "YOUR_AVATAR_API_KEY_HERE"  -- .envのAVATAR_API_KEYと同じ値を設定
 
 -- APIキーが未設定なら早期に止める。
-if API_KEY == "YOUR_SPECTRA_API_KEY_HERE" then
+if API_KEY == "YOUR_AVATAR_API_KEY_HERE" then
 	error("SPECTRA API key is not configured")
 end
 

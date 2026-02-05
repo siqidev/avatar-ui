@@ -29,7 +29,7 @@ const talkSrc = avatarImg?.dataset?.talk;
 if (!idleSrc || !talkSrc) {
   throw new Error('Avatar data attributes are missing');
 }
-const sessionKey = 'spectra-session-id';
+const sessionKey = 'avatar-session-id';
 const storedSessionId = window.localStorage.getItem(sessionKey);
 const sessionId = storedSessionId || crypto.randomUUID();
 if (!storedSessionId) {
@@ -64,7 +64,7 @@ const logConsoleEntry = ({ kind, text, pane }) => {
   if (!text || !text.trim()) {
     return;
   }
-  const api = window.spectraApi;
+  const api = window.avatarApi;
   if (!api || !api.logConsole) {
     return;
   }
@@ -265,39 +265,39 @@ let terminalCapture = null;
 const getLanguage = () => consoleConfig?.language || 'ja';
 const t = (ja, en) => (getLanguage() === 'en' ? en : ja);
 
-const requireSpectraApi = () => {
-  if (!window.spectraApi) {
-    failFast('spectraApi is not available');
+const requireAvatarApi = () => {
+  if (!window.avatarApi) {
+    failFast('avatarApi is not available');
   }
-  return window.spectraApi;
+  return window.avatarApi;
 };
 
 // ホワイトリスト管理（Always allow用）- data/allowlist.json に保存
 const addToApprovalWhitelist = (command) => {
   if (!command) return;
   const program = command.split(' ')[0];
-  const api = window.spectraApi;
+  const api = window.avatarApi;
   if (api?.addToAllowlist) {
     api.addToAllowlist(program);
   }
 };
 
 const isCommandWhitelisted = (command) => {
-  const api = window.spectraApi;
+  const api = window.avatarApi;
   return api?.isInAllowlist ? api.isInAllowlist(command) : false;
 };
 
 // 端末APIが無ければ即停止する。
-const requireTerminalApi = () => {
-  if (!window.spectraTerminal) {
-    failFast('spectraTerminal is not available');
+const requireAvatarTerminal = () => {
+  if (!window.avatarTerminal) {
+    failFast('avatarTerminal is not available');
   }
-  return window.spectraTerminal;
+  return window.avatarTerminal;
 };
 
 // 管理APIが無ければ即停止する。
 const requireAdminApi = () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getAdminConfig || !api.updateAdminConfig) {
     failFast('Admin config API is not available');
   }
@@ -306,7 +306,7 @@ const requireAdminApi = () => {
 
 // 観測APIが無ければ即停止する。
 const requireObservationApi = () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.sendObservation) {
     failFast('Observation API is not available');
   }
@@ -405,7 +405,7 @@ const applyConsoleConfig = (data) => {
 
 // CoreからConsole設定を取得する。
 const loadConsoleConfig = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getConsoleConfig) {
     throw new Error('getConsoleConfig is not available');
   }
@@ -419,7 +419,7 @@ let isFirstPoll = true;
 
 // イベントをポーリングしてdialogueに表示する。
 const pollEvents = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getRecentEvents) {
     return;
   }
@@ -453,7 +453,7 @@ const pollEvents = async () => {
 
 // Missionペインを更新する。
 const updateMissionPane = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getState) {
     return;
   }
@@ -657,7 +657,7 @@ const addInspectorEntry = (text, isNew = true) => {
 
 // Inspectorペインを更新する（イベントベース）。
 const updateInspectorPane = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getState || !api.getRecentEvents) {
     return;
   }
@@ -700,7 +700,7 @@ const updateInspectorPane = async () => {
 
 // Vitalsペインを更新する（CSSバー、1秒更新）。
 const updateVitalsPane = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   
   try {
     // システム情報とヘルス情報を並列取得
@@ -742,7 +742,7 @@ const updateVitalsPane = async () => {
 
 // 製品名とバージョンをUIに表示する。
 const startUi = () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   if (!api.getAppInfo) {
     failFast('getAppInfo is not available');
   }
@@ -755,7 +755,7 @@ const startUi = () => {
 
 // xtermを初期化して端末を接続する。
 const setupTerminal = () => {
-  const terminalApi = requireTerminalApi();
+  const terminalApi = requireAvatarTerminal();
   if (!window.Terminal) {
     failFast('xterm is not available');
   }
@@ -839,7 +839,7 @@ const setupTerminal = () => {
   // 成功/失敗はLLMによる差分検証で判定（終了コード不使用）。
   window.runTerminalCommand = (command, label) => {
     addLine('text-line--system', `> run: ${label}`);
-    const api = requireSpectraApi();
+    const api = requireAvatarApi();
     runCommand(command)
       .then((result) => {
         const cleaned = stripControlChars(stripAnsi(result.buffer)).replace(/\r/g, '').trimEnd();
@@ -975,7 +975,7 @@ const requestApproval = (commandId, value, label) => {
   // ホワイトリストに登録されているコマンドは自動承認
   if (commandId === '__terminal__' && isCommandWhitelisted(value)) {
     addLine('text-line--system', `> auto-approved (whitelisted): ${label}`);
-    const api = requireSpectraApi();
+    const api = requireAvatarApi();
     api.approveAction()
       .then(() => {
         runTerminalProposal(value, label);
@@ -997,7 +997,7 @@ const requestApproval = (commandId, value, label) => {
 
 // 空入力時に awaiting_continue なら続行する。
 const handleEmptyContinue = async () => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   try {
     const state = await api.getState();
     if (state?.action?.phase === 'awaiting_continue') {
@@ -1024,7 +1024,7 @@ const clearApprovalMenu = () => {
 
 // No選択後の自由入力をLLMで処理する。
 const handleNoInputWithLLM = async (action, userInput) => {
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
   const avatarName = consoleConfig?.name_tags?.avatar || 'SPECTRA';
   
   addLine('text-line--user', `USER> ${userInput}`);
@@ -1114,7 +1114,7 @@ const handleApprovalInput = () => {
   addLine('text-line--system', `> ${selectedOption.label}`);
   
   // 承認処理
-  const api = requireSpectraApi();
+  const api = requireAvatarApi();
 
   // リセットは特別処理（Coreへの承認通知不要）
   if (action.commandId === '__reset__') {
@@ -1358,7 +1358,7 @@ try {
       updateInspectorPane();
       updateVitalsPane();
       // 起動時に現在の状態に応じたプロンプトを再表示
-      const api = requireSpectraApi();
+      const api = requireAvatarApi();
       api.getState().then((state) => {
         renderStatePrompt(state);
       }).catch(() => {});
@@ -1439,7 +1439,7 @@ const confirmValueInput = () => {
     failFast('Command value is missing.');
   }
   if (commandState.commandId === 'retry') {
-    const api = requireSpectraApi();
+    const api = requireAvatarApi();
     api.retryTask({ task_id: value })
       .then(() => {
         resetCommandState();
@@ -1493,7 +1493,7 @@ const confirmValueInput = () => {
         addLine('text-line--system', `> canceled: ${pendingApproval.label}`);
         clearApprovalMenu();
         // Coreに承認拒否を通知
-        const api = requireSpectraApi();
+        const api = requireAvatarApi();
         api.rejectAction().catch(() => {});
         pendingApproval = null;
         pendingNoInput = null;
@@ -1527,7 +1527,7 @@ const confirmValueInput = () => {
     inputEl.disabled = true;
 
     // preloadで公開されたAPIが無ければエラー表示。
-    const api = requireSpectraApi();
+    const api = requireAvatarApi();
     if (!api.think) {
       failFast('Core API is unavailable.');
     }
@@ -1610,7 +1610,7 @@ const confirmValueInput = () => {
         clearApprovalMenu();
         addLine('text-line--system', `> canceled: ${action.label}`);
         // Coreに承認拒否を通知
-        const api = requireSpectraApi();
+        const api = requireAvatarApi();
         api.rejectAction().catch(() => {});
         return;
       }

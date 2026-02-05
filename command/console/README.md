@@ -5,7 +5,7 @@ Consoleはfail-fast方針で、設定/APIの欠落は即エラー表示して停
 チャット領域の下に内蔵端末を常時表示します。
 
 必須環境変数:
-- `SPECTRA_SHELL`（bashのフルパス）
+- `AVATAR_SHELL`（bashのフルパス）
 
 任意環境変数:
 - `AVATAR_SPACE`（Avatar Spaceの作業ディレクトリ。未指定なら `~/Avatar/space`）

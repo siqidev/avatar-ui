@@ -78,16 +78,16 @@ cd command/console && npm install && cd ../..
 
 ```bash
 XAI_API_KEY=your-xai-api-key
-SPECTRA_API_KEY=your-secret-key
-SPECTRA_CORE_URL=http://127.0.0.1:8000/v1/think
+AVATAR_API_KEY=your-secret-key
+AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
 ```
 
 | 変数 | 必須 | 説明 |
 |------|------|------|
 | `XAI_API_KEY` | ✅ | xAI API（Grok）のキー |
-| `SPECTRA_API_KEY` | ✅ | Core APIアクセス制限用 |
-| `SPECTRA_CORE_URL` | ✅ | Core APIのURL |
-| `SPECTRA_SHELL` | | 使用するシェル（デフォルト: OS標準） |
+| `AVATAR_API_KEY` | ✅ | Core APIアクセス制限用 |
+| `AVATAR_CORE_URL` | ✅ | Core APIのURL |
+| `AVATAR_SHELL` | | 使用するシェル（デフォルト: OS標準） |
 | `AVATAR_SPACE` | | 作業ディレクトリ（デフォルト: ~/Avatar） |
 
 ### 4. 起動

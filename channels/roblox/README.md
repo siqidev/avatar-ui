@@ -17,7 +17,7 @@ Roblox用のチャネル（Python + Lua）。
 `GrokChat.server.lua` の10行目を編集：
 
 ```lua
-local API_KEY = "YOUR_SPECTRA_API_KEY_HERE"  -- 実際のキーに置き換え
+local API_KEY = "YOUR_AVATAR_API_KEY_HERE"  -- 実際のキーに置き換え
 ```
 
 ### 2. HttpService を有効化

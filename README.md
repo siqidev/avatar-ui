@@ -78,16 +78,16 @@ Create `.env`:
 
 ```bash
 XAI_API_KEY=your-xai-api-key
-SPECTRA_API_KEY=your-secret-key
-SPECTRA_CORE_URL=http://127.0.0.1:8000/v1/think
+AVATAR_API_KEY=your-secret-key
+AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
 ```
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `XAI_API_KEY` | ✅ | xAI API (Grok) key |
-| `SPECTRA_API_KEY` | ✅ | Core API access restriction |
-| `SPECTRA_CORE_URL` | ✅ | Core API URL |
-| `SPECTRA_SHELL` | | Shell to use (default: OS standard) |
+| `AVATAR_API_KEY` | ✅ | Core API access restriction |
+| `AVATAR_CORE_URL` | ✅ | Core API URL |
+| `AVATAR_SHELL` | | Shell to use (default: OS standard) |
 | `AVATAR_SPACE` | | Working directory (default: ~/Avatar) |
 
 ### 4. Run

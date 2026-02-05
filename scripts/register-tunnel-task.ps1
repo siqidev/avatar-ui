@@ -1,10 +1,10 @@
 Param(
-  [string]$ProjectRoot = "C:\\dev\\spectra",
-  [string]$TaskName = "SPECTRA Tunnel",
+  [string]$ProjectRoot = "C:\\dev\\avatar-ui",
+  [string]$TaskName = "Avatar Tunnel",
   [string]$UserId = "S-1-5-18",
   [string]$CloudflaredPath = "C:\\dev\\bin\\cloudflared.exe",
   [string]$ConfigPath = "C:\\ProgramData\\cloudflared\\config.yml",
-  [string]$TunnelName = "spectra"
+  [string]$TunnelName = "avatar"
 )
 
 # cloudflared本体が無ければ即停止。
@@ -51,7 +51,7 @@ Register-ScheduledTask `
   -Trigger $trigger `
   -Settings $settings `
   -Principal $principal `
-  -Description "SPECTRA Cloudflare Tunnel" `
+  -Description "Avatar Cloudflare Tunnel" `
   -Force
 
 Write-Host "Registered scheduled task: $TaskName"

@@ -3,7 +3,7 @@ avatar:
   fullname: Spectra Communicator
 user:
   name: USER
-  language: en
+  language: ja
 grok:
   model: grok-4-1-fast-non-reasoning
   temperature: 1.0

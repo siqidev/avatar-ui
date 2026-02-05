@@ -6,20 +6,20 @@ const { contextBridge, ipcRenderer } = require('electron');
 const projectRoot = path.join(__dirname, '..', '..', '..');
 
 // .envは標準の場所があるので、環境変数があれば優先して読み込む。
-const envPath = process.env.SPECTRA_ENV_PATH || path.join(projectRoot, '.env');
+const envPath = process.env.AVATAR_ENV_PATH || path.join(projectRoot, '.env');
 if (!fs.existsSync(envPath)) {
   throw new Error(`.env not found: ${envPath}`);
 }
 require('dotenv').config({ path: envPath });
 
 // Core APIのURLとAPIキーは必須。未設定なら起動時に止める。
-const apiUrl = process.env.SPECTRA_CORE_URL;
-const apiKey = process.env.SPECTRA_API_KEY;
+const apiUrl = process.env.AVATAR_CORE_URL;
+const apiKey = process.env.AVATAR_API_KEY;
 if (!apiUrl) {
-  throw new Error('SPECTRA_CORE_URL is not set');
+  throw new Error('AVATAR_CORE_URL is not set');
 }
 if (!apiKey) {
-  throw new Error('SPECTRA_API_KEY is not set');
+  throw new Error('AVATAR_API_KEY is not set');
 }
 
 // UIからの入力をCoreに送信し、JSON応答を返す。
@@ -347,7 +347,7 @@ const isInAllowlist = (command) => {
 };
 
 // レンダラに必要最小限のAPIだけ公開する。
-contextBridge.exposeInMainWorld('spectraApi', {
+contextBridge.exposeInMainWorld('avatarApi', {
   think,
   getAppInfo,
   getConsoleConfig,
@@ -371,7 +371,7 @@ contextBridge.exposeInMainWorld('spectraApi', {
 });
 
 // 端末操作をレンダラに公開する。
-contextBridge.exposeInMainWorld('spectraTerminal', {
+contextBridge.exposeInMainWorld('avatarTerminal', {
   create: (cols, rows) => ipcRenderer.invoke('terminal:create', { cols, rows }),
   write: (data) => ipcRenderer.send('terminal:write', data),
   resize: (cols, rows) => ipcRenderer.send('terminal:resize', { cols, rows }),
