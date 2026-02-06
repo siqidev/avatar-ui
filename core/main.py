@@ -751,23 +751,59 @@ def _propose_goals(purpose: str, existing_goals: list, feedback: Optional[str] =
         "- 出力はJSONオブジェクト1つのみ（前後の説明やコードブロックは禁止）\n"
         "- JSON以外のテキスト・マークダウン・コメントは一切禁止\n"
         "- ダブルクォートのみを使用し、キーは goals のみ\n"
+        "- goals配列の各要素はJSONオブジェクトのみ\n"
+        "- 末尾カンマは禁止\n"
+        "- 出力前にJSONの妥当性を自己検証し、無効なら修正してから出力する\n"
         f"{existing_context}"
         f"{feedback_context}\n"
         "JSON形式で返してください: {\"goals\": [{\"name\": \"目標名\"}]}\n"
         f"目的: {purpose}"
     ))
-    try:
-        result = _sample_with_timeout(chat)
-        _track_usage(result)
-        raw = getattr(result, "content", "")
-        data = json.loads(raw)
-        goals_data = data.get("goals", [])
-        if not isinstance(goals_data, list) or not goals_data:
-            raise ValueError("goals is empty")
-        goals = [g for g in goals_data if isinstance(g, dict) and g.get("name")]
-        if not goals:
-            raise ValueError("goals has no valid names")
-    except Exception:
+    goals = None
+    raw = ""
+    last_exc: Optional[Exception] = None
+    for attempt in range(2):
+        try:
+            result = _sample_with_timeout(chat)
+            _track_usage(result)
+            raw = getattr(result, "content", "")
+            data = json.loads(raw)
+            goals_data = data.get("goals", [])
+            if not isinstance(goals_data, list) or not goals_data:
+                raise ValueError("goals is empty or not a list")
+            goals = [g for g in goals_data if isinstance(g, dict) and g.get("name")]
+            if not goals:
+                raise ValueError("goals has no valid names")
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                raw_preview = raw[:2000] if raw else "(empty)"
+                chat.append(user(
+                    "【JSON修復指示】\n"
+                    "前回の出力はJSONとして不正でした。次は以下を厳守してください。\n"
+                    "- JSONオブジェクト1つのみ\n"
+                    "- ダブルクォートのみ\n"
+                    "- 末尾カンマ禁止\n"
+                    "- goals配列の各要素はJSONオブジェクト\n"
+                    "スキーマ: {\"goals\": [{\"name\": \"目標名\"}]}\n"
+                    "前回の出力:\n"
+                    f"{raw_preview}"
+                ))
+                continue
+    if goals is None:
+        error_event = {
+            "stage": "propose_goals",
+            "goal_id": None,
+            "goal": None,
+            "model": CONFIG.get("grok", {}).get("model"),
+            "error": f"{type(last_exc).__name__}: {last_exc}",
+            "retry_used": True,
+        }
+        if raw:
+            error_event["raw_len"] = len(raw)
+            error_event["raw_preview"] = raw[:500]
+        append_event("llm_error", **error_event)
         with _state_lock:
             update_action(
                 STATE,
@@ -915,24 +951,60 @@ def _propose_tasks(goal: dict, existing_tasks: list, feedback: Optional[str] = N
         "- 出力はJSONオブジェクト1つのみ（前後の説明やコードブロックは禁止）\n"
         "- JSON以外のテキスト・マークダウン・コメントは一切禁止\n"
         "- ダブルクォートのみを使用し、キーは tasks のみ\n"
+        "- tasks配列の各要素はJSONオブジェクトのみ\n"
+        "- 末尾カンマは禁止\n"
+        "- 出力前にJSONの妥当性を自己検証し、無効なら修正してから出力する\n"
         f"{completed_context}"
         f"{feedback_context}\n"
         "JSON形式で返してください: {\"tasks\": [{\"name\": \"タスク名\", \"trigger\": \"実行条件(if)\", \"response\": \"実行内容(then)\"}]}\n"
         f"目的: {purpose}\n"
         f"目標: {goal['name']}\nこの目標を達成するためのタスクを提案してください。"
     ))
-    try:
-        result = _sample_with_timeout(chat)
-        _track_usage(result)
-        raw = getattr(result, "content", "")
-        data = json.loads(raw)
-        tasks_data = data.get("tasks", [])
-        if not isinstance(tasks_data, list) or not tasks_data:
-            raise ValueError("tasks is empty")
-        tasks = [t for t in tasks_data if isinstance(t, dict) and t.get("name")]
-        if not tasks:
-            raise ValueError("tasks has no valid names")
-    except Exception:
+    tasks = None
+    raw = ""
+    last_exc: Optional[Exception] = None
+    for attempt in range(2):
+        try:
+            result = _sample_with_timeout(chat)
+            _track_usage(result)
+            raw = getattr(result, "content", "")
+            data = json.loads(raw)
+            tasks_data = data.get("tasks", [])
+            if not isinstance(tasks_data, list) or not tasks_data:
+                raise ValueError("tasks is empty or not a list")
+            tasks = [t for t in tasks_data if isinstance(t, dict) and t.get("name")]
+            if not tasks:
+                raise ValueError("tasks has no valid names")
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                raw_preview = raw[:2000] if raw else "(empty)"
+                chat.append(user(
+                    "【JSON修復指示】\n"
+                    "前回の出力はJSONとして不正でした。次は以下を厳守してください。\n"
+                    "- JSONオブジェクト1つのみ\n"
+                    "- ダブルクォートのみ\n"
+                    "- 末尾カンマ禁止\n"
+                    "- tasks配列の各要素はJSONオブジェクト\n"
+                    "スキーマ: {\"tasks\": [{\"name\": \"タスク名\", \"trigger\": \"実行条件\", \"response\": \"実行内容\"}]}\n"
+                    "前回の出力:\n"
+                    f"{raw_preview}"
+                ))
+                continue
+    if tasks is None:
+        error_event = {
+            "stage": "propose_tasks",
+            "goal_id": goal_id,
+            "goal": goal.get("name"),
+            "model": CONFIG.get("grok", {}).get("model"),
+            "error": f"{type(last_exc).__name__}: {last_exc}",
+            "retry_used": True,
+        }
+        if raw:
+            error_event["raw_len"] = len(raw)
+            error_event["raw_preview"] = raw[:500]
+        append_event("llm_error", **error_event)
         with _state_lock:
             update_action(
                 STATE,
