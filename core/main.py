@@ -2361,12 +2361,3 @@ def exec_request(payload: ExecRequestPayload, request: Request):
     result = _backend_router.route(exec_req)
     return result.to_dict()
 
-
-# --- Robloxチャネルをルーターとして統合 ---
-try:
-    from channels.roblox import router as roblox_router
-except ModuleNotFoundError:
-    roblox_router = None
-
-if roblox_router is not None:
-    app.include_router(roblox_router)
