@@ -253,6 +253,41 @@ const failFast = (message) => {
   throw new Error(message);
 };
 
+const hexToRgb = (hex) => {
+  if (typeof hex !== 'string') {
+    return null;
+  }
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!match) {
+    return null;
+  }
+  return {
+    r: parseInt(match[1], 16),
+    g: parseInt(match[2], 16),
+    b: parseInt(match[3], 16),
+  };
+};
+
+const setRgbVar = (root, key, value) => {
+  const rgb = hexToRgb(value);
+  if (!rgb) {
+    failFast(`console_ui.${key.replace('-', '_')} is invalid.`);
+  }
+  root.style.setProperty(`--${key}-r`, String(rgb.r));
+  root.style.setProperty(`--${key}-g`, String(rgb.g));
+  root.style.setProperty(`--${key}-b`, String(rgb.b));
+};
+
+const applyThemeColors = (ui) => {
+  if (!ui) {
+    failFast('console_ui is missing.');
+  }
+  const root = document.documentElement;
+  setRgbVar(root, 'theme-color', ui.theme_color);
+  setRgbVar(root, 'user-color', ui.user_color);
+  setRgbVar(root, 'tool-color', ui.tool_color);
+};
+
 let consoleConfig = null;
 let adminConfig = null;
 let isFatal = false;
@@ -261,9 +296,35 @@ let pendingApproval = null;
 let approvalMenuIndex = 0; // 承認メニューの選択インデックス (0=Yes, 1=Always, 2=No)
 let pendingNoInput = null; // No選択後の自由入力モード
 let terminalCapture = null;
+let resumeAfterUserInput = false;
 
 const getLanguage = () => consoleConfig?.language || 'ja';
 const t = (ja, en) => (getLanguage() === 'en' ? en : ja);
+
+const resumeAfterUserInputIfNeeded = () => {
+  if (!resumeAfterUserInput) {
+    return Promise.resolve();
+  }
+  resumeAfterUserInput = false;
+  const api = requireAvatarApi();
+  if (!api.getState || !api.continueLoop) {
+    return Promise.resolve();
+  }
+  return api.getState()
+    .then((state) => {
+      if (state?.action?.phase !== 'awaiting_continue') {
+        return;
+      }
+      return api.continueLoop()
+        .then(() => {
+          addLine('text-line--system', `> ${t('続行', 'Continue')}`);
+          updateMissionPane();
+          updateInspectorPane();
+        })
+        .catch(() => {});
+    })
+    .catch(() => {});
+};
 
 const requireAvatarApi = () => {
   if (!window.avatarApi) {
@@ -323,35 +384,7 @@ const applyConsoleConfig = (data) => {
   if (!ui) {
     failFast('console_ui is missing.');
   }
-
-  const hexToRgb = (hex) => {
-    if (typeof hex !== 'string') {
-      return null;
-    }
-    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!match) {
-      return null;
-    }
-    return {
-      r: parseInt(match[1], 16),
-      g: parseInt(match[2], 16),
-      b: parseInt(match[3], 16),
-    };
-  };
-
-  const setRgb = (key, value) => {
-    const rgb = hexToRgb(value);
-    if (!rgb) {
-      failFast(`console_ui.${key.replace('-', '_')} is invalid.`);
-    }
-    root.style.setProperty(`--${key}-r`, String(rgb.r));
-    root.style.setProperty(`--${key}-g`, String(rgb.g));
-    root.style.setProperty(`--${key}-b`, String(rgb.b));
-  };
-
-  setRgb('theme-color', ui.theme_color);
-  setRgb('user-color', ui.user_color);
-  setRgb('tool-color', ui.tool_color);
+  applyThemeColors(ui);
 
   if (ui.opacity !== undefined) {
     root.style.setProperty('--ui-opacity', String(ui.opacity));
@@ -1169,6 +1202,7 @@ const handleApprovalInput = () => {
         updateMissionPane();
         updateInspectorPane();
         inputEl.focus();
+        return resumeAfterUserInputIfNeeded();
       })
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));
@@ -1281,17 +1315,36 @@ const openCommandOptions = (commandId) => {
 const applyAdminUpdate = (commandId, value) => {
   const api = requireAdminApi();
   const payload = { [commandId]: value };
-  return api.updateAdminConfig(payload).then((updated) => {
-    adminConfig = updated;
-    if (updated?.language && consoleConfig) {
-      consoleConfig.language = updated.language;
-    }
-    if (commandId === 'language' && api.getState) {
-      api.getState().then((state) => {
-        renderStatePrompt(state);
-      }).catch(() => {});
-    }
-  });
+  return api.updateAdminConfig(payload)
+    .then((updated) => {
+      adminConfig = updated;
+      if (updated?.language && consoleConfig) {
+        consoleConfig.language = updated.language;
+      }
+      if (commandId === 'language' && api.getState) {
+        api.getState().then((state) => {
+          renderStatePrompt(state);
+        }).catch(() => {});
+      }
+      if (commandId === 'theme' && api.getConsoleConfig) {
+        return api.getConsoleConfig().then((data) => {
+          if (!data?.console_ui) {
+            throw new Error('console_ui is missing.');
+          }
+          consoleConfig = data.console_ui;
+          applyThemeColors(consoleConfig);
+        });
+      }
+    })
+    .then(() => resumeAfterUserInputIfNeeded())
+    .catch((error) => {
+      if (commandId === 'theme') {
+        const message = error instanceof Error ? error.message : String(error);
+        addLine('text-line--error', `ERROR> ${message}`);
+        return resumeAfterUserInputIfNeeded();
+      }
+      throw error;
+    });
 };
 
 const renderStatePrompt = (state) => {
@@ -1516,6 +1569,7 @@ const confirmValueInput = () => {
         addLine('text-line--system', `> retry: ${value}`);
         updateMissionPane();
         updateInspectorPane();
+        return resumeAfterUserInputIfNeeded();
       })
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));
@@ -1560,9 +1614,10 @@ const confirmValueInput = () => {
       if (pendingApproval) {
         addLine('text-line--system', `> canceled: ${pendingApproval.label}`);
         clearApprovalMenu();
-        // Coreに承認拒否を通知
+        // Coreにキャンセルを通知
         const api = requireAvatarApi();
-        api.rejectAction().catch(() => {});
+        resumeAfterUserInput = true;
+        api.cancelAction().catch(() => {});
         pendingApproval = null;
         pendingNoInput = null;
       }
@@ -1613,6 +1668,7 @@ const confirmValueInput = () => {
         const avatarName = consoleConfig?.name_tags?.avatar || 'SPECTRA';
         addLine('text-line--assistant', `${avatarName}> ${data.response}`);
       })
+      .then(() => resumeAfterUserInputIfNeeded())
       .catch((error) => {
         failFast(error instanceof Error ? error.message : String(error));
       })
@@ -1677,9 +1733,10 @@ const confirmValueInput = () => {
         pendingApproval = null;
         clearApprovalMenu();
         addLine('text-line--system', `> canceled: ${action.label}`);
-        // Coreに承認拒否を通知
+        // Coreにキャンセルを通知
         const api = requireAvatarApi();
-        api.rejectAction().catch(() => {});
+        resumeAfterUserInput = true;
+        api.cancelAction().catch(() => {});
         return;
       }
     }

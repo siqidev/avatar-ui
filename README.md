@@ -45,6 +45,17 @@ Give it a purpose, and the avatar plans and executes autonomously.
 3. Approve or reject each action
 4. Avatar executes and reports results
 
+## Slash Commands
+
+Slash commands provide quick control of model, temperature, language, and task flow.
+
+- `/language <ja|en>` – Switch UI language
+- `/model <name>` – Switch model (e.g., `grok-4-1-fast-non-reasoning`)
+- `/reset` – Reset purpose, goals, and tasks
+- `/retry <task-id>` – Retry a task (e.g., `G4-T1`)
+- `/temperature <0.0-2.0>` – Set sampling temperature
+- `/theme <classic|cobalt|amber>` – Switch UI theme
+
 ## Quick Start
 
 ### Prerequisites
@@ -60,23 +71,26 @@ git clone https://github.com/siqidev/avatar-ui.git
 cd avatar-ui
 ```
 
-### 2. Setup
+### 2. Setup (2 terminals recommended)
+
+Terminal A (Core):
 
 ```bash
-# Python
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# Console
-cd command/console && npm install && cd ../..
+cp .env.example .env
 ```
 
-### 3. Environment variables
-
-Create `.env`:
+Terminal B (Console):
 
 ```bash
+cd command/console && npm install
+```
+
+Edit `.env` and set at least:
+
+```
 XAI_API_KEY=your-xai-api-key
 AVATAR_API_KEY=your-secret-key
 AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
@@ -90,14 +104,18 @@ AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
 | `AVATAR_SHELL` | | Shell to use (default: OS standard) |
 | `AVATAR_SPACE` | | Working directory (default: ~/Avatar) |
 
-### 4. Run
+### 3. Run
+
+Terminal 1 (Core):
 
 ```bash
-# Terminal 1: Core
 source .venv/bin/activate
 python -m uvicorn core.main:app --host 127.0.0.1 --port 8000
+```
 
-# Terminal 2: Console
+Terminal 2 (Console):
+
+```bash
 cd command/console && npm start
 ```
 
@@ -107,15 +125,15 @@ Edit `config.yaml`:
 
 ```yaml
 avatar:
-  name: AVATAR
+  name: AVATAR             # Display name
 
 grok:
-  model: grok-4-1-fast-non-reasoning
-  temperature: 1.0
-  daily_token_limit: 100000
+  model: grok-4-1-fast-non-reasoning  # Default model
+  temperature: 1.0         # Sampling temperature
+  daily_token_limit: 100000  # Token budget per day
 
 system_prompt: |
-  Respond concisely in a technical style.
+  Respond concisely in a technical style.  # System prompt for the avatar
 ```
 
 | Item | Location |
@@ -145,8 +163,6 @@ AVATAR UI executes commands with OS privileges.
 | **Local only** | Designed for single-user local operation |
 | **Approval flow** | Review commands before execution |
 | **API key management** | Keep `.env` out of git |
-
-> External access (Discord, Roblox) planned for v0.3.0.
 
 ## License
 

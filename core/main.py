@@ -1366,6 +1366,7 @@ class AdminConfigUpdate(BaseModel):
     temperature: Optional[float] = None
     system_prompt: Optional[str] = None
     language: Optional[str] = None
+    theme: Optional[str] = None
 
 
 class ObservationRequest(BaseModel):
@@ -1696,6 +1697,16 @@ def console_config(request: Request):
             {"label": label_map.get(lang, lang), "value": lang}
             for lang in languages
         ]
+    themes = CONFIG.get("console_ui", {}).get("themes") or []
+    if themes:
+        names = []
+        for theme in themes:
+            if isinstance(theme, dict):
+                name = str(theme.get("name", "")).strip()
+                if name:
+                    names.append(name)
+        if names:
+            options["theme"] = names
     palette["options"] = options
     ui["command_palette"] = palette
     return {"console_ui": ui}
@@ -1711,6 +1722,7 @@ def admin_config(request: Request):
         "temperature": grok["temperature"],
         "system_prompt": CONFIG["system_prompt"],
         "language": CONFIG["user"]["language"],
+        "theme": CONFIG.get("console_ui", {}).get("theme"),
     }
 
 
@@ -1851,23 +1863,6 @@ def retry_task_endpoint(payload: RetryTaskRequest, request: Request):
     return {"status": "retrying", "task_id": task_id, "goal_id": goal_id}
 
 
-@app.post("/admin/reject")
-def reject_action(request: Request):
-    # 現在の行動を拒否し、クリアする。
-    _check_api_key(request)
-    with _state_lock:
-        if not STATE.get("action"):
-            raise HTTPException(status_code=400, detail="No action to reject")
-        summary = STATE["action"]["summary"]
-        # activeなタスクをfailに更新。
-        _mark_active_task("fail")
-        clear_action(STATE)
-        update_result(STATE, "fail", f"拒否: {summary}")
-        save_state(STATE)
-    append_event("result", status="fail", summary=f"拒否: {summary}")
-    return {"result": STATE["result"]}
-
-
 @app.post("/admin/approve")
 def approve_action(request: Request):
     """承認待ちの行動を承認し、実行中に移行する。"""
@@ -1885,7 +1880,7 @@ def approve_action(request: Request):
 
 @app.post("/admin/reject")
 def reject_action(request: Request):
-    """承認待ちの行動を拒否し、状態をクリアする。"""
+    """承認待ちの行動を拒否し、タスクを失敗として処理する。"""
     _check_api_key(request)
     with _state_lock:
         if not STATE.get("action"):
@@ -1893,11 +1888,35 @@ def reject_action(request: Request):
         if STATE["action"]["phase"] != "approving":
             raise HTTPException(status_code=400, detail="Action is not awaiting approval")
         summary = STATE["action"]["summary"]
+        # activeなタスクをfailに更新。
+        _mark_active_task("fail")
         clear_action(STATE)
+        update_result(STATE, "fail", f"{_msg('拒否', 'Rejected')}: {summary}")
         save_state(STATE)
-    append_event("action", phase="rejected", summary=summary)
+    append_event("result", status="fail", summary=f"{_msg('拒否', 'Rejected')}: {summary}")
     _loop_wake_event.set()  # ループを起こして次の処理へ
-    return {"status": "rejected", "summary": summary}
+    return {"result": STATE["result"]}
+
+
+@app.post("/admin/cancel")
+def cancel_action(request: Request):
+    """承認待ちの行動をキャンセルし、ユーザー介入を優先する。"""
+    _check_api_key(request)
+    with _state_lock:
+        if not STATE.get("action"):
+            raise HTTPException(status_code=400, detail="No action to cancel")
+        if STATE["action"]["phase"] != "approving":
+            raise HTTPException(status_code=400, detail="Action is not awaiting approval")
+        summary = STATE["action"]["summary"]
+        update_action(
+            STATE,
+            "awaiting_continue",
+            _msg(f"キャンセル: {summary}", f"Canceled: {summary}"),
+        )
+        save_state(STATE)
+    append_event("action", phase="canceled", summary=summary)
+    _loop_wake_event.set()  # ループを起こして待機状態に移行
+    return {"status": "canceled", "summary": summary}
 
 
 class CompleteRequest(BaseModel):
@@ -2027,7 +2046,7 @@ def _mark_active_task(status: str) -> None:
 def admin_config_update(payload: AdminConfigUpdate, request: Request):
     # 管理者向けに設定を更新し、反映する。
     _check_api_key(request)
-    updates = payload.model, payload.temperature, payload.system_prompt, payload.language
+    updates = payload.model, payload.temperature, payload.system_prompt, payload.language, payload.theme
     if all(value is None for value in updates):
         raise HTTPException(status_code=400, detail="No config values provided")
 
@@ -2051,6 +2070,37 @@ def admin_config_update(payload: AdminConfigUpdate, request: Request):
         if language not in ("ja", "en"):
             raise HTTPException(status_code=400, detail="language must be one of: ja, en")
         updated["user"]["language"] = language
+    if payload.theme is not None:
+        if not payload.theme.strip():
+            raise HTTPException(status_code=400, detail="theme is empty")
+        theme_name = payload.theme.strip()
+        ui = updated.get("console_ui")
+        if not isinstance(ui, dict):
+            raise HTTPException(status_code=500, detail="console_ui is missing")
+        themes = ui.get("themes") or []
+        if not isinstance(themes, list) or not themes:
+            raise HTTPException(status_code=400, detail="themes are not configured")
+        selected = None
+        names = []
+        for theme in themes:
+            if not isinstance(theme, dict):
+                continue
+            name = str(theme.get("name", "")).strip()
+            if not name:
+                continue
+            names.append(name)
+            if name.lower() == theme_name.lower():
+                selected = theme
+                theme_name = name
+        if not selected:
+            raise HTTPException(status_code=400, detail=f"theme must be one of: {', '.join(names)}")
+        for key in ("theme_color", "user_color", "tool_color"):
+            if key not in selected:
+                raise HTTPException(status_code=400, detail=f"theme.{key} is missing")
+        ui["theme"] = theme_name
+        ui["theme_color"] = selected["theme_color"]
+        ui["user_color"] = selected["user_color"]
+        ui["tool_color"] = selected["tool_color"]
 
     _save_config(updated)
     CONFIG.clear()
@@ -2062,6 +2112,7 @@ def admin_config_update(payload: AdminConfigUpdate, request: Request):
         "temperature": grok["temperature"],
         "system_prompt": CONFIG["system_prompt"],
         "language": CONFIG["user"]["language"],
+        "theme": CONFIG.get("console_ui", {}).get("theme"),
     }
 
 
@@ -2240,6 +2291,10 @@ def exec_request(payload: ExecRequestPayload, request: Request):
 
 
 # --- Robloxチャネルをルーターとして統合 ---
-from channels.roblox import router as roblox_router
+try:
+    from channels.roblox import router as roblox_router
+except ModuleNotFoundError:
+    roblox_router = None
 
-app.include_router(roblox_router)
+if roblox_router is not None:
+    app.include_router(roblox_router)

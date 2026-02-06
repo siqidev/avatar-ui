@@ -216,6 +216,24 @@ const rejectAction = async () => {
   return data;
 };
 
+// Core にキャンセルを通知する。
+const cancelAction = async () => {
+  const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
+  const response = await fetch(`${baseUrl}/admin/cancel`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.detail ?? response.statusText;
+    throw new Error(message);
+  }
+  return data;
+};
+
 // Core にタスク完了を通知する。
 const completeAction = async (payload = {}) => {
   const baseUrl = apiUrl.replace(/\/v1\/think$/, '');
@@ -359,6 +377,7 @@ contextBridge.exposeInMainWorld('avatarApi', {
   logConsole,
   approveAction,
   rejectAction,
+  cancelAction,
   completeAction,
   retryTask,
   resetState,

@@ -4,7 +4,8 @@
   "private": true,
   "main": "electron/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "postinstall": "node scripts/fix-pty-perms.js"
   },
   "dependencies": {
     "node-pty": "^1.0.0",

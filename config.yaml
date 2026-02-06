@@ -1,101 +1,116 @@
+# アバター設定
 avatar:
-  name: SPECTRA
-  fullname: Spectra Communicator
+  name: SPECTRA  # UIで表示する名前
+  fullname: Spectra Communicator  # バナー等の長い表示名
+# ユーザー設定
 user:
-  name: USER
-  language: en
-  language_options:
-  - ja
-  - en
+  name: USER  # UIで表示するユーザー名
+  language: ja  # 既定UI言語 (ja/en)
+  language_options:  # UIで選べる言語
+    - ja
+    - en
+# Grok設定
 grok:
-  model: grok-4-1-fast-non-reasoning
-  models:
-  - grok-4-1-fast-reasoning
-  - grok-4-1-fast-non-reasoning
-  - grok-code-fast-1
-  temperature: 1.0
-  temperature_presets:
-  - 0.0
-  - 0.1
-  - 0.2
-  - 0.3
-  - 0.4
-  - 0.5
-  - 0.6
-  - 0.7
-  - 0.8
-  - 0.9
-  - 1.0
-  - 1.1
-  - 1.2
-  - 1.3
-  - 1.4
-  - 1.5
-  - 1.6
-  - 1.7
-  - 1.8
-  - 1.9
-  - 2.0
-  daily_token_limit: 100000
-  search_web: 'on'
-  search_x: 'on'
+  model: grok-4-1-fast-non-reasoning  # 既定モデル
+  models:  # /model の選択肢
+    - grok-4-1-fast-reasoning
+    - grok-4-1-fast-non-reasoning
+    - grok-code-fast-1
+  temperature: 1.0  # 既定温度
+  temperature_presets:  # /temperature の選択肢
+    - 0.0
+    - 0.1
+    - 0.2
+    - 0.3
+    - 0.4
+    - 0.5
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+    - 1.0
+    - 1.1
+    - 1.2
+    - 1.3
+    - 1.4
+    - 1.5
+    - 1.6
+    - 1.7
+    - 1.8
+    - 1.9
+    - 2.0
+  daily_token_limit: 100000  # 使用量表示の上限
+  search_web: 'on'  # Web検索 on/off
+  search_x: 'on'  # X検索 on/off
+# システムプロンプト（全応答の前置き）
 system_prompt: '技術的で直接的なスタイルで簡潔に応答してください。
-
   回答は短く要点を押さえたものにしてください。
-
   【重要】全年齢向けの内容のみ。暴力、性的、差別的な内容は絶対に避けてください。
 
-
   ## 実行環境
-
   - ターミナルで任意のシェルコマンドを実行できます。
-
   - 作業ディレクトリ: Avatar Space（AVATAR_SPACE または config.avatar_space）
-
   - ファイル操作（cat, echo, sed等）やgitコマンドが使えます。
-
   - アクション提案時は実行可能なコマンドを1行で提示してください。
-
   - 複雑な操作は単純なコマンドに分割してください。
-
   '
+# 自律ループ設定
 autonomous_loop:
-  notify_result: true
-  result_interval: 3.0
+  notify_result: true  # 結果通知を出すか
+  result_interval: 3.0  # 結果通知間隔（秒）
+# UI設定
 console_ui:
-  theme_color: '#00FF00'
-  user_color: '#86FFE0'
-  tool_color: '#FFFFFF'
-  opacity: 0.75
+  theme: classic  # 現在のテーマ名
+  themes:  # 3種固定のテーマ定義（色を変えるならここ）
+    - name: classic  # 緑系
+      theme_color: '#00FF00'
+      user_color: '#86FFE0'
+      tool_color: '#D4FFF8'
+    - name: cobalt  # 青系
+      theme_color: '#5AD1FF'
+      user_color: '#9EFC6A'
+      tool_color: '#FF66C4'
+    - name: amber  # 琥珀系
+      theme_color: '#FFB000'
+      user_color: '#FFD37F'
+      tool_color: '#FFC266'
+  theme_color: '#00FF00'  # 現在適用中の色（/themeで更新）
+  user_color: '#86FFE0'  # 現在適用中の色（/themeで更新）
+  tool_color: '#D4FFF8'  # 現在適用中の色（/themeで更新）
+  opacity: 0.75  # パネル透過率
   avatar_effect:
-    enabled: true
-    char_delay_ms: 40
-    blip_freq_hz: 520
-    blip_duration_ms: 18
-    blip_volume: 0.04
-    lip_sync_interval_ms: 90
-  brightness: 1.2
-  glow_text: 1.0
-  glow_box: 1.0
-  avatar_overlay_opacity: 1.0
-  avatar_brightness: 1.5
+    enabled: true  # 演出の有無
+    char_delay_ms: 40  # 文字送り間隔（ms）
+    blip_freq_hz: 520  # 効果音周波数
+    blip_duration_ms: 18  # 効果音長（ms）
+    blip_volume: 0.04  # 効果音音量
+    lip_sync_interval_ms: 90  # 口パク間隔（ms）
+  brightness: 1.2  # 全体明るさ
+  glow_text: 1.0  # 文字グロー
+  glow_box: 1.0  # パネルグロー
+  avatar_overlay_opacity: 1.0  # アバターへのオーバーレイ濃度
+  avatar_brightness: 1.5  # アバター明るさ
   system_messages:
-    banner1: SYSTEM SPECTRA COMMAND ONLINE
-    banner2: SESSION STANDBY
+    banner1: SYSTEM SPECTRA COMMAND ONLINE  # 起動バナー1
+    banner2: SESSION STANDBY  # 起動バナー2
+  # command_palette はスラッシュコマンドの表示用。通常はUIから操作する領域。
   command_palette:
-    commands:
-    - id: model
-      label: /model
-      description: choose LLM model
-    - id: temperature
-      label: /temperature
-      description: set temperature (0.1 steps)
-    - id: language
-      label: /language
-      description: set language (Japanese/English)
-    - id: retry
-      label: /retry
-      description: retry task by id (e.g., G4-T1)
-    - id: reset
-      label: /reset
-      description: reset all state (purpose, goals, tasks)
+    commands:  # スラッシュコマンド一覧（表示用）
+      - id: language
+        label: /language
+        description: set language (Japanese/English)
+      - id: model
+        label: /model
+        description: choose LLM model
+      - id: reset
+        label: /reset
+        description: reset all state (purpose, goals, tasks)
+      - id: retry
+        label: /retry
+        description: retry task by id (e.g., G4-T1)
+      - id: temperature
+        label: /temperature
+        description: set temperature (0.1 steps)
+      - id: theme
+        label: /theme
+        description: set theme (classic/cobalt/amber)

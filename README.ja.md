@@ -45,6 +45,17 @@
 3. 各アクションを承認または拒否
 4. アバターが実行し結果を報告
 
+## スラッシュコマンド
+
+スラッシュコマンドでモデル・温度・言語・タスクの制御ができます。
+
+- `/language <ja|en>` – UI言語の切替
+- `/model <name>` – モデル切替（例: `grok-4-1-fast-non-reasoning`）
+- `/reset` – 目的・目標・タスクをリセット
+- `/retry <task-id>` – タスクIDで再試行（例: `G4-T1`）
+- `/temperature <0.0-2.0>` – 温度（サンプリングの揺らぎ）
+- `/theme <classic|cobalt|amber>` – UIテーマ切替
+
 ## クイックスタート
 
 ### 前提条件
@@ -60,23 +71,26 @@ git clone https://github.com/siqidev/avatar-ui.git
 cd avatar-ui
 ```
 
-### 2. セットアップ
+### 2. セットアップ（ターミナル2つ推奨）
+
+ターミナルA（Core）:
 
 ```bash
-# Python
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# Console
-cd command/console && npm install && cd ../..
+cp .env.example .env
 ```
 
-### 3. 環境変数
-
-`.env` を作成:
+ターミナルB（Console）:
 
 ```bash
+cd command/console && npm install
+```
+
+`.env` を開いて最低限以下を設定:
+
+```
 XAI_API_KEY=your-xai-api-key
 AVATAR_API_KEY=your-secret-key
 AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
@@ -90,14 +104,18 @@ AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
 | `AVATAR_SHELL` | | 使用するシェル（デフォルト: OS標準） |
 | `AVATAR_SPACE` | | 作業ディレクトリ（デフォルト: ~/Avatar） |
 
-### 4. 起動
+### 3. 起動
+
+ターミナル1（Core）:
 
 ```bash
-# ターミナル1: Core
 source .venv/bin/activate
 python -m uvicorn core.main:app --host 127.0.0.1 --port 8000
+```
 
-# ターミナル2: Console
+ターミナル2（Console）:
+
+```bash
 cd command/console && npm start
 ```
 
@@ -107,15 +125,15 @@ cd command/console && npm start
 
 ```yaml
 avatar:
-  name: AVATAR
+  name: AVATAR             # 表示名
 
 grok:
-  model: grok-4-1-fast-non-reasoning
-  temperature: 1.0
-  daily_token_limit: 100000
+  model: grok-4-1-fast-non-reasoning  # 既定モデル
+  temperature: 1.0         # 温度
+  daily_token_limit: 100000  # 1日あたりのトークン上限
 
 system_prompt: |
-  技術的で直接的なスタイルで簡潔に応答してください。
+  技術的で直接的なスタイルで簡潔に応答してください。  # システムプロンプト
 ```
 
 | 項目 | 設定場所 |
@@ -145,8 +163,6 @@ AVATAR UIはOS権限でコマンドを実行します。
 | **ローカル専用** | 自分だけが使用する前提で設計 |
 | **承認フロー** | コマンド実行前に内容を確認 |
 | **APIキー管理** | `.env`をgit管理外に保持 |
-
-> Discord/Roblox連携はv0.3.0で対応予定。
 
 ## ライセンス
 
