@@ -180,3 +180,6 @@ Avatar: Core → Flow → State → Body
 | AVATAR UI 公式 | https://siqi.jp/avatarui |
 | SPECTRA 公式 | https://siqi.jp/spectra |
 | xAI Docs | https://docs.x.ai/docs |
+| リポジトリ | https://github.com/siqidev/avatar-ui |
+| リリースタグ | https://github.com/siqidev/avatar-ui/tags |
+| レガシー版（v0.1以前） | https://github.com/sito-sikino/avatar-ui-core |
