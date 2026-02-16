@@ -50,6 +50,11 @@ avatar-uiはSIQIの制作プロジェクトの1つ。SIQIの全体戦略にお�
 | 次版計画の変更 | PLAN.md を即時更新 |
 | README.mdの利用者向け情報 | 必要に応じて更新 |
 
+## 横断参照知識
+
+プロジェクト横断の参照知識は siqi/knowledge/ を参照（../../knowledge/）。
+主要な関連ファイル: xai-api.md, roblox-npc.md, mia.md, live2d.md, vrm.md, openclaw.md
+
 ## 主要パス索引
 
 | パス | 内容 |
