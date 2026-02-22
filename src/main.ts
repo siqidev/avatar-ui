@@ -1,95 +1,139 @@
 import OpenAI from "openai"
+import type { ResponseInput } from "openai/resources/responses/responses"
 import * as readline from "node:readline"
 import * as fs from "node:fs"
 
+// 人格定義ファイル（being.md）のパス
+const BEING_FILE = "being.md"
+
+// 使用するGrokモデル
+const MODEL = "grok-4-1-fast-non-reasoning"
+
+// セッション状態の保存先（response_idのみ保存）
 const DATA_DIR = "data"
-const SESSION_FILE = `${DATA_DIR}/session.json`
+const STATE_FILE = `${DATA_DIR}/state.json`
 
-type Message = {
-  role: "system" | "user" | "assistant"
-  content: string
+// セッション状態の型（前回のresponse_idだけ保持）
+type State = {
+  lastResponseId: string | null
 }
 
-type Session = {
-  messages: Message[]
-}
-
-function loadSession(): Session {
+// being.mdから人格定義を読み込む
+function loadBeing(): string {
   try {
-    const raw = fs.readFileSync(SESSION_FILE, "utf-8")
-    return JSON.parse(raw) as Session
+    return fs.readFileSync(BEING_FILE, "utf-8").trim()
   } catch {
-    return { messages: [] }
+    process.stderr.write("エラー: being.md が見つかりません\n")
+    process.exit(1)
   }
 }
 
-function saveSession(session: Session): void {
+// セッション状態をファイルから読み込む
+function loadState(): State {
+  try {
+    const raw = fs.readFileSync(STATE_FILE, "utf-8")
+    return JSON.parse(raw) as State
+  } catch {
+    return { lastResponseId: null }
+  }
+}
+
+// セッション状態をファイルに保存する
+function saveState(state: State): void {
   fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2))
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
 }
 
 async function main(): Promise<void> {
+  // APIキーの確認
   const apiKey = process.env.XAI_API_KEY
   if (!apiKey) {
     process.stderr.write("エラー: XAI_API_KEY が .env に設定されていません\n")
     process.exit(1)
   }
 
+  // xAI Grok APIクライアントを初期化（OpenAI互換SDKを使用）
   const client = new OpenAI({
     apiKey,
     baseURL: "https://api.x.ai/v1",
   })
 
-  const session = loadSession()
+  // 人格定義を読み込む
+  const beingPrompt = loadBeing()
 
-  if (session.messages.length === 0) {
-    session.messages.push({
-      role: "system",
-      content: "あなたはSpectra。式乃シトの情報的パートナー。簡潔に、技術的に応答する。",
-    })
+  // 前回のセッション状態を読み込む
+  const state = loadState()
+
+  if (state.lastResponseId) {
+    process.stdout.write("前回の会話を継続します\n")
+  } else {
+    process.stdout.write("新しい会話を開始します\n")
   }
+  process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
 
+  // ターミナルの入出力インターフェース
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   })
 
-  process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
-
+  // ユーザー入力を待ち、Spectraに送信し、応答を表示するループ
   const prompt = (): void => {
-    rl.question("you> ", async (input) => {
-      if (!input.trim()) {
+    rl.question("you> ", async (userInput) => {
+      // 空入力は無視して再度プロンプト表示
+      if (!userInput.trim()) {
         prompt()
         return
       }
 
-      session.messages.push({ role: "user", content: input })
-
       try {
-        const response = await client.chat.completions.create({
-          model: "grok-3-fast",
-          messages: session.messages,
+        // Responses APIでSpectraに送信
+        // 初回: systemロール（人格定義）+ userロールをinput配列で送信
+        // 継続: previous_response_idで会話継続、userメッセージのみ送信
+        const input: ResponseInput = state.lastResponseId
+          ? [{ role: "user" as const, content: userInput }]
+          : [
+              { role: "system" as const, content: beingPrompt },
+              { role: "user" as const, content: userInput },
+            ]
+
+        const response = await client.responses.create({
+          model: MODEL,
+          input,
+          store: true,
+          ...(state.lastResponseId
+            ? { previous_response_id: state.lastResponseId }
+            : {}),
         })
 
-        const reply = response.choices[0]?.message?.content ?? "(応答なし)"
+        const reply = response.output_text ?? "(応答なし)"
         process.stdout.write(`\nspectra> ${reply}\n\n`)
 
-        session.messages.push({ role: "assistant", content: reply })
-        saveSession(session)
+        // response_idを保存（次回の継続用）
+        state.lastResponseId = response.id
+        saveState(state)
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
         process.stderr.write(`\nエラー: ${message}\n\n`)
+
+        // 30日超過等でprevious_response_idが無効になった場合、リセットして再試行
+        if (message.includes("previous_response_id")) {
+          process.stderr.write("セッションをリセットします\n\n")
+          state.lastResponseId = null
+          saveState(state)
+        }
       }
 
+      // 次の入力を待つ
       prompt()
     })
   }
 
   prompt()
 
+  // Ctrl+Cで終了時
   rl.on("close", () => {
-    saveSession(session)
-    process.stdout.write("\n会話を保存しました。\n")
+    process.stdout.write("\n会話を終了しました。\n")
     process.exit(0)
   })
 }
