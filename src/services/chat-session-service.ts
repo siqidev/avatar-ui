@@ -13,14 +13,7 @@ import {
   createMemoryRecord,
 } from "../memory/memory-record.js"
 import { appendMemory, readRecentMemories } from "../memory/memory-log-repository.js"
-
-// ツール使用結果
-type ToolOutput = {
-  // ツール処理後の最終テキスト応答
-  reply: string
-  // save_memoryが呼ばれたか
-  memorySaved: boolean
-}
+import { uploadMemoryToCollection } from "../collections/collections-repository.js"
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
@@ -29,7 +22,7 @@ export async function sendMessage(
   state: State,
   beingPrompt: string,
   userInput: string,
-): Promise<ToolOutput> {
+): Promise<string> {
   // 初回: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput = state.lastResponseId
     ? [{ role: "user" as const, content: userInput }]
@@ -38,10 +31,8 @@ export async function sendMessage(
         { role: "user" as const, content: userInput },
       ]
 
-  // ツール定義（save_memory + file_search（Collections有効時））
   const tools = buildTools(env)
 
-  // Responses API呼び出し
   let response = await client.responses.create({
     model: APP_CONFIG.model,
     input,
@@ -52,23 +43,17 @@ export async function sendMessage(
       : {}),
   })
 
-  // response_idを即座に保存（ツール処理中にクラッシュしても会話は継続可能）
   state.lastResponseId = response.id
 
   // ツール呼び出しループ（Grokがツールを呼んだら処理して再送信）
-  let memorySaved = false
   const maxToolRounds = 5
   for (let round = 0; round < maxToolRounds; round++) {
     const toolCalls = extractFunctionCalls(response)
     if (toolCalls.length === 0) break
 
-    // ツール呼び出しを処理
     const toolResults: ResponseInput = []
     for (const call of toolCalls) {
-      const result = await handleToolCall(call, state, response.id)
-      if (call.name === "save_memory" && result.includes("保存しました")) {
-        memorySaved = true
-      }
+      const result = await handleToolCall(call, client, env, response.id)
       toolResults.push({
         type: "function_call_output",
         call_id: call.callId,
@@ -76,7 +61,6 @@ export async function sendMessage(
       } as ResponseInput[number])
     }
 
-    // ツール結果を送信して次の応答を取得
     response = await client.responses.create({
       model: APP_CONFIG.model,
       input: toolResults,
@@ -87,77 +71,62 @@ export async function sendMessage(
     state.lastResponseId = response.id
   }
 
-  const reply = response.output_text ?? "(応答なし)"
-  return { reply, memorySaved }
+  return response.output_text ?? "(応答なし)"
 }
 
-// file_search障害時のfallback: 直近N件の記憶をシステムプロンプトに注入して再送信
+// エラーハンドリング付きで送信（セッションリセット・file_search障害時fallback）
 export async function sendMessageWithFallback(
   client: OpenAI,
   env: Env,
   state: State,
   beingPrompt: string,
   userInput: string,
-): Promise<ToolOutput> {
+): Promise<string> {
   try {
     return await sendMessage(client, env, state, beingPrompt, userInput)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
 
-    // previous_response_id無効（30日超過等）
+    // previous_response_id無効（30日超過等）→ リセットして再試行
     if (message.includes("previous_response_id")) {
       process.stderr.write("セッションをリセットします\n\n")
       state.lastResponseId = null
       return sendMessage(client, env, state, beingPrompt, userInput)
     }
 
-    // file_search関連のエラー → fallback
-    if (
-      message.includes("file_search") ||
-      message.includes("vector_store")
-    ) {
-      process.stderr.write(
-        "Collections検索に失敗。ローカル記憶で代替します\n\n",
-      )
-      return sendWithLocalMemoryFallback(
-        client,
-        state,
-        beingPrompt,
-        userInput,
-      )
+    // file_search関連のエラー → ローカル記憶fallback
+    if (message.includes("file_search") || message.includes("vector_store")) {
+      process.stderr.write("Collections検索に失敗。ローカル記憶で代替します\n\n")
+      return sendWithLocalFallback(client, state, beingPrompt, userInput)
     }
 
     throw err
   }
 }
 
-// ローカル記憶をプロンプトに注入して送信（fallback）
-async function sendWithLocalMemoryFallback(
+// ローカル記憶をプロンプトに注入して送信（Collections障害時）
+async function sendWithLocalFallback(
   client: OpenAI,
   state: State,
   beingPrompt: string,
   userInput: string,
-): Promise<ToolOutput> {
+): Promise<string> {
   const recentResult = readRecentMemories(APP_CONFIG.fallbackRecentCount)
   const memories = recentResult.success ? recentResult.data : []
 
   let systemContent = beingPrompt
   if (memories.length > 0) {
-    const memoryText = memories
-      .map((m) => `[${m.at}] ${m.text}`)
-      .join("\n")
+    const memoryText = memories.map((m) => `[${m.at}] ${m.text}`).join("\n")
     systemContent += `\n\n## 長期記憶（直近${memories.length}件）\n${memoryText}`
   }
 
-  // fallback時はfile_searchを除外し、save_memoryのみ
+  // fallback時はfile_searchを除外
   const tools: Tool[] = [saveMemoryToolDef]
-
   const input: ResponseInput = [
     { role: "system" as const, content: systemContent },
     { role: "user" as const, content: userInput },
   ]
 
-  // fallback時はセッション継続を諦めて新規セッション
   const response = await client.responses.create({
     model: APP_CONFIG.model,
     input,
@@ -166,22 +135,18 @@ async function sendWithLocalMemoryFallback(
   })
 
   state.lastResponseId = response.id
-
-  const reply = response.output_text ?? "(応答なし)"
-  return { reply, memorySaved: false }
+  return response.output_text ?? "(応答なし)"
 }
 
 // ツール定義を組み立てる
 function buildTools(env: Env): Tool[] {
   const tools: Tool[] = [saveMemoryToolDef]
-
   if (isCollectionsEnabled(env) && env.XAI_COLLECTION_ID) {
     tools.push({
       type: "file_search",
       vector_store_ids: [env.XAI_COLLECTION_ID],
     } as Tool)
   }
-
   return tools
 }
 
@@ -205,21 +170,24 @@ function extractFunctionCalls(
 // ツール呼び出しを処理
 async function handleToolCall(
   call: { callId: string; name: string; args: string },
-  state: State,
+  client: OpenAI,
+  env: Env,
   responseId: string,
 ): Promise<string> {
   if (call.name === "save_memory") {
-    return handleSaveMemory(call.args, call.callId, responseId)
+    return handleSaveMemory(call.args, call.callId, responseId, client, env)
   }
   return JSON.stringify({ error: `未知のツール: ${call.name}` })
 }
 
-// save_memoryツールの実行
-function handleSaveMemory(
+// save_memoryツールの実行（ローカル保存 + Collectionsアップロード）
+async function handleSaveMemory(
   argsJson: string,
   callId: string,
   responseId: string,
-): string {
+  client: OpenAI,
+  env: Env,
+): Promise<string> {
   try {
     const parsed = JSON.parse(argsJson)
     const validation = saveMemoryArgsSchema.safeParse(parsed)
@@ -236,15 +204,33 @@ function handleSaveMemory(
       callId,
     })
 
-    const result = appendMemory(record)
-    if (!result.success) {
-      return JSON.stringify({ error: result.error.message })
+    // ① ローカル保存（同期・先に確定）
+    const localResult = appendMemory(record)
+    if (!localResult.success) {
+      return JSON.stringify({ error: localResult.error.message })
     }
 
-    return JSON.stringify({
-      status: "保存しました",
-      id: record.id,
-    })
+    // ② Collectionsにアップロード（失敗してもローカルには残る）
+    if (
+      isCollectionsEnabled(env) &&
+      env.XAI_COLLECTION_ID &&
+      env.XAI_MANAGEMENT_API_KEY
+    ) {
+      const uploadResult = await uploadMemoryToCollection(
+        client,
+        env.XAI_COLLECTION_ID,
+        env.XAI_MANAGEMENT_API_KEY,
+        record.id,
+        record.text,
+      )
+      if (!uploadResult.success) {
+        process.stderr.write(
+          `Collections同期エラー（ローカルには保存済み）: ${uploadResult.error.message}\n`,
+        )
+      }
+    }
+
+    return JSON.stringify({ status: "保存しました", id: record.id })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return JSON.stringify({ error: `save_memory実行エラー: ${msg}` })
