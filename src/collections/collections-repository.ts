@@ -4,18 +4,34 @@ import { APP_CONFIG } from "../config.js"
 
 // Collectionsにメモリをアップロードする（2段階: files → documents attach）
 // JS/TSではxAI SDKが存在しないため、OpenAI SDK + fetch直叩きが必要
+// file_searchでヒットしやすいようメタデータ付きの内容を生成
+function buildFileContent(memoryId: string, text: string, tags?: string[]): string {
+  const lines = [
+    `記憶ID: ${memoryId}`,
+    `保存日時: ${new Date().toISOString()}`,
+  ]
+  if (tags && tags.length > 0) {
+    lines.push(`タグ: ${tags.join(", ")}`)
+  }
+  lines.push("", text)
+  return lines.join("\n")
+}
+
 export async function uploadMemoryToCollection(
   client: OpenAI,
   collectionId: string,
   managementApiKey: string,
   memoryId: string,
   text: string,
+  tags?: string[],
 ): Promise<AppResult<{ fileId: string }>> {
+  const content = buildFileContent(memoryId, text, tags)
+
   // Step 1: ファイルアップロード（api.x.ai/v1/files、通常キー）
   let fileId: string
   try {
     const file = await client.files.create({
-      file: new File([text], `${memoryId}.txt`, { type: "text/plain" }),
+      file: new File([content], `${memoryId}.txt`, { type: "text/plain" }),
       purpose: "assistants",
     })
     fileId = file.id

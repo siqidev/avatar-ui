@@ -222,6 +222,7 @@ async function handleSaveMemory(
         env.XAI_MANAGEMENT_API_KEY,
         record.id,
         record.text,
+        record.tags,
       )
       if (!uploadResult.success) {
         process.stderr.write(
