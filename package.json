@@ -10,6 +10,9 @@
   },
   "author": "siqidev",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "zod": "^4.3.6"
   },
