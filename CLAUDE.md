@@ -55,6 +55,17 @@ avatar-uiはSIQIの制作プロジェクトの1つ。SIQIの全体戦略にお�
 プロジェクト横断の参照知識は siqi/knowledge/ を参照（../../knowledge/）。
 主要な関連ファイル: xai-api.md, roblox-npc.md, mia.md, live2d.md, vrm.md, openclaw.md
 
+## siqi core参照（設計根拠・世界観）
+
+avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必要に応じて参照すること。
+
+| ファイル | 絶対パス | 内容 |
+|---|---|---|
+| cosmology.md | /Users/u/Projects/siqi/core/cosmology.md | 宇宙観の正本（公理→原理→定理→実践系） |
+| ontology.md | /Users/u/Projects/siqi/core/ontology.md | 存在論の正本 |
+| identity.md | /Users/u/Projects/siqi/core/identity.md | 式乃シトの自己定義・Core Desires |
+| strategy.md | /Users/u/Projects/siqi/core/strategy.md | 可変層（Strategic Hypotheses） |
+
 ## 主要パス索引
 
 | パス | 内容 |
