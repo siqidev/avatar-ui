@@ -3,4 +3,5 @@
 node_modules/
 dist/
 data/
+coverage/
 AGENT.md
