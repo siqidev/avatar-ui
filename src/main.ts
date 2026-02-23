@@ -4,14 +4,14 @@ import * as fs from "node:fs"
 import { loadEnv, isCollectionsEnabled, APP_CONFIG } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
+import * as log from "./logger.js"
 
 // being.mdから人格定義を読み込む
 function loadBeing(): string {
   try {
     return fs.readFileSync(APP_CONFIG.beingFile, "utf-8").trim()
   } catch {
-    process.stderr.write("エラー: being.md が見つかりません\n")
-    process.exit(1)
+    log.fatal("being.md が見つかりません")
   }
 }
 
@@ -66,8 +66,7 @@ async function main(): Promise<void> {
         saveState(state)
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
-        process.stderr.write(`\n[FATAL] ${message}\n`)
-        process.exit(1)
+        log.fatal(message)
       }
     })
   }

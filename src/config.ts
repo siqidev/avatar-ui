@@ -21,11 +21,11 @@ export const APP_CONFIG = {
   stateFile: "data/state.json",
   // メモリログファイル
   memoryFile: "data/memory.jsonl",
+  // アプリケーションログファイル
+  logFile: "data/app.log",
   // API基盤URL
   apiBaseUrl: "https://api.x.ai/v1",
   managementApiBaseUrl: "https://management-api.x.ai/v1",
-  // file_search障害時のfallback件数
-  fallbackRecentCount: 20,
 } as const
 
 // 環境変数を検証して返す
@@ -33,7 +33,8 @@ export function loadEnv(): Env {
   const result = envSchema.safeParse(process.env)
   if (!result.success) {
     const issues = result.error.issues.map((i) => i.message).join(", ")
-    process.stderr.write(`環境変数エラー: ${issues}\n`)
+    // loggerはAPP_CONFIGに依存するため、ここだけ直接stderr + exit
+    process.stderr.write(`[FATAL] 環境変数エラー: ${issues}\n`)
     process.exit(1)
   }
   return result.data

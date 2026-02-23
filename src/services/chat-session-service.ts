@@ -14,6 +14,7 @@ import {
 } from "../memory/memory-record.js"
 import { appendMemory } from "../memory/memory-log-repository.js"
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
+import * as log from "../logger.js"
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
@@ -159,11 +160,7 @@ async function handleSaveMemory(
       record.tags,
     ).then((result) => {
       if (!result.success) {
-        // 開発中: fail-fast。Collectionsアップロード失敗はバグとして即停止
-        process.stderr.write(
-          `[FATAL] Collectionsアップロード失敗 (記憶ID: ${record.id}): ${result.error.code} - ${result.error.message}\n`,
-        )
-        process.exit(1)
+        log.fatal(`Collectionsアップロード失敗 (記憶ID: ${record.id}): ${result.error.code} - ${result.error.message}`)
       }
     })
   }
