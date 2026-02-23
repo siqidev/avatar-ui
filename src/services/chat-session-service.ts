@@ -210,28 +210,29 @@ async function handleSaveMemory(
       return JSON.stringify({ error: localResult.error.message })
     }
 
-    // ② Collectionsにアップロード（失敗してもローカルには残る）
+    // ② Collectionsにアップロード（fire-and-forget: 応答を待たずに裏で実行）
     if (
       isCollectionsEnabled(env) &&
       env.XAI_COLLECTION_ID &&
       env.XAI_MANAGEMENT_API_KEY
     ) {
-      const uploadResult = await uploadMemoryToCollection(
+      void uploadMemoryToCollection(
         client,
         env.XAI_COLLECTION_ID,
         env.XAI_MANAGEMENT_API_KEY,
         record.id,
         record.text,
         record.tags,
-      )
-      if (!uploadResult.success) {
-        process.stderr.write(
-          `Collections同期エラー（ローカルには保存済み）: ${uploadResult.error.message}\n`,
-        )
-      }
+      ).then((result) => {
+        if (!result.success) {
+          process.stderr.write(
+            `Collections同期エラー（ローカルには保存済み）: ${result.error.message}\n`,
+          )
+        }
+      })
     }
 
-    return JSON.stringify({ status: "保存しました", id: record.id })
+    return JSON.stringify({ status: "ローカルに保存しました", id: record.id })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return JSON.stringify({ error: `save_memory実行エラー: ${msg}` })
