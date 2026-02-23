@@ -3,7 +3,7 @@ import * as readline from "node:readline"
 import * as fs from "node:fs"
 import { loadEnv, isCollectionsEnabled, APP_CONFIG } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
-import { sendMessageWithFallback } from "./services/chat-session-service.js"
+import { sendMessage } from "./services/chat-session-service.js"
 
 // being.mdから人格定義を読み込む
 function loadBeing(): string {
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
       }
 
       try {
-        const reply = await sendMessageWithFallback(
+        const reply = await sendMessage(
           client,
           env,
           state,
@@ -66,10 +66,9 @@ async function main(): Promise<void> {
         saveState(state)
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
-        process.stderr.write(`\nエラー: ${message}\n\n`)
+        process.stderr.write(`\n[FATAL] ${message}\n`)
+        process.exit(1)
       }
-
-      prompt()
     })
   }
 
