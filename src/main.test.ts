@@ -24,7 +24,7 @@ describe("types/result", () => {
 describe("config", () => {
   it("APP_CONFIGが正しい定数を持つ", () => {
     expect(APP_CONFIG.model).toBe("grok-4-1-fast-non-reasoning")
-    expect(APP_CONFIG.beingFile).toBe("being.md")
+    expect(APP_CONFIG.beingFile).toBe("BEING.md")
     expect(APP_CONFIG.dataDir).toBe("data")
   })
 

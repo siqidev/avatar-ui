@@ -18,7 +18,7 @@ export const APP_CONFIG = {
   // 使用するGrokモデル
   model: "grok-4-1-fast-non-reasoning",
   // 人格定義ファイル
-  beingFile: "being.md",
+  beingFile: "BEING.md",
   // データディレクトリ
   dataDir: "data",
   // セッション状態ファイル
@@ -31,7 +31,7 @@ export const APP_CONFIG = {
   apiBaseUrl: "https://api.x.ai/v1",
   managementApiBaseUrl: "https://management-api.x.ai/v1",
   // Pulse（AI起点の定期発話）
-  pulseFile: "pulse.md",
+  pulseFile: "PULSE.md",
   pulseCron: "*/30 * * * *",
   pulsePrompt: "PULSE.mdの指示に従え。対応不要ならPULSE_OKと返答。",
   pulseOkPrefix: "PULSE_OK",
