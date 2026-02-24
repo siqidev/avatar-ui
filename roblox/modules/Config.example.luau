@@ -1,8 +1,9 @@
 --[[
   Config — Roblox側の全設定を集約するモジュール
 
+  セットアップ: このファイルを Config.luau にコピーして値を書き換える
   配置場所: CommandReceiver.server > modules > Config（ModuleScript）
-  利用者はこのファイルの値を環境に合わせて変更する
+  ※ Config.luau は .gitignore 済み（個人値がリポジトリに入らない）
 ]]
 
 return {

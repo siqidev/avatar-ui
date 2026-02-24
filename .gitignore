@@ -1,5 +1,6 @@
 .env
 .DS_Store
+roblox/modules/Config.luau
 node_modules/
 dist/
 data/
