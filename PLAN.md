@@ -147,7 +147,7 @@
 ## OUT
 
 - v0.2コードの移植・互換維持
-- Roblox / X / マルチチャネル本格対応
+- X / マルチチャネル本格対応
 - Electron再構築 / UI拡張
 - 参与文脈（ParticipationContext）の独立コンポーネント化
 - 配信拡張（Live2D/3D、音声）
