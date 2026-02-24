@@ -40,7 +40,7 @@ export const APP_CONFIG = {
   // Intent Log（場→Roblox出力経路の正本）
   intentLogFile: "data/roblox-intents.jsonl",
   // 観測受信（Roblox→場の入力経路）
-  observationPort: Number(process.env.ROBLOX_OBSERVATION_PORT) || 3001,
+  observationPort: Number(process.env.ROBLOX_OBSERVATION_PORT) || 3000,
 } as const
 
 // 環境変数を検証して返す

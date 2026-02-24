@@ -23,7 +23,7 @@ describe("observation-server", () => {
     // サーバー起動を待つ
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -42,7 +42,7 @@ describe("observation-server", () => {
     server = startObservationServer(() => {})
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "invalid_type", payload: {} }),
@@ -55,7 +55,7 @@ describe("observation-server", () => {
     server = startObservationServer(() => {})
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/other", {
+    const resp = await fetch("http://localhost:3000/other", {
       method: "GET",
     })
 
@@ -66,7 +66,7 @@ describe("observation-server", () => {
     server = startObservationServer(() => {})
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -82,7 +82,7 @@ describe("observation-server", () => {
     }, "test-secret-123")
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -103,7 +103,7 @@ describe("observation-server", () => {
     server = startObservationServer(() => {}, "test-secret-123")
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -119,7 +119,7 @@ describe("observation-server", () => {
     server = startObservationServer(() => {}, "test-secret-123")
     await new Promise((resolve) => server!.once("listening", resolve))
 
-    const resp = await fetch("http://localhost:3001/observation", {
+    const resp = await fetch("http://localhost:3000/observation", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

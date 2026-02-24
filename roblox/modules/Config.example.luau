@@ -8,9 +8,9 @@
 
 return {
 	-- 観測イベントの送信先URL（TypeScript側のObservationServerのアドレス）
-	-- Studio（ローカル開発）: http://localhost:3001/observation
+	-- Studio（ローカル開発）: http://localhost:3000/observation
 	-- 本番: トンネルや公開サーバーのURLに変更する
-	observationUrl = "http://localhost:3001/observation",
+	observationUrl = "http://localhost:3000/observation",
 
 	-- 観測送信の認証シークレット（TypeScript側の ROBLOX_OBSERVATION_SECRET と一致させる）
 	-- 空文字列 = 認証なし（ローカル開発用）
