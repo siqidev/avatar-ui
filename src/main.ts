@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import * as readline from "node:readline"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { loadEnv, isCollectionsEnabled, APP_CONFIG } from "./config.js"
+import { loadEnv, isCollectionsEnabled, isRobloxEnabled, APP_CONFIG } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
 import * as log from "./logger.js"
@@ -58,6 +58,9 @@ async function main(): Promise<void> {
       "長期記憶: ローカルのみ（XAI_COLLECTION_ID / XAI_MANAGEMENT_API_KEY を設定するとCollections有効）\n",
     )
   }
+  if (isRobloxEnabled(env)) {
+    process.stdout.write("Roblox連携: 有効\n")
+  }
   process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
 
   // 直列キュー: ユーザー入力とPulseを同じPromiseチェーンで直列実行
@@ -82,6 +85,7 @@ async function main(): Promise<void> {
       return
     }
     enqueue(async () => {
+      log.info(`[USER] ${userInput}`)
       const reply = await sendMessage(
         client,
         env,
@@ -89,6 +93,7 @@ async function main(): Promise<void> {
         beingPrompt,
         userInput,
       )
+      log.info(`[SPECTRA] ${reply}`)
       process.stdout.write(`\nspectra> ${reply}\n\n`)
       saveState(state)
       rl.prompt()
@@ -119,8 +124,9 @@ async function main(): Promise<void> {
 
       // PULSE_OK先頭→ログのみ、それ以外→readline割り込み表示
       if (reply.startsWith(APP_CONFIG.pulseOkPrefix)) {
-        log.info("Pulse応答: 対応不要")
+        log.info(`[PULSE] 対応不要: ${reply.slice(0, 80)}`)
       } else {
+        log.info(`[PULSE→SPECTRA] ${reply}`)
         // readlineの現在行をクリアして割り込み表示
         readline.clearLine(process.stdout, 0)
         readline.cursorTo(process.stdout, 0)

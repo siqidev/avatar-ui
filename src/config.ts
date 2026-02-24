@@ -5,6 +5,8 @@ const envSchema = z.object({
   XAI_API_KEY: z.string().min(1, "XAI_API_KEY が設定されていません"),
   XAI_MANAGEMENT_API_KEY: z.string().min(1).optional(),
   XAI_COLLECTION_ID: z.string().min(1).optional(),
+  ROBLOX_API_KEY: z.string().min(1).optional(),
+  ROBLOX_UNIVERSE_ID: z.string().min(1).optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -28,9 +30,12 @@ export const APP_CONFIG = {
   managementApiBaseUrl: "https://management-api.x.ai/v1",
   // Pulse（AI起点の定期発話）
   pulseFile: "pulse.md",
-  pulseCron: "*/1 * * * *", // 本番: "*/30 * * * *"
+  pulseCron: "*/30 * * * *",
   pulsePrompt: "PULSE.mdの指示に従え。対応不要ならPULSE_OKと返答。",
   pulseOkPrefix: "PULSE_OK",
+  // Roblox連携
+  robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
+  robloxMessageTopic: "AICommands",
 } as const
 
 // 環境変数を検証して返す
@@ -48,4 +53,9 @@ export function loadEnv(): Env {
 // Collections APIが利用可能か判定
 export function isCollectionsEnabled(env: Env): boolean {
   return Boolean(env.XAI_MANAGEMENT_API_KEY && env.XAI_COLLECTION_ID)
+}
+
+// Roblox連携が利用可能か判定
+export function isRobloxEnabled(env: Env): boolean {
+  return Boolean(env.ROBLOX_API_KEY && env.ROBLOX_UNIVERSE_ID)
 }

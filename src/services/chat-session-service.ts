@@ -6,14 +6,19 @@ import type {
 } from "openai/resources/responses/responses"
 import type { State } from "../state/state-repository.js"
 import type { Env } from "../config.js"
-import { APP_CONFIG, isCollectionsEnabled } from "../config.js"
+import { APP_CONFIG, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
+import {
+  robloxActionToolDef,
+  robloxActionArgsSchema,
+} from "../tools/roblox-action-tool.js"
 import {
   saveMemoryArgsSchema,
   createMemoryRecord,
 } from "../memory/memory-record.js"
 import { appendMemory } from "../memory/memory-log-repository.js"
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
+import { publishMessage } from "../roblox/roblox-messaging.js"
 import * as log from "../logger.js"
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
@@ -56,7 +61,9 @@ export async function sendMessage(
 
     const toolResults: ResponseInput = []
     for (const call of toolCalls) {
+      log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
       const result = await handleToolCall(call, client, env, response.id)
+      log.info(`[TOOL_RESULT] ${call.name}: ${result}`)
       toolResults.push({
         type: "function_call_output",
         call_id: call.callId,
@@ -85,6 +92,9 @@ function buildTools(env: Env): Tool[] {
       type: "file_search",
       vector_store_ids: [env.XAI_COLLECTION_ID],
     } as Tool)
+  }
+  if (isRobloxEnabled(env)) {
+    tools.push(robloxActionToolDef)
   }
   return tools
 }
@@ -115,6 +125,9 @@ async function handleToolCall(
 ): Promise<string> {
   if (call.name === "save_memory") {
     return handleSaveMemory(call.args, call.callId, responseId, client, env)
+  }
+  if (call.name === "roblox_action") {
+    return handleRobloxAction(call.args, env)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -168,4 +181,39 @@ async function handleSaveMemory(
   }
 
   return JSON.stringify({ status: "ローカルに保存しました", id: record.id })
+}
+
+// roblox_actionツール v2 の実行（カテゴリ+ops方式で送信）
+async function handleRobloxAction(
+  argsJson: string,
+  env: Env,
+): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = robloxActionArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(
+      `roblox_action引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`,
+    )
+  }
+
+  const { category, ops, reason } = validation.data
+  const message = JSON.stringify({ category, ops })
+
+  log.info(`[ROBLOX_SEND] category=${category} ops=${ops.length}件 reason=${reason}`)
+  log.info(`[ROBLOX_PAYLOAD] ${message}`)
+
+  const result = await publishMessage(
+    env.ROBLOX_API_KEY!,
+    env.ROBLOX_UNIVERSE_ID!,
+    APP_CONFIG.robloxMessageTopic,
+    message,
+  )
+
+  if (!result.success) {
+    throw new Error(
+      `Robloxメッセージ送信失敗: ${result.error.code} - ${result.error.message}`,
+    )
+  }
+
+  return JSON.stringify({ status: "Robloxに送信しました", category, ops_count: ops.length })
 }
