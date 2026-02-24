@@ -33,9 +33,33 @@
 2. **長期記憶（save_memory）** — ローカルJSONL + Collections API（fire-and-forget）、ツール呼び出しループ
 3. **Pulse（AI起点の定期発話）** — node-cron + 直列キュー、3層構造（ファイルゲート→system注入→sendMessage）、PULSE_OKプロトコル。起点対称性(P15)の実装
 
+### 完了済みスパイク（続き）
+4. **Roblox連携v2** — Open Cloud Messaging API（外部→Roblox片方向）、カテゴリ別モジュール構成（PartOps/TerrainOps/NpcOps/EffectOps）、DataStore永続化、情報物質化エフェクト。CLI経由でAIがRoblox空間を操作する
+
+### Roblox接続設計（議論合意 2026-02-24）
+
+**役割定義**: Robloxは「観測窓」。投影（場→Roblox）＋ 観測（Roblox→場）の双方向。正本は場のみ。
+
+**出力経路（場→Roblox）**: Intent Log → Projector
+- 往復回路(④)が意図を決定 → IntentLogに記録（場が正本）→ ProjectorがRobloxへ送信
+- 現行のroblox_actionツール直送信から、Intent Log経由に移行する
+
+**入力経路（Roblox→場）**: HttpService Push
+- RobloxがHttpServiceで観測イベントをPOST → ②ChannelProjectionで正規化 → ③ParticipationContext → ④再解釈
+- 最小イベント種別: player_chat, player_proximity, projection_ack
+
+**設計根拠**:
+- ChannelProjection(②)はDAG上⑤を直読しない。Robloxの入力は②経由で正規化される
+- P19往復回路は場で閉じる（チャネル単体で閉じる必要なし）。CLIとRobloxをまたいで因果ループが成立する
+- P17投影: NPCは場の内的状態と接続される（片方向投影で実現可能）
+- Roblox技術制約: 出力=Messaging API 1KB/msg、入力=HttpService 500 req/min
+
+**現段階の方針**: CLIのみで運用。Robloxチャット入力は将来検討（入出力の窓サイズが小さく、CLIで代替可能なため優先度低）
+
 ### 次の候補
-- **Roblox連携**
 - **場のライフサイクルFSM** — generated→active→paused→resumed→terminated。S5受入シナリオの核
+- **Intent Log + Projector実装** — 現行のroblox_action直送信を正しい構造に移行
+- **Push入力経路実装** — CLI側HTTPサーバー + Roblox側ObservationSenderスクリプト
 - 具体→抽象の修正フェーズ: スパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
 
 ## 場モデル6要素のv0.3実装度
