@@ -37,7 +37,6 @@ export const APP_CONFIG = {
   pulseOkPrefix: "PULSE_OK",
   // Roblox連携
   robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
-  robloxMessageTopic: "AICommands",
   // Intent Log（場→Roblox出力経路の正本）
   intentLogFile: "data/roblox-intents.jsonl",
   // 観測受信（Roblox→場の入力経路）

@@ -23,14 +23,11 @@ return {
 	ownerUserId = 0,
 
 	-- NPCの名前（Workspace内のModelの名前と一致させる）
-	npcName = "SpectraCommunicator",
+	npcName = "NPC",
 
 	-- 接近検知の距離（スタッド）
 	proximityRange = 30,
 
 	-- 接近チェック間隔（秒）
 	proximityCheckInterval = 3,
-
-	-- MessagingServiceのトピック名（TypeScript側のrobloxMessageTopicと一致させる）
-	messageTopic = "AICommands",
 }

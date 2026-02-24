@@ -1,5 +1,8 @@
 import type { Env } from "../config.js"
-import { APP_CONFIG } from "../config.js"
+
+// MessagingServiceトピック名（プロトコル定数、Roblox側CommandReceiverと一致）
+const MESSAGE_TOPIC = "AICommands"
+
 import {
   type IntentRecord,
   readIntentsByStatus,
@@ -25,7 +28,7 @@ export async function projectIntent(
   const result = await publishMessage(
     env.ROBLOX_API_KEY!,
     env.ROBLOX_UNIVERSE_ID!,
-    APP_CONFIG.robloxMessageTopic,
+    MESSAGE_TOPIC,
     message,
   )
 

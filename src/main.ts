@@ -79,6 +79,12 @@ async function main(): Promise<void> {
     )
   }
   if (isRobloxEnabled(env)) {
+    // Roblox連携有効時はobservationSecret必須（偽イベント注入防止）
+    if (!env.ROBLOX_OBSERVATION_SECRET) {
+      log.fatal(
+        "ROBLOX_OBSERVATION_SECRET が未設定です（Roblox連携有効時は必須）",
+      )
+    }
     process.stdout.write("Roblox連携: 有効\n")
 
     // 起動時: 未送信の意図をリトライ

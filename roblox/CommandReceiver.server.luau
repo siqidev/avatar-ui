@@ -17,6 +17,9 @@ local HttpService = game:GetService("HttpService")
 -- 設定読み込み
 local Config = require(script.modules.Config)
 
+-- プロトコル定数（TypeScript側projector.tsのMESSAGE_TOPICと一致）
+local MESSAGE_TOPIC = "AICommands"
+
 -- カテゴリ別モジュール
 local handlers = {
 	part = require(script.modules.PartOps),
@@ -37,7 +40,7 @@ if not restoreOk then
 end
 
 -- メッセージ受信
-MessagingService:SubscribeAsync(Config.messageTopic, function(message)
+MessagingService:SubscribeAsync(MESSAGE_TOPIC, function(message)
 	local ok, data = pcall(function()
 		return HttpService:JSONDecode(message.Data)
 	end)
@@ -70,4 +73,4 @@ MessagingService:SubscribeAsync(Config.messageTopic, function(message)
 	end
 end)
 
-print("[CommandReceiver] v2 起動 — トピック '" .. Config.messageTopic .. "' で待機中")
+print("[CommandReceiver] v2 起動 — トピック '" .. MESSAGE_TOPIC .. "' で待機中")
