@@ -17,8 +17,10 @@ export type ObservationEvent = z.infer<typeof observationEventSchema>
 export type ObservationHandler = (event: ObservationEvent) => void
 
 // 観測受信HTTPサーバーを起動する
+// secret: ROBLOX_OBSERVATION_SECRET（設定時はBearer認証を強制、未設定時は認証なし）
 export function startObservationServer(
   onObservation: ObservationHandler,
+  secret?: string,
 ): http.Server {
   const server = http.createServer((req, res) => {
     // POST /observation のみ受け付ける
@@ -26,6 +28,17 @@ export function startObservationServer(
       res.writeHead(404, { "Content-Type": "application/json" })
       res.end(JSON.stringify({ error: "Not Found" }))
       return
+    }
+
+    // 共有シークレット認証（設定時のみ）
+    if (secret) {
+      const auth = req.headers.authorization
+      if (auth !== `Bearer ${secret}`) {
+        log.error("[OBSERVATION] 認証失敗: 不正なAuthorizationヘッダ")
+        res.writeHead(401, { "Content-Type": "application/json" })
+        res.end(JSON.stringify({ error: "Unauthorized" }))
+        return
+      }
     }
 
     let body = ""

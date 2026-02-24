@@ -3,30 +3,27 @@
 
   配置場所: ServerScriptService
   前提: HttpServiceを有効化済み
+  設定: modules/Config を編集する
 
   観測イベント:
   - player_proximity: プレイヤーが指定範囲に入った/出た
   - player_chat: プレイヤーがチャットメッセージを送信した
   - projection_ack: CommandReceiverの実行結果（将来用）
 
-  送信先: OBSERVATION_URL（HttpServiceでPOST）
+  送信先: Config.observationUrl（HttpServiceでPOST）
 ]]
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 
--- 設定
-local OBSERVATION_URL = "http://localhost:3001/observation"
-local OWNER_USER_ID = 0 -- オーナーのRoblox UserID（0=全員の観測を送信）
-local PROXIMITY_RANGE = 30 -- 接近検知の距離（スタッド）
-local PROXIMITY_CHECK_INTERVAL = 3 -- 接近チェック間隔（秒）
-local NPC_NAME = "SpectraCommunicator"
+-- 設定読み込み
+local Config = require(script.Parent.CommandReceiver.modules.Config)
 
 -- NPC参照
 local function findNPC()
 	for _, obj in ipairs(workspace:GetDescendants()) do
-		if obj.Name == NPC_NAME and obj:IsA("Model") then
+		if obj.Name == Config.npcName and obj:IsA("Model") then
 			return obj
 		end
 	end
@@ -44,9 +41,22 @@ local function sendObservation(eventType, payload)
 
 	local json = HttpService:JSONEncode(data)
 
+	-- 認証ヘッダ（シークレット設定時のみ）
+	local headers: { [string]: string } = {
+		["Content-Type"] = "application/json",
+	}
+	if Config.observationSecret ~= "" then
+		headers["Authorization"] = "Bearer " .. Config.observationSecret
+	end
+
 	task.spawn(function()
 		local ok, err = pcall(function()
-			HttpService:PostAsync(OBSERVATION_URL, json, Enum.HttpContentType.ApplicationJson)
+			HttpService:RequestAsync({
+				Url = Config.observationUrl,
+				Method = "POST",
+				Headers = headers,
+				Body = json,
+			})
 		end)
 		if not ok then
 			warn("[ObservationSender] 送信失敗: " .. tostring(err))
@@ -54,10 +64,10 @@ local function sendObservation(eventType, payload)
 	end)
 end
 
--- オーナーかどうか判定（OWNER_USER_ID=0なら全員通過）
+-- オーナーかどうか判定（ownerUserId=0なら全員通過）
 local function isOwner(player)
-	if OWNER_USER_ID == 0 then return true end
-	return player.UserId == OWNER_USER_ID
+	if Config.ownerUserId == 0 then return true end
+	return player.UserId == Config.ownerUserId
 end
 
 -- 接近検知（定期チェック）
@@ -76,7 +86,7 @@ local function checkProximity()
 
 		local distance = (character.PrimaryPart.Position - npcPos).Magnitude
 		local wasNear = nearbyPlayers[player.UserId]
-		local isNear = distance <= PROXIMITY_RANGE
+		local isNear = distance <= Config.proximityRange
 
 		if isNear and not wasNear then
 			nearbyPlayers[player.UserId] = true
@@ -134,8 +144,8 @@ end)
 task.spawn(function()
 	while true do
 		checkProximity()
-		task.wait(PROXIMITY_CHECK_INTERVAL)
+		task.wait(Config.proximityCheckInterval)
 	end
 end)
 
-print("[ObservationSender] 起動 — URL: " .. OBSERVATION_URL)
+print("[ObservationSender] 起動 — URL: " .. Config.observationUrl)

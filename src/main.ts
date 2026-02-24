@@ -37,7 +37,7 @@ function formatObservation(event: ObservationEvent): string {
   const p = event.payload as Record<string, unknown>
   switch (event.type) {
     case "player_chat":
-      return `[Roblox観測] ${p.player}が話しかけた: 「${p.message}」`
+      return `[Roblox観測] ${p.player}がRoblox内チャットで話しかけた: 「${p.message}」\nRoblox内で応答するにはroblox_actionのnpc sayを使うこと。`
     case "player_proximity":
       return p.action === "enter"
         ? `[Roblox観測] ${p.player}が近づいてきた（距離: ${p.distance}スタッド）`
@@ -106,28 +106,31 @@ async function main(): Promise<void> {
 
   // 観測受信サーバー起動（Roblox→場のPush入力経路）
   if (isRobloxEnabled(env)) {
-    startObservationServer((event: ObservationEvent) => {
-      enqueue(async () => {
-        const prompt = formatObservation(event)
-        log.info(`[OBSERVATION→SPECTRA] ${prompt}`)
+    startObservationServer(
+      (event: ObservationEvent) => {
+        enqueue(async () => {
+          const prompt = formatObservation(event)
+          log.info(`[OBSERVATION→SPECTRA] ${prompt}`)
 
-        readline.clearLine(process.stdout, 0)
-        readline.cursorTo(process.stdout, 0)
-        process.stdout.write(`\n[観測] ${prompt}\n`)
+          readline.clearLine(process.stdout, 0)
+          readline.cursorTo(process.stdout, 0)
+          process.stdout.write(`\n[観測] ${prompt}\n`)
 
-        const reply = await sendMessage(
-          client,
-          env,
-          state,
-          beingPrompt,
-          prompt,
-        )
-        log.info(`[SPECTRA] ${reply}`)
-        process.stdout.write(`\nspectra> ${reply}\n\n`)
-        saveState(state)
-        rl.prompt()
-      })
-    })
+          const reply = await sendMessage(
+            client,
+            env,
+            state,
+            beingPrompt,
+            prompt,
+          )
+          log.info(`[SPECTRA] ${reply}`)
+          process.stdout.write(`\nspectra> ${reply}\n\n`)
+          saveState(state)
+          rl.prompt()
+        })
+      },
+      env.ROBLOX_OBSERVATION_SECRET,
+    )
   }
 
   // ユーザー入力ハンドラ

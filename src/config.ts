@@ -7,6 +7,8 @@ const envSchema = z.object({
   XAI_COLLECTION_ID: z.string().min(1).optional(),
   ROBLOX_API_KEY: z.string().min(1).optional(),
   ROBLOX_UNIVERSE_ID: z.string().min(1).optional(),
+  ROBLOX_OBSERVATION_PORT: z.string().regex(/^\d+$/).optional(),
+  ROBLOX_OBSERVATION_SECRET: z.string().min(1).optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -39,7 +41,7 @@ export const APP_CONFIG = {
   // Intent Log（場→Roblox出力経路の正本）
   intentLogFile: "data/roblox-intents.jsonl",
   // 観測受信（Roblox→場の入力経路）
-  observationPort: 3001,
+  observationPort: Number(process.env.ROBLOX_OBSERVATION_PORT) || 3001,
 } as const
 
 // 環境変数を検証して返す

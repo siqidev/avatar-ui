@@ -14,7 +14,8 @@
 local MessagingService = game:GetService("MessagingService")
 local HttpService = game:GetService("HttpService")
 
-local TOPIC = "AICommands"
+-- 設定読み込み
+local Config = require(script.modules.Config)
 
 -- カテゴリ別モジュール
 local handlers = {
@@ -36,7 +37,7 @@ if not restoreOk then
 end
 
 -- メッセージ受信
-MessagingService:SubscribeAsync(TOPIC, function(message)
+MessagingService:SubscribeAsync(Config.messageTopic, function(message)
 	local ok, data = pcall(function()
 		return HttpService:JSONDecode(message.Data)
 	end)
@@ -69,4 +70,4 @@ MessagingService:SubscribeAsync(TOPIC, function(message)
 	end
 end)
 
-print("[CommandReceiver] v2 起動 — トピック '" .. TOPIC .. "' で待機中")
+print("[CommandReceiver] v2 起動 — トピック '" .. Config.messageTopic .. "' で待機中")

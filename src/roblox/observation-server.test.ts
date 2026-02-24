@@ -74,4 +74,63 @@ describe("observation-server", () => {
 
     expect(resp.status).toBe(400)
   })
+
+  it("シークレット設定時、正しいBearerトークンで認証成功", async () => {
+    let received: ObservationEvent | null = null
+    server = startObservationServer((event) => {
+      received = event
+    }, "test-secret-123")
+    await new Promise((resolve) => server!.once("listening", resolve))
+
+    const resp = await fetch("http://localhost:3001/observation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret-123",
+      },
+      body: JSON.stringify({
+        type: "player_chat",
+        payload: { player: "owner", message: "hi" },
+      }),
+    })
+
+    expect(resp.status).toBe(200)
+    expect(received).not.toBeNull()
+    expect(received!.type).toBe("player_chat")
+  })
+
+  it("シークレット設定時、トークンなしは401を返す", async () => {
+    server = startObservationServer(() => {}, "test-secret-123")
+    await new Promise((resolve) => server!.once("listening", resolve))
+
+    const resp = await fetch("http://localhost:3001/observation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "player_chat",
+        payload: { player: "hacker", message: "fake" },
+      }),
+    })
+
+    expect(resp.status).toBe(401)
+  })
+
+  it("シークレット設定時、不正なトークンは401を返す", async () => {
+    server = startObservationServer(() => {}, "test-secret-123")
+    await new Promise((resolve) => server!.once("listening", resolve))
+
+    const resp = await fetch("http://localhost:3001/observation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer wrong-secret",
+      },
+      body: JSON.stringify({
+        type: "player_chat",
+        payload: { player: "hacker", message: "fake" },
+      }),
+    })
+
+    expect(resp.status).toBe(401)
+  })
 })
