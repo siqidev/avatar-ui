@@ -34,6 +34,7 @@
 3. **Pulse（AI起点の定期発話）** — node-cron + 直列キュー、3層構造（ファイルゲート→system注入→sendMessage）、PULSE_OKプロトコル。起点対称性(P15)の実装
 
 ### 次の候補
+- **Roblox連携**
 - **場のライフサイクルFSM** — generated→active→paused→resumed→terminated。S5受入シナリオの核
 - 具体→抽象の修正フェーズ: スパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
 
