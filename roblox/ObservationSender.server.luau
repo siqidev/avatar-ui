@@ -15,7 +15,7 @@
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local TextChatService = game:GetService("TextChatService")
+-- TextChatService.MessageReceivedはクライアント専用のためPlayer.Chattedを使用
 
 -- 設定読み込み（オブジェクト名が "CommandReceiver.server" のためブラケット記法）
 local Config = require(script.Parent["CommandReceiver.server"].modules.Config)
@@ -97,6 +97,7 @@ local function checkProximity()
 			sendObservation("player_proximity", {
 				player = player.Name,
 				userId = player.UserId,
+				isOwner = isOwner(player),
 				action = "enter",
 				distance = math.floor(distance),
 			})
@@ -106,6 +107,7 @@ local function checkProximity()
 			sendObservation("player_proximity", {
 				player = player.Name,
 				userId = player.UserId,
+				isOwner = isOwner(player),
 				action = "leave",
 				distance = math.floor(distance),
 			})
@@ -121,28 +123,38 @@ Players.PlayerRemoving:Connect(function(player)
 		sendObservation("player_proximity", {
 			player = player.Name,
 			userId = player.UserId,
+			isOwner = isOwner(player),
 			action = "leave",
 			distance = -1,
 		})
 	end
 end)
 
--- チャット検知
-TextChatService.MessageReceived:Connect(function(message)
-	local source = message.TextSource
-	if not source then return end
-
-	local player = Players:GetPlayerByUserId(source.UserId)
-	if not player then return end
+-- チャット検知（Player.Chatted: サーバーで発火するイベント）
+local function onPlayerChatted(player, message)
 	if not isOwner(player) then return end
+	if message == nil or message == "" then return end
 
 	sendObservation("player_chat", {
 		player = player.Name,
 		userId = player.UserId,
-		message = message.Text,
+		isOwner = isOwner(player),
+		message = message,
 	})
-	print("[ObservationSender] チャット検知: " .. player.Name .. " > " .. message.Text)
-end)
+	print("[ObservationSender] チャット検知: " .. player.Name .. " > " .. message)
+end
+
+local function bindPlayerChat(player)
+	player.Chatted:Connect(function(message)
+		onPlayerChatted(player, message)
+	end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	bindPlayerChat(player)
+end
+
+Players.PlayerAdded:Connect(bindPlayerChat)
 
 -- 接近検知ループ
 task.spawn(function()

@@ -5,7 +5,7 @@
 ]]
 
 local PathfindingService = game:GetService("PathfindingService")
-local TextChatService = game:GetService("TextChatService")
+local Chat = game:GetService("Chat")
 
 -- R15デフォルトアニメーションID
 local ANIM_IDS = {
@@ -18,6 +18,11 @@ local ANIM_IDS = {
 }
 
 local NPC_NAME = "SpectraCommunicator"
+
+-- チャット履歴表示用RemoteEvent（サーバー→クライアント転送）
+local spectraChatEvent = Instance.new("RemoteEvent")
+spectraChatEvent.Name = "SpectraChatEvent"
+spectraChatEvent.Parent = game.ReplicatedStorage
 
 local function getNpc()
 	local npc = workspace:FindFirstChild(NPC_NAME)
@@ -85,7 +90,7 @@ local function handleMoveTo(op)
 	print("[NpcOps] 移動完了: " .. tostring(target))
 end
 
--- say: 吹き出し表示
+-- say: 吹き出し表示（Chat:Chatで頭上バブル）
 local function handleSay(op)
 	local npc = getNpc()
 	if not npc then return end
@@ -93,7 +98,17 @@ local function handleSay(op)
 	local text = op.text or ""
 	if text == "" then return end
 
-	TextChatService:DisplayBubble(npc, text)
+	local head = npc:FindFirstChild("Head")
+	if not head then
+		warn("[NpcOps] NPCにHeadがありません: " .. NPC_NAME)
+		return
+	end
+
+	Chat:Chat(head, text, Enum.ChatColor.Blue)
+
+	-- チャット履歴にも表示（クライアント側で実行するためRemoteEvent送信）
+	spectraChatEvent:FireAllClients(text)
+
 	print("[NpcOps] 発話: " .. text)
 end
 

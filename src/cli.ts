@@ -33,15 +33,22 @@ function loadPulse(): string | null {
 }
 
 // 観測イベントをSpectraへの入力テキストに変換する
-function formatObservation(event: ObservationEvent): string {
+// 観測イベントのプレイヤー名を解決（isOwner=trueなら表示名に変換）
+function resolvePlayerName(p: Record<string, unknown>, ownerDisplayName?: string): string {
+  if (p.isOwner === true && ownerDisplayName) return ownerDisplayName
+  return String(p.player)
+}
+
+function formatObservation(event: ObservationEvent, ownerDisplayName?: string): string {
   const p = event.payload as Record<string, unknown>
+  const name = resolvePlayerName(p, ownerDisplayName)
   switch (event.type) {
     case "player_chat":
-      return `[Roblox観測] ${p.player}がRoblox内チャットで話しかけた: 「${p.message}」\nRoblox内で応答するにはroblox_actionのnpc sayを使うこと。`
+      return `[Roblox観測] ${name}がRoblox内チャットで話しかけた: 「${p.message}」\nRoblox内で応答するにはroblox_actionのnpc sayを使うこと。`
     case "player_proximity":
       return p.action === "enter"
-        ? `[Roblox観測] ${p.player}が近づいてきた（距離: ${p.distance}スタッド）`
-        : `[Roblox観測] ${p.player}が離れた`
+        ? `[Roblox観測] ${name}が近づいてきた（距離: ${p.distance}スタッド）`
+        : `[Roblox観測] ${name}が離れた`
     case "projection_ack":
       return `[Roblox観測] 投影結果: ${JSON.stringify(p)}`
     default:
@@ -115,7 +122,7 @@ async function main(): Promise<void> {
     startObservationServer(
       (event: ObservationEvent) => {
         enqueue(async () => {
-          const prompt = formatObservation(event)
+          const prompt = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
           log.info(`[OBSERVATION→SPECTRA] ${prompt}`)
 
           readline.clearLine(process.stdout, 0)
