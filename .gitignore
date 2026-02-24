@@ -3,6 +3,7 @@
 roblox/modules/Config.luau
 node_modules/
 dist/
+out/
 data/
 coverage/
 AGENT.md

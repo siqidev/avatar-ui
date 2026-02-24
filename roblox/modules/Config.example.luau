@@ -8,7 +8,7 @@
 
 return {
 	-- 観測イベントの送信先URL（TypeScript側のObservationServerのアドレス）
-	-- Studio（ローカル開発）: http://localhost:3000/observation
+	-- Studio（ローカル開発）: http://127.0.0.1:3000/observation
 	-- 本番: トンネルや公開サーバーのURLに変更する
 	observationUrl = "http://localhost:3000/observation",
 

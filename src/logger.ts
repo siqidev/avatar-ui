@@ -3,12 +3,15 @@ import { APP_CONFIG } from "./config.js"
 
 type Level = "INFO" | "ERROR" | "FATAL"
 
+// LOG_VERBOSE=true で全レベルをstderrに出力（デフォルト: ERROR/FATALのみ）
+const verbose = process.env.LOG_VERBOSE === "true"
+
 function log(level: Level, message: string): void {
   const timestamp = new Date().toISOString()
   const line = `${timestamp} [${level}] ${message}\n`
 
-  // ERROR/FATALのみstderr出力（INFOはファイルのみ）
-  if (level !== "INFO") {
+  // verbose: 全レベル出力、通常: ERROR/FATALのみ
+  if (verbose || level !== "INFO") {
     process.stderr.write(line)
   }
 

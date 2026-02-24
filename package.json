@@ -2,18 +2,21 @@
   "name": "avatar-ui",
   "version": "0.3.0",
   "description": "AUI reference implementation",
-  "type": "module",
   "scripts": {
-    "dev": "tsx --env-file=.env src/main.ts",
+    "dev": "electron-vite dev",
+    "dev:cli": "tsx --env-file=.env src/cli.ts",
+    "build": "electron-vite build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "author": "siqidev",
   "license": "MIT",
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   },
+  "main": "out/main/index.js",
   "dependencies": {
+    "dotenv": "^17.3.1",
     "node-cron": "^4.2.1",
     "openai": "^6.22.0",
     "zod": "^4.3.6"
@@ -22,6 +25,8 @@
     "@types/node": "^25.3.0",
     "@types/node-cron": "^3.0.11",
     "@vitest/coverage-v8": "^4.0.18",
+    "electron": "^34.5.8",
+    "electron-vite": "^5.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"

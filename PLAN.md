@@ -56,7 +56,56 @@
 
 **現段階の方針**: CLIのみで運用。Robloxチャット入力は将来検討（入出力の窓サイズが小さく、CLIで代替可能なため優先度低）
 
+### Console設計（議論合意 2026-02-24）
+
+**定義**: Console = 場の媒体（窓）の一つ。②媒体投影が正規化する対象。場に従属し、場が消えても窓が消えるだけ。窓が消えても場は消えない。根拠: ❶アーキテクチャ要請「媒体は場を覗く窓として従属」、②媒体投影「セッション/媒体を場への接続に正規化」。v0.2「Body」概念は再導出対象のため根拠に使わない。
+
+**構成**: PC司令室（多面窓）。場の複数側面を同時に映し、他の窓（Roblox/X）の状態も表示するメタ窓。
+
+| ペイン | 機能 | 読み/書き |
+|---|---|---|
+| チャット | Spectraとの対話（human↔AI） | 読み書き |
+| ターミナル | node-pty等のシェルエミュレータ。AIも人間も双方が直接操作可能 | 読み書き |
+| ファイルシステム | ファイル表示・編集（エクスプローラ的） | 読み書き |
+| Robloxモニタ | 3Dミニマップ + イベントログ（後述） | 読み取り専用 |
+| Xモニタ | X投稿状況の監視 | 読み取り専用 |
+
+**責務境界**: 入力正規化（post_message）+ 状態可視化（イベント購読）+ ローカルUI状態のみ。正本管理・権限判定・場ライフサイクル遷移・外部への直叩きはConsoleの責務外。
+
+**操作の2レーン構造**:
+
+A. 対話レーン（チャットペイン）: ②→③→④ の標準経路。チャット入力はメッセージとして正規化され、往復回路で処理される。
+
+B. 直接操作レーン（ターミナル/ファイル編集）:
+- 実行レーン: ②→①（権限チェック）→ 実行基盤（pty/editor）
+- 観測レーン: 実行結果イベント → ② → ③ → ④ → ⑤（因果を場に編み戻す）
+
+**P19因果連接の維持条件**:
+- 各操作に `actor(human|ai)` と `correlation_id` を付与
+- 操作と結果が必ずペアで観測される
+- 観測が ②→③→④ に入り、次の応答に接続される
+- 永続化は ④→⑤ で行い、②→⑤ 直アクセスは禁止を維持
+
+**Robloxモニタ詳細**:
+- 3Dミニマップ（レベル2）: Three.jsでボックス建物 + 地形 + NPC/プレイヤー位置を描画
+- データフロー: Roblox ObservationSenderが `world_snapshot` イベント（NPC位置、プレイヤー位置、建物リスト、地形高さ）を定期Push → ObservationServer受信 → Console側Three.jsシーン更新
+- カメラはマウスで回転・ズーム操作可能（データ更新は3秒間隔、描画自体は60fps）
+- 補助: イベントタイムライン（接近、チャット、投影結果のリアルタイムログ）+ 投影キュー状態
+- 映像ストリーミングは不採用（Robloxが映像送出APIを提供していないため。画面キャプチャはハック的で不採用）
+
+**UIフレームワーク**: Electron。node-ptyネイティブ統合、Three.js(WebGL)安定動作、TypeScript統一、v0.2実績。Tauri棄却理由: node-pty統合にRust FFI/サイドカーが必要で一人開発にリスク大。TUI棄却理由: Three.js(3Dミニマップ)が不可能。Web棄却理由: ローカルデスクトップ要件に不適
+
+**プロセス分離**: FieldRuntime（場の全ロジック）をElectron Mainプロセス内に同居＋論理分離。Rendererは薄いIPCクライアント。
+- FieldRuntime: 6要素（場契約/媒体投影/参与文脈/往復回路/共存記録/健全性管理）、Pulse(cron)、観測受信(HTTP)、Grok API呼出、永続化。すべてMain内で完結
+- Renderer: 5ペインの描画＋ユーザー入力の送信＋イベント購読のみ。FieldRuntimeへの直接参照なし
+- IPCプロトコル: メッセージ形式 `{ type, actor?, correlationId?, ...ペイロード }`。typeは `<domain>.<action>` の2語（chat.post, terminal.output等）。Zod検証。トランスポートはElectron標準IPC（ipcMain/webContents.send）でスタート、型はストリーム対応（.stream/.output パターン）。パフォーマンス問題が出たらMessagePortに差替え
+- IPCセキュリティ: nodeIntegration:false / contextIsolation:true / sandbox:true。preload.tsでcontextBridge経由の最小API公開（ipcRendererの直接公開禁止）。Main側でZodバリデーション必須
+- ウィンドウ閉じ = channel.detach（Mainは生存しタスクトレイ常駐）、再度開き = channel.attach + カーソルベースの状態再同期
+- 将来の分離: IPCアダプタをWebSocketアダプタに差し替えれば独立デーモン化が可能（現時点では不要）
+- 棄却案A（場=Main丸ごと）: 分離なしで保守困難。棄却案B（場=独立デーモン）: IPC二重化で一人開発にリスク大
+
 ### 次の候補
+- **Console実装** — 各ペインの入出力契約定義 → Electronプロジェクト初期化 → FieldRuntime骨格
 - **場のライフサイクルFSM** — generated→active→paused→resumed→terminated。S5受入シナリオの核
 - **Intent Log + Projector実装** — 現行のroblox_action直送信を正しい構造に移行
 - **Push入力経路実装** — CLI側HTTPサーバー + Roblox側ObservationSenderスクリプト
@@ -172,6 +221,5 @@
 
 - v0.2コードの移植・互換維持
 - X / マルチチャネル本格対応
-- Electron再構築 / UI拡張
 - 参与文脈（ParticipationContext）の独立コンポーネント化
 - 配信拡張（Live2D/3D、音声）

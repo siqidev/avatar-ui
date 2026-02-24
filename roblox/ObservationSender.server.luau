@@ -17,8 +17,8 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 
--- 設定読み込み
-local Config = require(script.Parent.CommandReceiver.modules.Config)
+-- 設定読み込み（オブジェクト名が "CommandReceiver.server" のためブラケット記法）
+local Config = require(script.Parent["CommandReceiver.server"].modules.Config)
 
 -- NPC参照
 local function findNPC()
@@ -50,16 +50,20 @@ local function sendObservation(eventType, payload)
 	end
 
 	task.spawn(function()
-		local ok, err = pcall(function()
-			HttpService:RequestAsync({
+		local ok, result = pcall(function()
+			return HttpService:RequestAsync({
 				Url = Config.observationUrl,
 				Method = "POST",
 				Headers = headers,
 				Body = json,
 			})
 		end)
-		if not ok then
-			warn("[ObservationSender] 送信失敗: " .. tostring(err))
+		if ok then
+			if not result.Success then
+				warn("[ObservationSender] HTTP失敗: " .. tostring(result.StatusCode) .. " " .. tostring(result.StatusMessage))
+			end
+		else
+			warn("[ObservationSender] 送信失敗: " .. tostring(result))
 		end
 	end)
 end
