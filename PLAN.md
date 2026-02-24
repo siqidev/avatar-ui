@@ -26,15 +26,16 @@
 - 設計の主語が変わる: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
 - **具体⇄抽象の往復**: 抽象設計だけ積み上げてもイメージしづらい。具体（実装スパイク）を先に進め、具体が抽象を修正する方針。抽象設計(#1-#4)→具体不足の懸念→スパイク優先に転換した経緯あり
 
-## 開発進捗（2026-02-24時点）
+## 開発進捗（2026-02-25時点）
 
 ### 完了済みスパイク
 1. **Console会話基盤** — Grok Responses API + readline、being.md人格定義、previous_response_id継続
 2. **長期記憶（save_memory）** — ローカルJSONL + Collections API（fire-and-forget）、ツール呼び出しループ
 3. **Pulse（AI起点の定期発話）** — node-cron + 直列キュー、3層構造（ファイルゲート→system注入→sendMessage）、PULSE_OKプロトコル。起点対称性(P15)の実装
-
-### 完了済みスパイク（続き）
 4. **Roblox連携v2** — Open Cloud Messaging API（外部→Roblox片方向）、カテゴリ別モジュール構成（PartOps/TerrainOps/NpcOps/EffectOps）、DataStore永続化、情報物質化エフェクト。CLI経由でAIがRoblox空間を操作する
+5. **Roblox観測パイプライン** — ObservationSender（Roblox ServerScript）→ Cloudflare Tunnel → observation-server（TypeScript HTTP）→ CLI直列キュー。双方向接続の完成。Roblox Studioはlocalhost HTTPをブロックするためトンネル経由が必須
+6. **Console縦切り（Spike-01）** — Electron + electron-vite + FieldRuntime（Main内論理分離）+ field-fsm（generated→active→paused→resumed→terminated）+ IPCスキーマ（Zod検証）+ チャットペイン。セキュリティ: nodeIntegration:false/contextIsolation:true/sandbox:true
+7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
 
 ### Roblox接続設計（議論合意 2026-02-24）
 
@@ -54,7 +55,7 @@
 - P17投影: NPCは場の内的状態と接続される（片方向投影で実現可能）
 - Roblox技術制約: 出力=Messaging API 1KB/msg、入力=HttpService 500 req/min
 
-**現段階の方針**: CLIのみで運用。Robloxチャット入力は将来検討（入出力の窓サイズが小さく、CLIで代替可能なため優先度低）
+**現段階の方針**: CLI + Roblox双方向で運用中。Robloxチャット入力はObservationSender→observation-server経由で実装済み。Roblox Studioはlocalhost HTTPをエンジンレベルでブロックするため、Cloudflare Tunnel経由（spectra.siqi.jp→localhost:3000）が必須
 
 ### Console設計（議論合意 2026-02-24）
 
@@ -105,11 +106,12 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 - 棄却案A（場=Main丸ごと）: 分離なしで保守困難。棄却案B（場=独立デーモン）: IPC二重化で一人開発にリスク大
 
 ### 次の候補
-- **Console実装** — 各ペインの入出力契約定義 → Electronプロジェクト初期化 → FieldRuntime骨格
-- **場のライフサイクルFSM** — generated→active→paused→resumed→terminated。S5受入シナリオの核
-- **Intent Log + Projector実装** — 現行のroblox_action直送信を正しい構造に移行
-- **Push入力経路実装** — CLI側HTTPサーバー + Roblox側ObservationSenderスクリプト
-- 具体→抽象の修正フェーズ: スパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **Console拡張** — チャットペイン以外の4ペイン（ターミナル/FS/Robloxモニタ/Xモニタ）の段階的実装
+- **FieldRuntime観測統合** — field-runtime.tsに観測サーバー統合（現在はCLIのみ対応）
+- **具体→抽象の修正フェーズ** — スパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **永続モデル設計（#5）** — 共存記録の実装設計
+- **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
+- **テスト計画（#7）** — 受入シナリオのテスト実装
 
 ## 場モデル6要素のv0.3実装度
 

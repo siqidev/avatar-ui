@@ -303,11 +303,11 @@ Avatar: Core → Flow → State → Body
 
 | 領域 | 状態 | 説明 |
 |------|------|------|
-| Core Foundation | ✅ v0.2.0 | FastAPI + Grok API + 自律ループ + Exec Contract |
-| Console UI | ✅ v0.2.0 | Electron デスクトップUI + ターミナル実行 |
-| Identity Kernel | 🔄 部分的 | system_prompt設定あり、人格モデル深化は未着手 |
-| 記憶永続化 | 📋 計画 | state.json/events.jsonlのみ。長期記憶（xAI Collections等）は未実装 |
-| Roblox NPC | 📋 計画 | Exec Contract設計済み（Backend未実装）。自律NPC出現 |
+| Core Foundation | ✅ v0.2.0 → v0.3 dev | v0.2: FastAPI + Grok API。v0.3: TypeScript + Grok Responses API + 直列キュー |
+| Console UI | ✅ v0.2.0 → v0.3 dev | v0.2: Electron。v0.3: electron-vite + FieldRuntime + FSM + IPC（チャットペイン動作） |
+| Identity Kernel | 🔄 部分的 | BEING.md人格定義 + Grok system prompt。人格モデル深化は未着手 |
+| 記憶永続化 | ✅ v0.3 dev | ローカルJSONL + xAI Collections API（fire-and-forget）。save_memoryツール |
+| Roblox NPC | 🔄 v0.3 dev | 双方向接続動作中。出力: Intent Log→Projector→Open Cloud。入力: ObservationSender→Tunnel→observation-server。チャット/接近検知/NPC操作 |
 | X運用 | 📋 計画 | 非併存運用（Roblox優先）。Backend未実装 |
 | Live2D / 3D | 📋 構想 | 描画アダプタ。配信拡張として後付け |
 | 音声I/O | 📋 構想 | TTS/STT。Roblox制約確認後に実装確定 |

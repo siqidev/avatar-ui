@@ -10,7 +10,7 @@
 3. docs/architecture.md — 現行アーキテクチャの正本（v0.3で刷新予定）
 4. docs/api.md — 現行API仕様の正本（v0.3で刷新予定）
 
-## 現在の状況（2026-02-22）
+## 現在の状況（2026-02-25）
 
 ### ブランチ戦略
 - **main** = v0.2系の公開最新（v0.2コード + v0.3設計ドキュメント）
@@ -23,20 +23,14 @@
 - OpenClawを参照アーキテクチャとする（踏襲粒度は段階的に精査）
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
+### 開発状況
+スパイク7本完了（会話基盤/長期記憶/Pulse/Roblox連携v2/観測パイプライン/Console縦切り/Robloxチャット統合）。CLIとRoblox双方向接続が動作中。詳細はPLAN.mdの開発進捗を参照。
+
 ### 次のアクション
-1. **OpenClaw調査** — 場管理・ループ・状態遷移に相当する機能があるか確認。車輪の再発明を避ける
-2. **v0.2ソースコード削除** — devブランチからv0.2のPython/Electronコードを削除
-3. **TypeScriptプロジェクト初期化** — 最小構成でセットアップ
-4. **最小スパイク** — 6要素のうち最も核になる1つを動かし、設計が実装に耐えるか検証
-5. **具体→抽象修正** — スパイクの結果で設計を直す
-
-### 軌道修正の経緯
-実装設計#1〜#4（受入シナリオ、不変条件の実行可能化、入出力契約、状態遷移）まで抽象設計を進めたが、ユーザーから3つの懸念が出た:
-- OpenClawの車輪の再発明をしていないか
-- 具体（コード）を書かずに抽象だけ積み上げて大丈夫か
-- 設計の複雑さに対して具現化できるか
-
-→ 抽象設計を一時停止し、OpenClaw調査→最小スパイク→具体が抽象を修正する方針に転換。
+1. **具体→抽象修正** — 7本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+2. **Console拡張** — チャット以外の4ペイン段階的実装
+3. **FieldRuntime観測統合** — Electron Main内に観測サーバーを統合（現在CLIのみ）
+4. **未着手の実装設計** — #5永続モデル / #6健全性管理 / #7テスト計画
 
 ## avatar-ui 60秒コンテキスト
 
@@ -85,10 +79,10 @@
 - DAG: ⑤共存記録→①場契約→②媒体投影→③参与文脈→④往復回路→⑥健全性管理
 - ⑥健全性管理は他要素を直接操作しない。RuntimeCoordinator経由で復旧実行
 
-### 状態遷移（Codex案、未反映）
-- 場FSM: generated→active→paused→resumed→active / →terminated
-- loop FSM: intent→action→response→reinterpret→completed
-- Heartbeat: AI起点のintent生成トリガ（場がactive時、15秒間隔、バックオフあり）
+### 状態遷移
+- 場FSM: generated→active→paused→resumed→active / →terminated（field-fsm.tsで実装済み）
+- loop FSM: intent→action→response→reinterpret→completed（未実装）
+- Heartbeat: AI起点のintent生成トリガ → Pulseとして実装済み（cron式、PULSE_OKプロトコル）
 - v0.2行動サイクル（Explore→Metabolize→Generate→Adapt）はintentのstrategy_tagに降格
 
 ### 未着手の実装設計（軌道修正で一時停止）
@@ -138,6 +132,32 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | ontology.md | /Users/u/Projects/siqi/core/ontology.md | 存在論の正本 |
 | identity.md | /Users/u/Projects/siqi/core/identity.md | 式乃シトの自己定義・Core Desires |
 | strategy.md | /Users/u/Projects/siqi/core/strategy.md | 可変層（Strategic Hypotheses） |
+
+## 主要パス索引（v0.3）
+
+| パス | 内容 |
+|------|------|
+| src/cli.ts | CLIエントリーポイント（会話+Pulse+観測の直列キュー） |
+| src/config.ts | 環境変数Zodスキーマ + APP_CONFIG定数 |
+| src/logger.ts | ロギング（data/app.logに出力） |
+| src/services/chat-session-service.ts | sendMessage()（Grok Responses API呼出+ツール実行ループ） |
+| src/state/state-repository.ts | loadState()/saveState()（data/state.json） |
+| src/memory/ | 長期記憶（ローカルJSONL + Collections API） |
+| src/roblox/observation-server.ts | 観測受信HTTPサーバー（Roblox→場） |
+| src/roblox/projector.ts | 投影（場→Roblox、Open Cloud Messaging API） |
+| src/tools/ | Grokツール定義（save_memory, roblox_action等） |
+| src/main/index.ts | Electron Mainエントリーポイント |
+| src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
+| src/main/field-fsm.ts | 場FSM（純関数transition） |
+| src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
+| src/preload/index.mts | contextBridge最小API |
+| src/renderer/ | Renderer（チャットペイン） |
+| src/shared/ipc-schema.ts | IPCメッセージZodスキーマ |
+| roblox/ | Roblox Studio用スクリプト群 |
+| roblox/ObservationSender.server.luau | 観測送信（Roblox→場） |
+| roblox/modules/NpcOps.luau | NPC操作（say/move_to/emote） |
+| roblox/SpectraChatDisplay.client.luau | チャット履歴表示（クライアント側） |
+| data/ | ランタイムデータ（state.json, memory.jsonl, app.log等） |
 
 ## 主要パス索引（v0.2、参照用）
 
