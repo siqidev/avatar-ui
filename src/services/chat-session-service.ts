@@ -18,7 +18,8 @@ import {
 } from "../memory/memory-record.js"
 import { appendMemory } from "../memory/memory-log-repository.js"
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
-import { publishMessage } from "../roblox/roblox-messaging.js"
+import { appendIntent } from "../roblox/intent-log.js"
+import { projectIntent } from "../roblox/projector.js"
 import * as log from "../logger.js"
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
@@ -183,7 +184,7 @@ async function handleSaveMemory(
   return JSON.stringify({ status: "ローカルに保存しました", id: record.id })
 }
 
-// roblox_actionツール v2 の実行（カテゴリ+ops方式で送信）
+// roblox_actionツール v2 の実行（IntentLog記録 → Projector投影）
 async function handleRobloxAction(
   argsJson: string,
   env: Env,
@@ -197,23 +198,25 @@ async function handleRobloxAction(
   }
 
   const { category, ops, reason } = validation.data
-  const message = JSON.stringify({ category, ops })
 
-  log.info(`[ROBLOX_SEND] category=${category} ops=${ops.length}件 reason=${reason}`)
-  log.info(`[ROBLOX_PAYLOAD] ${message}`)
-
-  const result = await publishMessage(
-    env.ROBLOX_API_KEY!,
-    env.ROBLOX_UNIVERSE_ID!,
-    APP_CONFIG.robloxMessageTopic,
-    message,
-  )
-
-  if (!result.success) {
+  // ① IntentLogに記録（場が正本）
+  const intentResult = appendIntent({ category, ops, reason })
+  if (!intentResult.success) {
     throw new Error(
-      `Robloxメッセージ送信失敗: ${result.error.code} - ${result.error.message}`,
+      `意図の記録に失敗: ${intentResult.error.message}`,
     )
   }
 
-  return JSON.stringify({ status: "Robloxに送信しました", category, ops_count: ops.length })
+  const intent = intentResult.data
+  log.info(`[INTENT] ${intent.id} category=${category} ops=${ops.length}件 reason=${reason}`)
+
+  // ② Projectorで投影（Robloxへ送信 + ステータス更新）
+  const sent = await projectIntent(intent, env)
+  if (!sent) {
+    throw new Error(
+      `Roblox投影失敗（意図は記録済み: ${intent.id}）`,
+    )
+  }
+
+  return JSON.stringify({ status: "記録・投影完了", id: intent.id, category, ops_count: ops.length })
 }

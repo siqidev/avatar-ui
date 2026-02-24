@@ -5,6 +5,9 @@ import cron from "node-cron"
 import { loadEnv, isCollectionsEnabled, isRobloxEnabled, APP_CONFIG } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
+import { projectPendingIntents } from "./roblox/projector.js"
+import { startObservationServer } from "./roblox/observation-server.js"
+import type { ObservationEvent } from "./roblox/observation-server.js"
 import * as log from "./logger.js"
 
 // being.mdから人格定義を読み込む
@@ -26,6 +29,23 @@ function loadPulse(): string | null {
       return null
     }
     throw err
+  }
+}
+
+// 観測イベントをSpectraへの入力テキストに変換する
+function formatObservation(event: ObservationEvent): string {
+  const p = event.payload as Record<string, unknown>
+  switch (event.type) {
+    case "player_chat":
+      return `[Roblox観測] ${p.player}が話しかけた: 「${p.message}」`
+    case "player_proximity":
+      return p.action === "enter"
+        ? `[Roblox観測] ${p.player}が近づいてきた（距離: ${p.distance}スタッド）`
+        : `[Roblox観測] ${p.player}が離れた`
+    case "projection_ack":
+      return `[Roblox観測] 投影結果: ${JSON.stringify(p)}`
+    default:
+      return `[Roblox観測] ${event.type}: ${JSON.stringify(p)}`
   }
 }
 
@@ -60,10 +80,16 @@ async function main(): Promise<void> {
   }
   if (isRobloxEnabled(env)) {
     process.stdout.write("Roblox連携: 有効\n")
+
+    // 起動時: 未送信の意図をリトライ
+    const retried = await projectPendingIntents(env)
+    if (retried > 0) {
+      process.stdout.write(`  未送信の意図を${retried}件送信しました\n`)
+    }
   }
   process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
 
-  // 直列キュー: ユーザー入力とPulseを同じPromiseチェーンで直列実行
+  // 直列キュー: ユーザー入力・Pulse・観測を同じPromiseチェーンで直列実行
   let queue = Promise.resolve()
   const enqueue = (task: () => Promise<void>): void => {
     queue = queue.then(task).catch((err: unknown) => {
@@ -77,6 +103,32 @@ async function main(): Promise<void> {
     output: process.stdout,
   })
   rl.setPrompt("you> ")
+
+  // 観測受信サーバー起動（Roblox→場のPush入力経路）
+  if (isRobloxEnabled(env)) {
+    startObservationServer((event: ObservationEvent) => {
+      enqueue(async () => {
+        const prompt = formatObservation(event)
+        log.info(`[OBSERVATION→SPECTRA] ${prompt}`)
+
+        readline.clearLine(process.stdout, 0)
+        readline.cursorTo(process.stdout, 0)
+        process.stdout.write(`\n[観測] ${prompt}\n`)
+
+        const reply = await sendMessage(
+          client,
+          env,
+          state,
+          beingPrompt,
+          prompt,
+        )
+        log.info(`[SPECTRA] ${reply}`)
+        process.stdout.write(`\nspectra> ${reply}\n\n`)
+        saveState(state)
+        rl.prompt()
+      })
+    })
+  }
 
   // ユーザー入力ハンドラ
   rl.on("line", (userInput: string) => {
