@@ -26,6 +26,11 @@ export const APP_CONFIG = {
   // API基盤URL
   apiBaseUrl: "https://api.x.ai/v1",
   managementApiBaseUrl: "https://management-api.x.ai/v1",
+  // Pulse（AI起点の定期発話）
+  pulseFile: "pulse.md",
+  pulseCron: "*/1 * * * *", // 本番: "*/30 * * * *"
+  pulsePrompt: "PULSE.mdの指示に従え。対応不要ならPULSE_OKと返答。",
+  pulseOkPrefix: "PULSE_OK",
 } as const
 
 // 環境変数を検証して返す

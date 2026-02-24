@@ -1,6 +1,7 @@
 import OpenAI from "openai"
 import * as readline from "node:readline"
 import * as fs from "node:fs"
+import cron from "node-cron"
 import { loadEnv, isCollectionsEnabled, APP_CONFIG } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
@@ -15,8 +16,26 @@ function loadBeing(): string {
   }
 }
 
+// pulse.mdを読み込む（層A: 不存在/空→null、他IOエラー→throw）
+function loadPulse(): string | null {
+  try {
+    const content = fs.readFileSync(APP_CONFIG.pulseFile, "utf-8").trim()
+    return content || null
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      return null
+    }
+    throw err
+  }
+}
+
 async function main(): Promise<void> {
   const env = loadEnv()
+
+  // cron式バリデーション（fail-fast）
+  if (!cron.validate(APP_CONFIG.pulseCron)) {
+    log.fatal(`不正なcron式: ${APP_CONFIG.pulseCron}`)
+  }
 
   const client = new OpenAI({
     apiKey: env.XAI_API_KEY,
@@ -41,42 +60,83 @@ async function main(): Promise<void> {
   }
   process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
 
+  // 直列キュー: ユーザー入力とPulseを同じPromiseチェーンで直列実行
+  let queue = Promise.resolve()
+  const enqueue = (task: () => Promise<void>): void => {
+    queue = queue.then(task).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err)
+      log.fatal(message)
+    })
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   })
+  rl.setPrompt("you> ")
 
-  const prompt = (): void => {
-    rl.question("you> ", async (userInput) => {
-      if (!userInput.trim()) {
-        prompt()
-        return
-      }
+  // ユーザー入力ハンドラ
+  rl.on("line", (userInput: string) => {
+    if (!userInput.trim()) {
+      rl.prompt()
+      return
+    }
+    enqueue(async () => {
+      const reply = await sendMessage(
+        client,
+        env,
+        state,
+        beingPrompt,
+        userInput,
+      )
+      process.stdout.write(`\nspectra> ${reply}\n\n`)
+      saveState(state)
+      rl.prompt()
+    })
+  })
 
-      try {
-        const reply = await sendMessage(
-          client,
-          env,
-          state,
-          beingPrompt,
-          userInput,
-        )
+  // Pulseタイマー（層A→B→C）
+  const pulseTask = cron.schedule(APP_CONFIG.pulseCron, () => {
+    enqueue(async () => {
+      // 層A: pulse.md読み込み（不存在/空→スキップ）
+      const pulseContent = loadPulse()
+      if (!pulseContent) return
 
+      // 層B: being + pulseをsystemに結合
+      const systemPrompt = `${beingPrompt}\n\n${pulseContent}`
+
+      // 層C: sendMessage（forceSystemPrompt=trueでsystem再送信）
+      log.info("Pulse発火")
+      const reply = await sendMessage(
+        client,
+        env,
+        state,
+        systemPrompt,
+        APP_CONFIG.pulsePrompt,
+        true,
+      )
+      saveState(state)
+
+      // PULSE_OK先頭→ログのみ、それ以外→readline割り込み表示
+      if (reply.startsWith(APP_CONFIG.pulseOkPrefix)) {
+        log.info("Pulse応答: 対応不要")
+      } else {
+        // readlineの現在行をクリアして割り込み表示
+        readline.clearLine(process.stdout, 0)
+        readline.cursorTo(process.stdout, 0)
         process.stdout.write(`\nspectra> ${reply}\n\n`)
-        saveState(state)
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        log.fatal(message)
+        rl.prompt()
       }
     })
-  }
-
-  prompt()
+  })
 
   rl.on("close", () => {
+    pulseTask.stop()
     process.stdout.write("\n会話を終了しました。\n")
     process.exit(0)
   })
+
+  rl.prompt()
 }
 
 main()

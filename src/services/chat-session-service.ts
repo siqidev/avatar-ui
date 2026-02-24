@@ -23,14 +23,16 @@ export async function sendMessage(
   state: State,
   beingPrompt: string,
   userInput: string,
+  forceSystemPrompt = false,
 ): Promise<string> {
-  // 初回: systemロール + userロール、継続: userのみ + previous_response_id
-  const input: ResponseInput = state.lastResponseId
-    ? [{ role: "user" as const, content: userInput }]
-    : [
-        { role: "system" as const, content: beingPrompt },
-        { role: "user" as const, content: userInput },
-      ]
+  // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
+  const input: ResponseInput =
+    state.lastResponseId && !forceSystemPrompt
+      ? [{ role: "user" as const, content: userInput }]
+      : [
+          { role: "system" as const, content: beingPrompt },
+          { role: "user" as const, content: userInput },
+        ]
 
   const tools = buildTools(env)
 
