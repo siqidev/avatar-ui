@@ -105,6 +105,60 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 - 将来の分離: IPCアダプタをWebSocketアダプタに差し替えれば独立デーモン化が可能（現時点では不要）
 - 棄却案A（場=Main丸ごと）: 分離なしで保守困難。棄却案B（場=独立デーモン）: IPC二重化で一人開発にリスク大
 
+### Console UIデザイン（議論合意 2026-02-25）
+
+**設計メタファー**: 二層構造。平常時は「共存の窓」（Chat中心）、障害時は手動で「監視室モード」（Terminal中心）に切替。自動遷移は実装しない。
+
+**レイアウト（3列構成）**:
+```
+┌─── Left 24% ───┬──── Main 52% ────┬─── Right 24% ──┐
+│ FS       (58%) │                  │ Roblox   (62%) │
+├────────────────┤  Chat            ├────────────────┤
+│ Terminal (42%) │                  │ X Monitor(38%) │
+└────────────────┴──────────────────┴────────────────┘
+```
+- 判断根拠: 往復回路の主インターフェース（Chat）を視覚中心に据える。実行系（FS/Terminal）を左に近接配置、監視系（Roblox/X）を右にまとめる
+- 棄却案: Terminal中央46%案 — 設計主語「場の継続＋往復維持」と不一致（Roblox操作もChat経由のため）
+- 手動監視室モード: Ctrl+数字でChat/Terminal中央入替（5ペイン維持）
+
+**リサイズ規則**:
+- 最小ウィンドウ: 1280x800
+- 基準比率: 24/52/24（ユーザー調整範囲: 20-60-20）
+- 縮退順: Alert表示固定 → Chat最小42ch → Terminal最小260x180 → 右列タブ化 → FSドロワー化
+
+**デザイントークン（TUI-in-GUI）**:
+```css
+:root {
+  --bg-app: #0a0d12;  --bg-pane: #0c1118;  --bg-pane-alt: #0d1420;
+  --fg-main: #d3dde6;  --fg-muted: #93a4b8;  --fg-dim: #6b7a8c;
+  --line-default: #1e2a38;  --line-focus: #3dd6f5;
+  --state-info: #22d3ee;  --state-ok: #34d399;  --state-warn: #f59e0b;  --state-critical: #f43f5e;
+  --border-width: 1px;  --border-radius: 0;
+  --font-mono: "Iosevka Term", "JetBrains Mono", "Cascadia Mono", monospace;
+  --font-size: 13px;  --line-height: 1.45;
+}
+```
+
+**状態→視覚マッピング**:
+
+| 入力 | 状態 | 色 | ボーダー | 補助 |
+|---|---|---|---|---|
+| なし | NORMAL | モノクロ | --line-default | なし |
+| chat.reply | REPLY | --state-info | 変更なし | 未読ドット |
+| field.state(稼働) | ACTIVE | --state-info | 色のみ変更 | [RUN] |
+| field.state(警告) | WARN | --state-warn | 色のみ変更 | [WARN] |
+| integrity.alert | CRITICAL | --state-critical | 色のみ変更 | アラートバー + [ALERT] |
+
+原則: 正常時はモノクロ基調（色が出た瞬間に「何かある」と分かる）。優先度: integrity.alert > field.state > chat.reply > focus > normal
+
+**ペイン実装優先順位（技術依存ベース）**:
+1. 共通基盤 — レイアウトスロット、splitter、トークン適用、状態正規化器
+2. Chatペイン — roblox_action導線、返信表示、未読管理（主導線なので最優先）
+3. Roblox Monitor — field.state可視化、イベントログ
+4. X Monitor — Roblox Monitorの横展開
+5. Terminal — まずログビューア（node-ptyはスコープ確定後）
+6. FSペイン — read-only tree + 選択情報表示
+
 ### 次の候補
 - **Console拡張** — チャットペイン以外の4ペイン（ターミナル/FS/Robloxモニタ/Xモニタ）の段階的実装
 - **FieldRuntime観測統合** — field-runtime.tsに観測サーバー統合（現在はCLIのみ対応）
