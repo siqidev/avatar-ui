@@ -22,6 +22,19 @@ import { appendIntent } from "../roblox/intent-log.js"
 import { projectIntent } from "../roblox/projector.js"
 import * as log from "../logger.js"
 
+// ツール呼び出し情報（UIに表示するための構造化データ）
+export type ToolCallInfo = {
+  name: string
+  args: Record<string, unknown>
+  result: string
+}
+
+// sendMessage()の戻り値（テキスト + ツール呼び出し情報）
+export type SendMessageResult = {
+  text: string
+  toolCalls: ToolCallInfo[]
+}
+
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
   client: OpenAI,
@@ -30,7 +43,7 @@ export async function sendMessage(
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
-): Promise<string> {
+): Promise<SendMessageResult> {
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput =
     state.lastResponseId && !forceSystemPrompt
@@ -55,6 +68,7 @@ export async function sendMessage(
   state.lastResponseId = response.id
 
   // ツール呼び出しループ（Grokがツールを呼んだら処理して再送信）
+  const allToolCalls: ToolCallInfo[] = []
   const maxToolRounds = 5
   for (let round = 0; round < maxToolRounds; round++) {
     const toolCalls = extractFunctionCalls(response)
@@ -65,6 +79,13 @@ export async function sendMessage(
       log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
       const result = await handleToolCall(call, client, env, response.id)
       log.info(`[TOOL_RESULT] ${call.name}: ${result}`)
+
+      allToolCalls.push({
+        name: call.name,
+        args: JSON.parse(call.args) as Record<string, unknown>,
+        result,
+      })
+
       toolResults.push({
         type: "function_call_output",
         call_id: call.callId,
@@ -82,7 +103,10 @@ export async function sendMessage(
     state.lastResponseId = response.id
   }
 
-  return response.output_text ?? "(応答なし)"
+  return {
+    text: response.output_text ?? "(応答なし)",
+    toolCalls: allToolCalls,
+  }
 }
 
 // ツール定義を組み立てる

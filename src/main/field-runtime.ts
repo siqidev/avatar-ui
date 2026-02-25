@@ -6,6 +6,7 @@ import { loadEnv, isRobloxEnabled, APP_CONFIG } from "../config.js"
 import { loadState, saveState } from "../state/state-repository.js"
 import type { State } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
+import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
@@ -67,15 +68,15 @@ export function initRuntime(): void {
 }
 
 // チャットメッセージを処理する（chat.post → sendMessage → chat.reply）
-export function processChat(text: string): Promise<string> {
+export function processChat(text: string): Promise<SendMessageResult> {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const reply = await sendMessage(client, env, state, beingPrompt, text)
+        const result = await sendMessage(client, env, state, beingPrompt, text)
         saveState(state)
-        resolve(reply)
+        resolve(result)
       } catch (err) {
         reject(err)
       }
@@ -84,7 +85,7 @@ export function processChat(text: string): Promise<string> {
 }
 
 // Pulseを開始する（AI起点の定期発話）
-export function startPulse(onReply: (text: string) => void): void {
+export function startPulse(onReply: (result: SendMessageResult) => void): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   cron.schedule(APP_CONFIG.pulseCron, () => {
@@ -94,7 +95,7 @@ export function startPulse(onReply: (text: string) => void): void {
     log.info("[PULSE] 発火")
     enqueue(async () => {
       try {
-        const reply = await sendMessage(
+        const result = await sendMessage(
           client,
           env,
           state,
@@ -103,9 +104,9 @@ export function startPulse(onReply: (text: string) => void): void {
           true, // forceSystemPrompt
         )
         saveState(state)
-        if (!reply.startsWith(APP_CONFIG.pulseOkPrefix)) {
-          log.info(`[PULSE] 応答: ${reply.substring(0, 100)}`)
-          onReply(reply)
+        if (!result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
+          log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
+          onReply(result)
         } else {
           log.info("[PULSE] 対応不要")
         }
@@ -125,7 +126,7 @@ let observationServer: http.Server | null = null
 
 export function startObservation(
   onEvent: (event: ObservationEvent, formatted: string) => void,
-  onReply: (text: string) => void,
+  onReply: (result: SendMessageResult) => void,
 ): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
   if (!isRobloxEnabled(env)) {
@@ -141,10 +142,10 @@ export function startObservation(
       enqueue(async () => {
         try {
           log.info(`[OBSERVATION→AI] ${formatted}`)
-          const reply = await sendMessage(client, env, state, beingPrompt, formatted)
+          const result = await sendMessage(client, env, state, beingPrompt, formatted)
           saveState(state)
-          log.info(`[AI→OBSERVATION] ${reply.substring(0, 100)}`)
-          onReply(reply)
+          log.info(`[AI→OBSERVATION] ${result.text.substring(0, 100)}`)
+          onReply(result)
         } catch (err) {
           log.error(`[OBSERVATION] AI応答エラー: ${err instanceof Error ? err.message : err}`)
         }

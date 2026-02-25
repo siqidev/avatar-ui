@@ -77,6 +77,7 @@ describe("ipc-schema", () => {
         actor: "ai",
         correlationId: "abc-123",
         text: "やっほー！",
+        source: "user",
       })
       expect(result.success).toBe(true)
     })

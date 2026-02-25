@@ -107,15 +107,15 @@ async function main(): Promise<void> {
           readline.cursorTo(process.stdout, 0)
           process.stdout.write(`\n[観測] ${prompt}\n`)
 
-          const reply = await sendMessage(
+          const result = await sendMessage(
             client,
             env,
             state,
             beingPrompt,
             prompt,
           )
-          log.info(`[SPECTRA] ${reply}`)
-          process.stdout.write(`\nspectra> ${reply}\n\n`)
+          log.info(`[SPECTRA] ${result.text}`)
+          process.stdout.write(`\nspectra> ${result.text}\n\n`)
           saveState(state)
           rl.prompt()
         })
@@ -132,15 +132,15 @@ async function main(): Promise<void> {
     }
     enqueue(async () => {
       log.info(`[USER] ${userInput}`)
-      const reply = await sendMessage(
+      const result = await sendMessage(
         client,
         env,
         state,
         beingPrompt,
         userInput,
       )
-      log.info(`[SPECTRA] ${reply}`)
-      process.stdout.write(`\nspectra> ${reply}\n\n`)
+      log.info(`[SPECTRA] ${result.text}`)
+      process.stdout.write(`\nspectra> ${result.text}\n\n`)
       saveState(state)
       rl.prompt()
     })
@@ -158,7 +158,7 @@ async function main(): Promise<void> {
 
       // 層C: sendMessage（forceSystemPrompt=trueでsystem再送信）
       log.info("Pulse発火")
-      const reply = await sendMessage(
+      const result = await sendMessage(
         client,
         env,
         state,
@@ -169,14 +169,14 @@ async function main(): Promise<void> {
       saveState(state)
 
       // PULSE_OK先頭→ログのみ、それ以外→readline割り込み表示
-      if (reply.startsWith(APP_CONFIG.pulseOkPrefix)) {
-        log.info(`[PULSE] 対応不要: ${reply.slice(0, 80)}`)
+      if (result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
+        log.info(`[PULSE] 対応不要: ${result.text.slice(0, 80)}`)
       } else {
-        log.info(`[PULSE→SPECTRA] ${reply}`)
+        log.info(`[PULSE→SPECTRA] ${result.text}`)
         // readlineの現在行をクリアして割り込み表示
         readline.clearLine(process.stdout, 0)
         readline.cursorTo(process.stdout, 0)
-        process.stdout.write(`\nspectra> ${reply}\n\n`)
+        process.stdout.write(`\nspectra> ${result.text}\n\n`)
         rl.prompt()
       }
     })

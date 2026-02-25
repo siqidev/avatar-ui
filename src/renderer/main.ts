@@ -179,12 +179,69 @@ chatPane.addEventListener("focusout", () => {
 })
 
 // === チャットUI ===
-function appendMessage(actor: string, text: string): void {
+type ToolCallDisplay = { name: string; args: Record<string, unknown>; result: string }
+
+function appendMessage(
+  actor: string,
+  text: string,
+  source?: string,
+  toolCalls?: ToolCallDisplay[],
+): void {
   const div = document.createElement("div")
   div.className = `message message-${actor}`
+  if (source && actor === "ai") {
+    div.classList.add(`source-${source}`)
+  }
+
+  // ツール呼び出し表示（テキストの前に挿入）
+  if (toolCalls && toolCalls.length > 0) {
+    for (const tc of toolCalls) {
+      const toolEl = document.createElement("div")
+      toolEl.className = "tool-call"
+      const nameEl = document.createElement("span")
+      nameEl.className = "tool-call-name"
+      nameEl.textContent = `${tc.name}`
+
+      // 引数を簡潔に表示
+      const argsStr = Object.entries(tc.args)
+        .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+        .join(" ")
+      const argsEl = document.createElement("span")
+      argsEl.className = "tool-call-args"
+      argsEl.textContent = argsStr ? ` ${argsStr}` : ""
+
+      // 結果の要約
+      const resultEl = document.createElement("div")
+      resultEl.className = "tool-call-result"
+      try {
+        const parsed = JSON.parse(tc.result) as Record<string, unknown>
+        resultEl.textContent = `  └ ${parsed.status ?? tc.result}`
+      } catch {
+        resultEl.textContent = `  └ ${tc.result.substring(0, 80)}`
+      }
+
+      toolEl.appendChild(nameEl)
+      toolEl.appendChild(argsEl)
+      toolEl.appendChild(resultEl)
+      div.appendChild(toolEl)
+    }
+  }
+
   const label = document.createElement("span")
   label.className = "label"
-  label.textContent = actor === "human" ? "you>" : "spectra>"
+  if (actor === "human" && source === "observation") {
+    label.textContent = "[roblox]"
+  } else if (actor === "human" && source === "pulse") {
+    label.textContent = "[pulse]"
+  } else if (actor === "human") {
+    label.textContent = "you>"
+  } else if (source === "pulse") {
+    label.textContent = "[pulse] spectra>"
+  } else if (source === "observation") {
+    label.textContent = "[roblox] spectra>"
+  } else {
+    label.textContent = "spectra>"
+  }
   div.appendChild(label)
   div.appendChild(document.createTextNode(text))
   messagesEl.appendChild(div)
@@ -196,7 +253,15 @@ window.fieldApi.attach()
 
 // 場の状態を受信
 window.fieldApi.onFieldState((data) => {
-  const msg = data as { state: string; lastMessages?: Array<{ actor: string; text: string }> }
+  const msg = data as {
+    state: string
+    lastMessages?: Array<{
+      actor: string
+      text: string
+      source?: string
+      toolCalls?: ToolCallDisplay[]
+    }>
+  }
   statusEl.textContent = msg.state
 
   // 状態正規化器に反映
@@ -207,17 +272,26 @@ window.fieldApi.onFieldState((data) => {
   if (msg.lastMessages && msg.lastMessages.length > 0) {
     messagesEl.innerHTML = ""
     for (const m of msg.lastMessages) {
-      appendMessage(m.actor, m.text)
+      appendMessage(m.actor, m.text, m.source, m.toolCalls)
     }
   }
 })
 
 // AIの応答を受信
 window.fieldApi.onChatReply((data) => {
-  const reply = data as { actor: string; text: string }
-  appendMessage(reply.actor, reply.text)
-  inputEl.disabled = false
-  formEl.querySelector("button")!.disabled = false
+  const reply = data as {
+    actor: string
+    text: string
+    source?: string
+    toolCalls?: ToolCallDisplay[]
+  }
+  appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls)
+
+  // source=userの場合のみ入力UIを再有効化（Pulse/観測応答では変更しない）
+  if (!reply.source || reply.source === "user") {
+    inputEl.disabled = false
+    formEl.querySelector("button")!.disabled = false
+  }
 
   // 未読ドット（フォーカスがない場合のみ）
   if (!chatPaneInput.hasFocus) {

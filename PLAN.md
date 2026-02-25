@@ -26,7 +26,7 @@
 - 設計の主語が変わる: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
 - **具体⇄抽象の往復**: 抽象設計だけ積み上げてもイメージしづらい。具体（実装スパイク）を先に進め、具体が抽象を修正する方針。抽象設計(#1-#4)→具体不足の懸念→スパイク優先に転換した経緯あり
 
-## 開発進捗（2026-02-26時点）
+## 開発進捗（2026-02-25時点）
 
 ### 完了済みスパイク
 1. **Console会話基盤** — Grok Responses API + readline、being.md人格定義、previous_response_id継続
@@ -38,6 +38,7 @@
 7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
 8. **Console UI共通基盤** — 3列5ペインレイアウト（24/52/24）、TUI-in-GUIデザイントークン、スプリッタードラッグ（列幅・ペイン高さ）、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト32件（state-normalizer 16件 + layout-manager 16件）。ウィンドウ最小1280x800
 9. **FieldRuntime観測統合** — 観測サーバーをElectron Main内のFieldRuntimeに統合。CLI専用だった観測処理をCLI/Electron共通化（observation-formatter抽出）。IPC経路: observation-server→FieldRuntime.enqueue→sendMessage(AI)→chat.reply + observation.event→Renderer。Roblox Monitorペインに観測ログ表示（タイムスタンプ+イベント種別+整形テキスト、最新上、最大50件）。アプリ終了時の観測サーバークリーンアップ。テスト10件追加（observation-formatter）
+10. **Chatペイン強化** — Chatペインを「場の会話ストリーム」として全入出力を可視化。①sendMessage()戻り値をSendMessageResult型に拡張（text+toolCalls）②AI応答にsource属性（user/pulse/observation）を付与し、ラベル色で視覚的区別（spectra>/[pulse] spectra>/[roblox] spectra>）③ツール呼び出し（roblox_action, save_memory等）をChat内にインライン表示④Roblox観測イベント・Pulseトリガーをコンテキスト行としてChatに表示（[roblox]/[pulse]ラベル）⑤Pulse/観測応答時にchat入力がdisabledにならないバグを修正（source=userの場合のみ解除）⑥テスト基盤修正（observation-server: port 0でテスト隔離、vitest.config.ts: dist/除外）。テスト115件全通過
 
 ### Roblox接続設計（議論合意 2026-02-24）
 
@@ -155,15 +156,14 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 
 **ペイン実装優先順位（技術依存ベース）**:
 1. ~~共通基盤~~ ✅ — レイアウトスロット、splitter、トークン適用、状態正規化器
-2. Chatペイン強化 — roblox_action導線、返信表示改善、未読管理（主導線なので最優先）
+2. ~~Chatペイン強化~~ ✅ — source別ラベル表示、ツール呼び出し可視化、観測/Pulseコンテキスト行、disabled修正
 3. ~~Roblox Monitor~~ ✅ — 観測イベントログ表示（FieldRuntime観測統合で実装済み）
 4. X Monitor — Roblox Monitorの横展開
 5. Terminal — まずログビューア（node-ptyはスコープ確定後）
 6. FSペイン — read-only tree + 選択情報表示
 
 ### 次の候補
-- **Chatペイン強化** — roblox_action導線（チャットからRoblox操作）、返信ストリーミング表示、未読管理
-- **具体→抽象の修正フェーズ** — 9本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **具体→抽象の修正フェーズ** — 10本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
 - **永続モデル設計（#5）** — 共存記録の実装設計
 - **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
 - **テスト計画（#7）** — 受入シナリオのテスト実装

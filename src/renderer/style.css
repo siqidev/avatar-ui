@@ -227,6 +227,53 @@ body {
   color: var(--state-info);
 }
 
+/* source別ラベル色 */
+.message-ai.source-pulse .label {
+  color: var(--state-ok);
+}
+
+.message-ai.source-observation .label {
+  color: var(--state-warn);
+}
+
+/* 非Console入力のコンテキスト行（Chatペイン内） */
+.message-human.source-observation,
+.message-human.source-pulse {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.message-human.source-observation .label {
+  color: var(--state-warn);
+}
+
+.message-human.source-pulse .label {
+  color: var(--state-ok);
+}
+
+/* ツール呼び出し表示 */
+.tool-call {
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line-default);
+  margin-bottom: 4px;
+}
+
+.tool-call-name {
+  color: var(--state-info);
+}
+
+.tool-call-args {
+  color: var(--fg-dim);
+  margin-left: 4px;
+}
+
+.tool-call-result {
+  color: var(--fg-muted);
+  display: block;
+}
+
 .chat-form {
   display: flex;
   gap: 0;

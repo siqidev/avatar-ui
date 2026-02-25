@@ -38,11 +38,22 @@ export type ToMainMessage = z.infer<typeof toMainSchema>
 
 // --- Main → Renderer ---
 
+export const sourceSchema = z.enum(["user", "pulse", "observation"])
+export type Source = z.infer<typeof sourceSchema>
+
+export const toolCallIpcSchema = z.object({
+  name: z.string(),
+  args: z.record(z.string(), z.unknown()),
+  result: z.string(),
+})
+
 export const chatReplySchema = z.object({
   type: z.literal("chat.reply"),
   actor: actorSchema,
   correlationId: z.string().min(1),
   text: z.string(),
+  source: sourceSchema,
+  toolCalls: z.array(toolCallIpcSchema).default([]),
 })
 
 export const fieldStateSchema = z.object({
@@ -51,6 +62,8 @@ export const fieldStateSchema = z.object({
   lastMessages: z.array(z.object({
     actor: actorSchema,
     text: z.string(),
+    source: sourceSchema.optional(),
+    toolCalls: z.array(toolCallIpcSchema).optional(),
   })).optional(),
 })
 

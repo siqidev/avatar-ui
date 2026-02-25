@@ -1,7 +1,8 @@
 import { ipcMain } from "electron"
 import type { BrowserWindow } from "electron"
 import { chatPostSchema } from "../shared/ipc-schema.js"
-import type { FieldState, ToRendererMessage } from "../shared/ipc-schema.js"
+import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema.js"
+import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { transition, initialState, isActive } from "./field-fsm.js"
 import { initRuntime, processChat, startPulse, startObservation } from "./field-runtime.js"
 import * as log from "../logger.js"
@@ -10,11 +11,24 @@ import * as log from "../logger.js"
 let fieldState: FieldState = initialState()
 
 // メッセージ履歴（再接続時の再同期用、直近20件保持）
-const messageHistory: Array<{ actor: "human" | "ai"; text: string; correlationId: string }> = []
+type HistoryEntry = {
+  actor: "human" | "ai"
+  text: string
+  correlationId: string
+  source?: Source
+  toolCalls?: ToolCallInfo[]
+}
+const messageHistory: HistoryEntry[] = []
 const MAX_HISTORY = 20
 
-function pushHistory(actor: "human" | "ai", text: string, correlationId: string): void {
-  messageHistory.push({ actor, text, correlationId })
+function pushHistory(
+  actor: "human" | "ai",
+  text: string,
+  correlationId: string,
+  source?: Source,
+  toolCalls?: ToolCallInfo[],
+): void {
+  messageHistory.push({ actor, text, correlationId, source, toolCalls })
   if (messageHistory.length > MAX_HISTORY) messageHistory.shift()
 }
 
@@ -43,22 +57,37 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // Pulse開始（Runtime初期化成功時のみ）
   if (runtimeReady) {
-    startPulse((text) => {
+    startPulse((result) => {
       const correlationId = `pulse-${Date.now()}`
-      pushHistory("ai", text, correlationId)
       const win = getMainWindow()
+      // Chatペインにコンテキスト行（Pulse発火）
+      pushHistory("human", "定期確認", correlationId, "pulse")
+      sendToRenderer(win, {
+        type: "chat.reply",
+        actor: "human",
+        correlationId,
+        text: "定期確認",
+        source: "pulse",
+        toolCalls: [],
+      })
+      // AI応答
+      pushHistory("ai", result.text, correlationId, "pulse", result.toolCalls)
       sendToRenderer(win, {
         type: "chat.reply",
         actor: "ai",
         correlationId,
-        text,
+        text: result.text,
+        source: "pulse",
+        toolCalls: result.toolCalls,
       })
     })
 
     // 観測サーバー起動（Roblox連携有効時のみ）
     startObservation(
       (event, formatted) => {
+        const correlationId = `obs-${Date.now()}`
         const win = getMainWindow()
+        // Roblox Monitorペインへ
         sendToRenderer(win, {
           type: "observation.event",
           eventType: event.type,
@@ -66,16 +95,28 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           formatted,
           timestamp: new Date().toISOString(),
         })
+        // Chatペインにも観測入力をコンテキスト表示
+        pushHistory("human", formatted, correlationId, "observation")
+        sendToRenderer(win, {
+          type: "chat.reply",
+          actor: "human",
+          correlationId,
+          text: formatted,
+          source: "observation",
+          toolCalls: [],
+        })
       },
-      (reply) => {
+      (result) => {
         const correlationId = `obs-${Date.now()}`
-        pushHistory("ai", reply, correlationId)
+        pushHistory("ai", result.text, correlationId, "observation", result.toolCalls)
         const win = getMainWindow()
         sendToRenderer(win, {
           type: "chat.reply",
           actor: "ai",
           correlationId,
-          text: reply,
+          text: result.text,
+          source: "observation",
+          toolCalls: result.toolCalls,
         })
       },
     )
@@ -132,16 +173,18 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     log.info(`[CHAT] ${actor}: ${text.substring(0, 80)}`)
 
     try {
-      const reply = await processChat(text)
-      pushHistory("ai", reply, correlationId)
-      log.info(`[CHAT] ai: ${reply.substring(0, 80)}`)
+      const chatResult = await processChat(text)
+      pushHistory("ai", chatResult.text, correlationId, "user", chatResult.toolCalls)
+      log.info(`[CHAT] ai: ${chatResult.text.substring(0, 80)}`)
 
       const win = getMainWindow()
       sendToRenderer(win, {
         type: "chat.reply",
         actor: "ai",
         correlationId,
-        text: reply,
+        text: chatResult.text,
+        source: "user",
+        toolCalls: chatResult.toolCalls,
       })
     } catch (err) {
       log.error(`[CHAT] エラー: ${err instanceof Error ? err.message : err}`)

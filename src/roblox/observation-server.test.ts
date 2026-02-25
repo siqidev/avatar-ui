@@ -1,14 +1,25 @@
 import { describe, it, expect, afterEach } from "vitest"
-import type { Server } from "node:http"
+import type { Server, AddressInfo } from "node:http"
 import { startObservationServer } from "./observation-server.js"
 import type { ObservationEvent } from "./observation-server.js"
+
+// テスト用: port 0でOS自動割り当て、実際のURLを返すヘルパー
+async function startTestServer(
+  handler: (event: ObservationEvent) => void,
+  secret?: string,
+): Promise<{ server: Server; baseUrl: string }> {
+  const srv = startObservationServer(handler, secret, 0)
+  await new Promise((resolve) => srv.once("listening", resolve))
+  const addr = srv.address() as AddressInfo
+  return { server: srv, baseUrl: `http://localhost:${addr.port}` }
+}
 
 describe("observation-server", () => {
   let server: Server | null = null
 
-  afterEach(() => {
+  afterEach(async () => {
     if (server) {
-      server.close()
+      await new Promise<void>((resolve) => server!.close(() => resolve()))
       server = null
     }
   })
@@ -16,14 +27,12 @@ describe("observation-server", () => {
   it("正常な観測イベントを受信してコールバックを呼ぶ", async () => {
     let received: ObservationEvent | null = null
 
-    server = startObservationServer((event) => {
+    const t = await startTestServer((event) => {
       received = event
     })
+    server = t.server
 
-    // サーバー起動を待つ
-    await new Promise((resolve) => server!.once("listening", resolve))
-
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -39,10 +48,10 @@ describe("observation-server", () => {
   })
 
   it("不正なイベントは400を返す", async () => {
-    server = startObservationServer(() => {})
-    await new Promise((resolve) => server!.once("listening", resolve))
+    const t = await startTestServer(() => {})
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "invalid_type", payload: {} }),
@@ -52,10 +61,10 @@ describe("observation-server", () => {
   })
 
   it("POST /observation以外は404を返す", async () => {
-    server = startObservationServer(() => {})
-    await new Promise((resolve) => server!.once("listening", resolve))
+    const t = await startTestServer(() => {})
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/other", {
+    const resp = await fetch(`${t.baseUrl}/other`, {
       method: "GET",
     })
 
@@ -63,10 +72,10 @@ describe("observation-server", () => {
   })
 
   it("不正なJSONは400を返す", async () => {
-    server = startObservationServer(() => {})
-    await new Promise((resolve) => server!.once("listening", resolve))
+    const t = await startTestServer(() => {})
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "not json",
@@ -77,12 +86,12 @@ describe("observation-server", () => {
 
   it("シークレット設定時、正しいBearerトークンで認証成功", async () => {
     let received: ObservationEvent | null = null
-    server = startObservationServer((event) => {
+    const t = await startTestServer((event) => {
       received = event
     }, "test-secret-123")
-    await new Promise((resolve) => server!.once("listening", resolve))
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -100,10 +109,10 @@ describe("observation-server", () => {
   })
 
   it("シークレット設定時、トークンなしは401を返す", async () => {
-    server = startObservationServer(() => {}, "test-secret-123")
-    await new Promise((resolve) => server!.once("listening", resolve))
+    const t = await startTestServer(() => {}, "test-secret-123")
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -116,10 +125,10 @@ describe("observation-server", () => {
   })
 
   it("シークレット設定時、不正なトークンは401を返す", async () => {
-    server = startObservationServer(() => {}, "test-secret-123")
-    await new Promise((resolve) => server!.once("listening", resolve))
+    const t = await startTestServer(() => {}, "test-secret-123")
+    server = t.server
 
-    const resp = await fetch("http://localhost:3000/observation", {
+    const resp = await fetch(`${t.baseUrl}/observation`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

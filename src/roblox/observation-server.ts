@@ -21,6 +21,7 @@ export type ObservationHandler = (event: ObservationEvent) => void
 export function startObservationServer(
   onObservation: ObservationHandler,
   secret?: string,
+  port?: number,
 ): http.Server {
   const server = http.createServer((req, res) => {
     // POST /observation のみ受け付ける
@@ -77,9 +78,10 @@ export function startObservationServer(
     })
   })
 
-  server.listen(APP_CONFIG.observationPort, () => {
+  const listenPort = port ?? APP_CONFIG.observationPort
+  server.listen(listenPort, () => {
     log.info(
-      `[OBSERVATION] サーバー起動: port=${APP_CONFIG.observationPort}`,
+      `[OBSERVATION] サーバー起動: port=${listenPort}`,
     )
   })
 
