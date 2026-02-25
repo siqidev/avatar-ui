@@ -24,7 +24,7 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列5ペイン+Chatペイン（source別表示+ツール可視化+観測/Pulseコンテキスト行）+Roblox Monitorの統合パイプラインが動作中。③参与文脈: ParticipationInput型定義、全起点共通の場状態ゲート、correlationId貫通保持を実装。テスト122件。詳細はPLAN.mdの開発進捗を参照。
+スパイク10本完了 + ③参与文脈の最小実装完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar独立化、列幅+列ごと行高さスプリッター、ペインD&D入替）+Chatペイン（source別表示+ツール可視化+観測/Pulseコンテキスト行）+Roblox Monitorの統合パイプラインが動作中。③参与文脈: ParticipationInput型定義、全起点共通の場状態ゲート、correlationId貫通保持を実装。テスト116件。詳細はPLAN.mdの開発進捗を参照。
 
 ### 次のアクション
 1. **具体→抽象修正（継続）** — ③参与文脈の最小実装完了。残り5要素（①②④⑤⑥）+ 入出力契約 + 受入シナリオの検証
@@ -150,11 +150,11 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/main/field-fsm.ts | 場FSM（純関数transition） |
 | src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
 | src/preload/index.ts | contextBridge最小API |
-| src/renderer/index.html | 3列5ペインレイアウト構造 |
-| src/renderer/main.ts | Rendererエントリー（スプリッター+チャット+状態管理） |
+| src/renderer/index.html | 3列6ペインレイアウト構造（2行×3列） |
+| src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+チャット+状態管理） |
 | src/renderer/style.css | TUI-in-GUIデザイントークン+レイアウトCSS |
 | src/renderer/state-normalizer.ts | IPC入力→視覚状態マッピング（純粋関数） |
-| src/renderer/layout-manager.ts | 列幅計算・リサイズ制約・縮退判定 |
+| src/renderer/layout-manager.ts | 2×3グリッド配置管理+ペイン入替（純粋関数） |
 | src/shared/ipc-schema.ts | IPCメッセージZodスキーマ |
 | roblox/ | Roblox Studio用スクリプト群 |
 | roblox/ObservationSender.server.luau | 観測送信（Roblox→場） |

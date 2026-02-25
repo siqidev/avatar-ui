@@ -1,112 +1,88 @@
 import { describe, it, expect } from "vitest"
 import {
-  calculateColumns,
-  clampRatios,
-  getDegradation,
-  DEFAULT_RATIOS,
-  MIN_WINDOW_WIDTH,
-  MIN_WINDOW_HEIGHT,
+  GRID_SLOTS,
+  DEFAULT_LAYOUT,
+  buildGridAreas,
+  swapPanes,
 } from "./layout-manager.js"
+import type { GridSlot } from "./layout-manager.js"
 
-describe("calculateColumns", () => {
-  it("基準幅1280pxでデフォルト比率（24/52/24）を計算", () => {
-    const result = calculateColumns(1280)
-    const effective = 1272 // 1280 - スプリッター8px
-    // left/rightはMath.roundで丸め、mainが残りを吸収
-    expect(result.left).toBe(Math.round(effective * 0.24))
-    expect(result.right).toBe(Math.round(effective * 0.24))
-    expect(result.left + result.main + result.right).toBe(effective)
+describe("buildGridAreas", () => {
+  it("デフォルト配置からCSS文字列を生成（スプリッタートラック含む5×3）", () => {
+    const result = buildGridAreas(DEFAULT_LAYOUT)
+    expect(result).toBe('"fs . chat . avatar" ". . . . ." "x . terminal . roblox"')
   })
 
-  it("任意幅でも比率を維持", () => {
-    const result = calculateColumns(1600)
-    const effective = 1600 - 8
-    expect(result.left).toBe(Math.round(effective * 0.24))
-    expect(result.right).toBe(Math.round(effective * 0.24))
-    expect(result.left + result.main + result.right).toBe(effective)
+  it("入替後の配置でも正しいCSS文字列を生成", () => {
+    const swapped: GridSlot[][] = [
+      ["avatar", "chat", "fs"],
+      ["x", "terminal", "roblox"],
+    ]
+    const result = buildGridAreas(swapped)
+    expect(result).toBe('"avatar . chat . fs" ". . . . ." "x . terminal . roblox"')
+  })
+})
+
+describe("swapPanes", () => {
+  it("2ペインの位置を入れ替える", () => {
+    const result = swapPanes(DEFAULT_LAYOUT, "fs", "roblox")
+    expect(result).toEqual([
+      ["roblox", "chat", "avatar"],
+      ["x", "terminal", "fs"],
+    ])
   })
 
-  it("カスタム比率を指定できる", () => {
-    const result = calculateColumns(1280, [0.3, 0.4, 0.3])
-    const effective = 1280 - 8
-    expect(result.left).toBe(Math.round(effective * 0.3))
-    expect(result.right).toBe(Math.round(effective * 0.3))
-    expect(result.left + result.main + result.right).toBe(effective)
+  it("同一ペインのswap → 変化なし", () => {
+    const result = swapPanes(DEFAULT_LAYOUT, "chat", "chat")
+    expect(result).toEqual(DEFAULT_LAYOUT)
   })
 
-  it("3列の合計が常にスプリッター除外後の総幅と一致（丸め誤差なし）", () => {
-    // 複数の幅でテスト
-    for (const w of [1280, 1366, 1440, 1600, 1920]) {
-      const result = calculateColumns(w)
-      expect(result.left + result.main + result.right).toBe(w - 8)
+  it("同じ行内の入替", () => {
+    const result = swapPanes(DEFAULT_LAYOUT, "fs", "avatar")
+    expect(result).toEqual([
+      ["avatar", "chat", "fs"],
+      ["x", "terminal", "roblox"],
+    ])
+  })
+
+  it("入替後も全スロットが存在する", () => {
+    const result = swapPanes(DEFAULT_LAYOUT, "chat", "terminal")
+    const flat = result.flat()
+    for (const slot of GRID_SLOTS) {
+      expect(flat).toContain(slot)
+    }
+  })
+
+  it("元の配列を変更しない（immutable）", () => {
+    const original = DEFAULT_LAYOUT.map((row) => [...row])
+    swapPanes(DEFAULT_LAYOUT, "fs", "roblox")
+    expect(DEFAULT_LAYOUT).toEqual(original)
+  })
+
+  it("全組み合わせで有効なグリッドを維持", () => {
+    for (let i = 0; i < GRID_SLOTS.length; i++) {
+      for (let j = i + 1; j < GRID_SLOTS.length; j++) {
+        const result = swapPanes(DEFAULT_LAYOUT, GRID_SLOTS[i], GRID_SLOTS[j])
+        const flat = result.flat()
+        // 全スロットが1回ずつ存在
+        expect(flat.length).toBe(6)
+        expect(new Set(flat).size).toBe(6)
+        for (const slot of GRID_SLOTS) {
+          expect(flat).toContain(slot)
+        }
+      }
     }
   })
 })
 
-describe("clampRatios", () => {
-  it("制約内の比率はそのまま返す", () => {
-    const result = clampRatios([0.24, 0.52, 0.24])
-    expect(result).toEqual([0.24, 0.52, 0.24])
-  })
-
-  it("leftが20%未満 → 20%にクランプ、差分をmainに再配分", () => {
-    const result = clampRatios([0.15, 0.60, 0.25])
-    expect(result[0]).toBe(0.20)
-    // 合計は1.0を維持
-    expect(result[0] + result[1] + result[2]).toBeCloseTo(1.0)
-  })
-
-  it("rightが20%未満 → 20%にクランプ", () => {
-    const result = clampRatios([0.25, 0.60, 0.15])
-    expect(result[2]).toBe(0.20)
-    expect(result[0] + result[1] + result[2]).toBeCloseTo(1.0)
-  })
-
-  it("mainが最小比率未満 → 最小値にクランプ", () => {
-    // mainの最小 = 42ch ≒ 546px / 1272px(基準実効幅) ≒ 0.43 → 実用的に0.40下限
-    const result = clampRatios([0.35, 0.30, 0.35])
-    expect(result[1]).toBeGreaterThanOrEqual(0.40)
-    expect(result[0] + result[1] + result[2]).toBeCloseTo(1.0)
-  })
-
-  it("比率の合計が1.0でない場合は正規化される", () => {
-    const result = clampRatios([0.30, 0.50, 0.30])
-    expect(result[0] + result[1] + result[2]).toBeCloseTo(1.0)
-  })
-
-  it("最大比率（60%）を超えるmainはクランプ", () => {
-    const result = clampRatios([0.15, 0.70, 0.15])
-    expect(result[1]).toBeLessThanOrEqual(0.60)
-    expect(result[0] + result[1] + result[2]).toBeCloseTo(1.0)
-  })
-})
-
-describe("getDegradation", () => {
-  it("十分な幅・高さ → none", () => {
-    expect(getDegradation(1280, 800)).toBe("none")
-  })
-
-  it("幅が狭い → right-tabs（右列タブ化）", () => {
-    // 合意: 縮退順で右列タブ化は一定幅以下
-    expect(getDegradation(1000, 800)).toBe("right-tabs")
-  })
-
-  it("さらに幅が狭い → fs-drawer（FSドロワー化）", () => {
-    expect(getDegradation(800, 800)).toBe("fs-drawer")
-  })
-
-  it("最小幅以上なら縮退なし", () => {
-    expect(getDegradation(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)).toBe("none")
-  })
-})
-
 describe("定数", () => {
-  it("デフォルト比率は24/52/24", () => {
-    expect(DEFAULT_RATIOS).toEqual([0.24, 0.52, 0.24])
+  it("デフォルト配置は2行3列", () => {
+    expect(DEFAULT_LAYOUT.length).toBe(2)
+    expect(DEFAULT_LAYOUT[0].length).toBe(3)
+    expect(DEFAULT_LAYOUT[1].length).toBe(3)
   })
 
-  it("最小ウィンドウは1280x800", () => {
-    expect(MIN_WINDOW_WIDTH).toBe(1280)
-    expect(MIN_WINDOW_HEIGHT).toBe(800)
+  it("GRID_SLOTSは6要素", () => {
+    expect(GRID_SLOTS.length).toBe(6)
   })
 })

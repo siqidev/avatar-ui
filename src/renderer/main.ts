@@ -1,6 +1,7 @@
-// Renderer エントリー: 3列レイアウト + スプリッター + チャットペイン
+// Renderer エントリー: 3列レイアウト + 縦横スプリッター + ペインD&D入替 + チャット
 
-import { calculateColumns, clampRatios } from "./layout-manager.js"
+import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
+import type { GridSlot } from "./layout-manager.js"
 import { normalizeState } from "./state-normalizer.js"
 import type { PaneInput } from "./state-normalizer.js"
 
@@ -21,11 +22,6 @@ declare global {
 
 // === DOM参照 ===
 const consoleEl = document.getElementById("console") as HTMLDivElement
-const colLeft = document.getElementById("col-left") as HTMLDivElement
-const colMain = document.getElementById("col-main") as HTMLDivElement
-const colRight = document.getElementById("col-right") as HTMLDivElement
-const splitterLeft = document.getElementById("splitter-left") as HTMLDivElement
-const splitterRight = document.getElementById("splitter-right") as HTMLDivElement
 const statusEl = document.getElementById("field-status") as HTMLSpanElement
 const alertBar = document.getElementById("alert-bar") as HTMLDivElement
 const messagesEl = document.getElementById("chat-messages") as HTMLDivElement
@@ -34,104 +30,104 @@ const inputEl = document.getElementById("chat-input") as HTMLInputElement
 const chatPane = document.getElementById("pane-chat") as HTMLDivElement
 const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
 const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
+const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
 
 // === レイアウト管理 ===
-let currentRatios: [number, number, number] = [0.24, 0.52, 0.24]
+let currentLayout: GridSlot[][] = DEFAULT_LAYOUT.map((row) => [...row])
 
-function applyLayout(): void {
-  const totalWidth = consoleEl.clientWidth
-  const cols = calculateColumns(totalWidth, currentRatios)
-  colLeft.style.width = `${cols.left}px`
-  colMain.style.width = `${cols.main}px`
-  colRight.style.width = `${cols.right}px`
-  // Grid列をfixed幅に切替
-  consoleEl.style.gridTemplateColumns =
-    `${cols.left}px var(--splitter-width) ${cols.main}px var(--splitter-width) ${cols.right}px`
+// ペイン要素マップ（slot名 → DOM要素）
+const paneElements = new Map<GridSlot, HTMLElement>()
+for (const slot of GRID_SLOTS) {
+  paneElements.set(slot, document.querySelector(`[data-slot="${slot}"]`)!)
 }
 
-// 初期レイアウト適用 + リサイズ対応
-applyLayout()
-window.addEventListener("resize", applyLayout)
+// 列コンテナ + 列内スプリッター
+const columns = [
+  document.getElementById("col-0")!,
+  document.getElementById("col-1")!,
+  document.getElementById("col-2")!,
+]
+const columnSplitters = columns.map((col) => col.querySelector(".splitter-h")! as HTMLElement)
 
-// === スプリッタードラッグ ===
-function initSplitter(
+// 列幅比率 [left, center, right] — 初期 1:2:1
+const colRatios = [1, 2, 1]
+// 列ごとの行比率 [top, bottom] — 各列独立
+const rowRatios: [number, number][] = [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+]
+
+const SPLITTER_WIDTH = 4
+const MIN_TRACK_PX = 100
+
+function applyColumnWidths(): void {
+  consoleEl.style.gridTemplateColumns =
+    `${colRatios[0]}fr ${SPLITTER_WIDTH}px ${colRatios[1]}fr ${SPLITTER_WIDTH}px ${colRatios[2]}fr`
+}
+
+// 列ごとのペイン高さ比率を適用
+function applyRowRatios(): void {
+  for (let c = 0; c < 3; c++) {
+    const col = columns[c]
+    const topPane = col.children[0] as HTMLElement
+    const bottomPane = col.children[2] as HTMLElement
+    topPane.style.flex = String(rowRatios[c][0])
+    bottomPane.style.flex = String(rowRatios[c][1])
+  }
+}
+
+// レイアウト配列に従ってペインDOMを列に配置
+function renderLayout(): void {
+  for (let c = 0; c < 3; c++) {
+    const col = columns[c]
+    const topSlot = currentLayout[0][c]
+    const bottomSlot = currentLayout[1][c]
+    const topPane = paneElements.get(topSlot)!
+    const bottomPane = paneElements.get(bottomSlot)!
+
+    // appendChildはDOMノードを移動する（イベントリスナー保持）
+    col.appendChild(topPane)
+    col.appendChild(columnSplitters[c])
+    col.appendChild(bottomPane)
+  }
+  applyRowRatios()
+}
+
+// 初期レイアウト適用
+applyColumnWidths()
+applyRowRatios()
+
+// === 縦スプリッタードラッグ（列幅変更） ===
+const splitterV1 = document.getElementById("splitter-v1") as HTMLDivElement
+const splitterV2 = document.getElementById("splitter-v2") as HTMLDivElement
+
+function initColumnSplitter(
   splitter: HTMLDivElement,
-  side: "left" | "right",
+  leftIdx: number,
+  rightIdx: number,
 ): void {
-  let startX = 0
-  let startRatios: [number, number, number] = [...currentRatios]
-
-  function onMouseDown(e: MouseEvent): void {
+  splitter.addEventListener("mousedown", (e: MouseEvent) => {
     e.preventDefault()
-    startX = e.clientX
-    startRatios = [...currentRatios]
+    const startX = e.clientX
+    const totalContentWidth = consoleEl.clientWidth - 2 * SPLITTER_WIDTH
+    const ratioSum = colRatios[0] + colRatios[1] + colRatios[2]
+    const startLeftPx = (colRatios[leftIdx] / ratioSum) * totalContentWidth
+    const startRightPx = (colRatios[rightIdx] / ratioSum) * totalContentWidth
+
     splitter.classList.add("dragging")
     document.body.style.cursor = "col-resize"
     document.body.style.userSelect = "none"
-    document.addEventListener("mousemove", onMouseMove)
-    document.addEventListener("mouseup", onMouseUp)
-  }
 
-  function onMouseMove(e: MouseEvent): void {
-    const totalWidth = consoleEl.clientWidth - 8 // スプリッター2本分を除く
-    const dx = e.clientX - startX
-    const dRatio = dx / totalWidth
+    function onMouseMove(ev: MouseEvent): void {
+      const dx = ev.clientX - startX
+      const combined = startLeftPx + startRightPx
+      const newLeftPx = Math.max(MIN_TRACK_PX, Math.min(startLeftPx + dx, combined - MIN_TRACK_PX))
+      const newRightPx = combined - newLeftPx
 
-    const newRatios: [number, number, number] = [...startRatios]
-    if (side === "left") {
-      newRatios[0] = startRatios[0] + dRatio
-      newRatios[1] = startRatios[1] - dRatio
-    } else {
-      newRatios[1] = startRatios[1] + dRatio
-      newRatios[2] = startRatios[2] - dRatio
-    }
-
-    currentRatios = clampRatios(newRatios)
-    applyLayout()
-  }
-
-  function onMouseUp(): void {
-    splitter.classList.remove("dragging")
-    document.body.style.cursor = ""
-    document.body.style.userSelect = ""
-    document.removeEventListener("mousemove", onMouseMove)
-    document.removeEventListener("mouseup", onMouseUp)
-  }
-
-  splitter.addEventListener("mousedown", onMouseDown)
-}
-
-initSplitter(splitterLeft, "left")
-initSplitter(splitterRight, "right")
-
-// === 横スプリッター（ペイン高さ調整） ===
-document.querySelectorAll<HTMLDivElement>(".splitter-h").forEach((splitter) => {
-  let startY = 0
-  let topPane: HTMLElement | null = null
-  let bottomPane: HTMLElement | null = null
-  let startTopFlex = 0
-  let startBottomFlex = 0
-
-  splitter.addEventListener("mousedown", (e: MouseEvent) => {
-    e.preventDefault()
-    startY = e.clientY
-    topPane = splitter.previousElementSibling as HTMLElement
-    bottomPane = splitter.nextElementSibling as HTMLElement
-    if (!topPane || !bottomPane) return
-
-    startTopFlex = topPane.getBoundingClientRect().height
-    startBottomFlex = bottomPane.getBoundingClientRect().height
-    splitter.classList.add("dragging")
-    document.body.style.cursor = "row-resize"
-    document.body.style.userSelect = "none"
-
-    function onMouseMove(e: MouseEvent): void {
-      const dy = e.clientY - startY
-      const newTop = Math.max(60, startTopFlex + dy)
-      const newBottom = Math.max(60, startBottomFlex - dy)
-      const total = newTop + newBottom
-      topPane!.style.flex = String(newTop / total)
-      bottomPane!.style.flex = String(newBottom / total)
+      colRatios[leftIdx] = (newLeftPx / totalContentWidth) * ratioSum
+      colRatios[rightIdx] = (newRightPx / totalContentWidth) * ratioSum
+      applyColumnWidths()
     }
 
     function onMouseUp(): void {
@@ -145,7 +141,109 @@ document.querySelectorAll<HTMLDivElement>(".splitter-h").forEach((splitter) => {
     document.addEventListener("mousemove", onMouseMove)
     document.addEventListener("mouseup", onMouseUp)
   })
-})
+}
+
+initColumnSplitter(splitterV1, 0, 1)
+initColumnSplitter(splitterV2, 1, 2)
+
+// === 横スプリッタードラッグ（列ごとの行高さ変更） ===
+function initRowSplitter(col: HTMLElement, colIdx: number, splitter: HTMLElement): void {
+  splitter.addEventListener("mousedown", (e: MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const topPane = col.children[0] as HTMLElement
+    const bottomPane = col.children[2] as HTMLElement
+    const startTopH = topPane.getBoundingClientRect().height
+    const startBottomH = bottomPane.getBoundingClientRect().height
+
+    splitter.classList.add("dragging")
+    document.body.style.cursor = "row-resize"
+    document.body.style.userSelect = "none"
+
+    function onMouseMove(ev: MouseEvent): void {
+      const dy = ev.clientY - startY
+      const combined = startTopH + startBottomH
+      const newTopH = Math.max(MIN_TRACK_PX, Math.min(startTopH + dy, combined - MIN_TRACK_PX))
+      const newBottomH = combined - newTopH
+
+      rowRatios[colIdx] = [newTopH / combined, newBottomH / combined]
+      topPane.style.flex = String(rowRatios[colIdx][0])
+      bottomPane.style.flex = String(rowRatios[colIdx][1])
+    }
+
+    function onMouseUp(): void {
+      splitter.classList.remove("dragging")
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
+  })
+}
+
+for (let c = 0; c < 3; c++) {
+  initRowSplitter(columns[c], c, columnSplitters[c])
+}
+
+// === ペインD&D入替 ===
+function initPaneDragAndDrop(): void {
+  const allPanes = consoleEl.querySelectorAll<HTMLDivElement>(".pane")
+
+  for (const pane of allPanes) {
+    const header = pane.querySelector(".pane-header") as HTMLElement
+
+    header.addEventListener("dragstart", (e: DragEvent) => {
+      const slot = pane.dataset.slot
+      if (!slot || !e.dataTransfer) return
+      e.dataTransfer.setData("text/plain", slot)
+      e.dataTransfer.effectAllowed = "move"
+    })
+
+    pane.addEventListener("dragover", (e: DragEvent) => {
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
+      pane.classList.add("drag-over")
+    })
+
+    pane.addEventListener("dragleave", () => {
+      pane.classList.remove("drag-over")
+    })
+
+    pane.addEventListener("drop", (e: DragEvent) => {
+      e.preventDefault()
+      pane.classList.remove("drag-over")
+      const fromSlot = e.dataTransfer?.getData("text/plain") as GridSlot | undefined
+      const toSlot = pane.dataset.slot as GridSlot | undefined
+      if (!fromSlot || !toSlot || fromSlot === toSlot) return
+
+      currentLayout = swapPanes(currentLayout, fromSlot, toSlot)
+      renderLayout()
+    })
+
+    pane.addEventListener("dragend", () => {
+      for (const p of allPanes) {
+        p.classList.remove("drag-over")
+      }
+    })
+  }
+}
+
+initPaneDragAndDrop()
+
+// === アバター口開閉 ===
+let avatarTimer: ReturnType<typeof setTimeout> | null = null
+
+function setAvatarTalking(): void {
+  avatarImg.src = "./talk.png"
+  if (avatarTimer) clearTimeout(avatarTimer)
+  avatarTimer = setTimeout(() => {
+    avatarImg.src = "./idle.png"
+    avatarTimer = null
+  }, 2000)
+}
 
 // === 状態管理 ===
 let chatPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }
@@ -154,13 +252,11 @@ function updateChatPaneVisual(): void {
   const visual = normalizeState(chatPaneInput)
   chatPane.dataset.state = visual.level
 
-  // バッジ更新
   const badgeEl = chatPane.querySelector(".pane-header .badge") as HTMLSpanElement
   if (badgeEl) {
     badgeEl.textContent = visual.badge ?? ""
   }
 
-  // アラートバー
   if (visual.showAlertBar) {
     alertBar.style.display = "block"
   } else {
@@ -168,7 +264,6 @@ function updateChatPaneVisual(): void {
   }
 }
 
-// フォーカストラッキング
 chatPane.addEventListener("focusin", () => {
   chatPaneInput.hasFocus = true
   updateChatPaneVisual()
@@ -193,7 +288,6 @@ function appendMessage(
     div.classList.add(`source-${source}`)
   }
 
-  // ツール呼び出し表示（テキストの前に挿入）
   if (toolCalls && toolCalls.length > 0) {
     for (const tc of toolCalls) {
       const toolEl = document.createElement("div")
@@ -202,7 +296,6 @@ function appendMessage(
       nameEl.className = "tool-call-name"
       nameEl.textContent = `${tc.name}`
 
-      // 引数を簡潔に表示
       const argsStr = Object.entries(tc.args)
         .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
         .join(" ")
@@ -210,7 +303,6 @@ function appendMessage(
       argsEl.className = "tool-call-args"
       argsEl.textContent = argsStr ? ` ${argsStr}` : ""
 
-      // 結果の要約
       const resultEl = document.createElement("div")
       resultEl.className = "tool-call-result"
       try {
@@ -251,7 +343,6 @@ function appendMessage(
 // === IPC接続 ===
 window.fieldApi.attach()
 
-// 場の状態を受信
 window.fieldApi.onFieldState((data) => {
   const msg = data as {
     state: string
@@ -264,11 +355,9 @@ window.fieldApi.onFieldState((data) => {
   }
   statusEl.textContent = msg.state
 
-  // 状態正規化器に反映
   chatPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
   updateChatPaneVisual()
 
-  // 再接続時: 直近メッセージ履歴を復元
   if (msg.lastMessages && msg.lastMessages.length > 0) {
     messagesEl.innerHTML = ""
     for (const m of msg.lastMessages) {
@@ -277,7 +366,6 @@ window.fieldApi.onFieldState((data) => {
   }
 })
 
-// AIの応答を受信
 window.fieldApi.onChatReply((data) => {
   const reply = data as {
     actor: string
@@ -287,13 +375,15 @@ window.fieldApi.onChatReply((data) => {
   }
   appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls)
 
-  // source=userの場合のみ入力UIを再有効化（Pulse/観測応答では変更しない）
+  if (reply.actor === "ai") {
+    setAvatarTalking()
+  }
+
   if (!reply.source || reply.source === "user") {
     inputEl.disabled = false
     formEl.querySelector("button")!.disabled = false
   }
 
-  // 未読ドット（フォーカスがない場合のみ）
   if (!chatPaneInput.hasFocus) {
     chatPaneInput.ipcEvents = [
       ...chatPaneInput.ipcEvents.filter((e) => e.type !== "chat.reply"),
@@ -303,14 +393,12 @@ window.fieldApi.onChatReply((data) => {
   }
 })
 
-// 異常検知を受信
 window.fieldApi.onIntegrityAlert((data) => {
   const alert = data as { code: string; message: string }
   alertBar.textContent = `${alert.code}: ${alert.message}`
   chatPaneInput.ipcEvents = [{ type: "integrity.alert", code: alert.code, message: alert.message }]
   updateChatPaneVisual()
 
-  // エラー時もUI入力を再有効化
   inputEl.disabled = false
   formEl.querySelector("button")!.disabled = false
 })
@@ -319,7 +407,6 @@ window.fieldApi.onIntegrityAlert((data) => {
 const MAX_OBSERVATION_ENTRIES = 50
 
 function appendObservation(eventType: string, formatted: string, timestamp: string): void {
-  // プレースホルダーを初回のみ削除
   const placeholder = robloxBody.querySelector(".pane-placeholder")
   if (placeholder) placeholder.remove()
 
@@ -343,28 +430,23 @@ function appendObservation(eventType: string, formatted: string, timestamp: stri
   entry.appendChild(tag)
   entry.appendChild(text)
 
-  // 最新を上に追加
   robloxBody.insertBefore(entry, robloxBody.firstChild)
 
-  // 上限を超えたら古い要素を削除
   while (robloxBody.children.length > MAX_OBSERVATION_ENTRIES) {
     robloxBody.removeChild(robloxBody.lastChild!)
   }
 }
 
-// 観測イベントを受信
 window.fieldApi.onObservation((data) => {
   const obs = data as { eventType: string; formatted: string; timestamp: string }
   appendObservation(obs.eventType, obs.formatted, obs.timestamp)
 
-  // ペインを一時的にactiveに
   robloxPane.dataset.state = "active"
   setTimeout(() => {
     robloxPane.dataset.state = "normal"
   }, 3000)
 })
 
-// チャット送信
 formEl.addEventListener("submit", (e) => {
   e.preventDefault()
   const text = inputEl.value.trim()
@@ -376,14 +458,12 @@ formEl.addEventListener("submit", (e) => {
   inputEl.disabled = true
   formEl.querySelector("button")!.disabled = true
 
-  // 送信時に未読ドットをクリア
   chatPaneInput.ipcEvents = chatPaneInput.ipcEvents.filter((ev) => ev.type !== "chat.reply")
   updateChatPaneVisual()
 
   window.fieldApi.postChat(text, correlationId)
 })
 
-// ウィンドウ閉じ時にdetach
 window.addEventListener("beforeunload", () => {
   window.fieldApi.detach()
 })

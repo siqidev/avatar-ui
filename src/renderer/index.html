@@ -9,10 +9,10 @@
 </head>
 <body>
   <div id="console">
-    <!-- 左列: FS + Terminal -->
-    <div id="col-left" class="column">
-      <div id="pane-fs" class="pane" data-state="normal">
-        <div class="pane-header">
+    <!-- 左列 -->
+    <div class="column" id="col-0">
+      <div id="pane-fs" class="pane" data-slot="fs" data-state="normal">
+        <div class="pane-header" draggable="true">
           <span>FS</span>
           <span class="badge"></span>
         </div>
@@ -20,25 +20,24 @@
           <div class="pane-placeholder">FS</div>
         </div>
       </div>
-      <div class="splitter-h" data-col="left"></div>
-      <div id="pane-terminal" class="pane" data-state="normal">
-        <div class="pane-header">
-          <span>Terminal</span>
+      <div class="splitter-h"></div>
+      <div id="pane-x" class="pane" data-slot="x" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>X</span>
           <span class="badge"></span>
         </div>
         <div class="pane-body">
-          <div class="pane-placeholder">Terminal</div>
+          <div class="pane-placeholder">X Monitor</div>
         </div>
       </div>
     </div>
 
-    <!-- 左スプリッター -->
-    <div class="splitter-v" id="splitter-left"></div>
+    <div class="splitter-v" id="splitter-v1"></div>
 
-    <!-- 中央列: Chat -->
-    <div id="col-main" class="column">
-      <div id="pane-chat" class="pane" data-state="normal">
-        <div class="pane-header">
+    <!-- 中央列 -->
+    <div class="column" id="col-1">
+      <div id="pane-chat" class="pane" data-slot="chat" data-state="normal">
+        <div class="pane-header" draggable="true">
           <span>Chat</span>
           <span class="status-text" id="field-status"></span>
           <span class="unread-dot"></span>
@@ -53,30 +52,41 @@
           </form>
         </div>
       </div>
+      <div class="splitter-h"></div>
+      <div id="pane-terminal" class="pane" data-slot="terminal" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Terminal</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">Terminal</div>
+        </div>
+      </div>
     </div>
 
-    <!-- 右スプリッター -->
-    <div class="splitter-v" id="splitter-right"></div>
+    <div class="splitter-v" id="splitter-v2"></div>
 
-    <!-- 右列: Roblox + X Monitor -->
-    <div id="col-right" class="column">
-      <div id="pane-roblox" class="pane" data-state="normal">
-        <div class="pane-header">
+    <!-- 右列 -->
+    <div class="column" id="col-2">
+      <div id="pane-avatar" class="pane" data-slot="avatar" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Avatar</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="avatar-display">
+            <img id="avatar-img" src="./idle.png" alt="Spectra" />
+          </div>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-roblox" class="pane" data-slot="roblox" data-state="normal">
+        <div class="pane-header" draggable="true">
           <span>Roblox</span>
           <span class="badge"></span>
         </div>
         <div class="pane-body">
           <div class="pane-placeholder">Roblox Monitor</div>
-        </div>
-      </div>
-      <div class="splitter-h" data-col="right"></div>
-      <div id="pane-x" class="pane" data-state="normal">
-        <div class="pane-header">
-          <span>X</span>
-          <span class="badge"></span>
-        </div>
-        <div class="pane-body">
-          <div class="pane-placeholder">X Monitor</div>
         </div>
       </div>
     </div>

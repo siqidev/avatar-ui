@@ -38,25 +38,24 @@ body {
   overflow: hidden;
 }
 
-/* === 3列レイアウト（CSS Grid） === */
+/* === 3列レイアウト（CSS Grid: 列 + 縦スプリッター） === */
 #console {
   display: grid;
-  grid-template-columns: 1fr var(--splitter-width) 1fr var(--splitter-width) 1fr;
-  grid-template-rows: 1fr;
+  grid-template-columns: 1fr var(--splitter-width) 2fr var(--splitter-width) 1fr;
   height: 100vh;
-  gap: 0;
 }
 
+/* === 列（内部は flex column: ペイン + 横スプリッター + ペイン） === */
 .column {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  min-height: 0;
 }
 
-/* === スプリッター === */
+/* === 縦スプリッター（列間） === */
 .splitter-v {
-  width: var(--splitter-width);
   background: var(--line-default);
   cursor: col-resize;
   transition: background 0.15s;
@@ -68,6 +67,7 @@ body {
   background: var(--line-focus);
 }
 
+/* === 横スプリッター（列内、ペイン間） === */
 .splitter-h {
   height: var(--splitter-width);
   background: var(--line-default);
@@ -90,6 +90,8 @@ body {
   border-radius: var(--border-radius);
   background: var(--bg-pane);
   min-height: 0;
+  min-width: 0;
+  flex: 1;
 }
 
 .pane-header {
@@ -106,6 +108,11 @@ body {
   flex-shrink: 0;
   gap: 8px;
   user-select: none;
+  cursor: grab;
+}
+
+.pane-header:active {
+  cursor: grabbing;
 }
 
 .pane-header .badge {
@@ -177,6 +184,12 @@ body {
 .pane[data-state="warn"]:focus-within { border-color: var(--state-warn); }
 .pane[data-state="critical"]:focus-within { border-color: var(--state-critical); }
 
+/* === D&Dハイライト === */
+.pane.drag-over {
+  outline: 2px solid var(--line-focus);
+  outline-offset: -2px;
+}
+
 /* === アラートバー（CRITICAL時） === */
 .alert-bar {
   display: none;
@@ -189,6 +202,21 @@ body {
 
 .pane[data-state="critical"] .alert-bar {
   display: block;
+}
+
+/* === Avatarペイン === */
+.avatar-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--bg-pane-alt);
+}
+
+.avatar-display img {
+  width: 120px;
+  height: 120px;
+  image-rendering: pixelated;
 }
 
 /* === Chatペイン固有 === */
@@ -325,23 +353,6 @@ body {
   height: 100%;
   color: var(--fg-dim);
   font-size: 11px;
-}
-
-/* === 左右列のペイン比率 === */
-#col-left .pane:first-child {
-  flex: 58;
-}
-
-#col-left .pane:last-child {
-  flex: 42;
-}
-
-#col-right .pane:first-child {
-  flex: 62;
-}
-
-#col-right .pane:last-child {
-  flex: 38;
 }
 
 /* === ステータス表示 === */

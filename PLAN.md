@@ -36,7 +36,7 @@
 5. **Roblox観測パイプライン** — ObservationSender（Roblox ServerScript）→ Cloudflare Tunnel → observation-server（TypeScript HTTP）→ CLI直列キュー。双方向接続の完成。Roblox Studioはlocalhost HTTPをブロックするためトンネル経由が必須
 6. **Console縦切り（Spike-01）** — Electron + electron-vite + FieldRuntime（Main内論理分離）+ field-fsm（generated→active→paused→resumed→terminated）+ IPCスキーマ（Zod検証）+ チャットペイン。セキュリティ: nodeIntegration:false/contextIsolation:true/sandbox:true
 7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
-8. **Console UI共通基盤** — 3列5ペインレイアウト（24/52/24）、TUI-in-GUIデザイントークン、スプリッタードラッグ（列幅・ペイン高さ）、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト32件（state-normalizer 16件 + layout-manager 16件）。ウィンドウ最小1280x800
+8. **Console UI共通基盤** — 3列6ペイン（Avatar独立化）、TUI-in-GUIデザイントークン、列幅スプリッター＋列ごと独立行高さスプリッター、ペインヘッダーD&Dで位置入替、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト26件（state-normalizer 16件 + layout-manager 10件）
 9. **FieldRuntime観測統合** — 観測サーバーをElectron Main内のFieldRuntimeに統合。CLI専用だった観測処理をCLI/Electron共通化（observation-formatter抽出）。IPC経路: observation-server→FieldRuntime.enqueue→sendMessage(AI)→chat.reply + observation.event→Renderer。Roblox Monitorペインに観測ログ表示（タイムスタンプ+イベント種別+整形テキスト、最新上、最大50件）。アプリ終了時の観測サーバークリーンアップ。テスト10件追加（observation-formatter）
 10. **Chatペイン強化** — Chatペインを「場の会話ストリーム」として全入出力を可視化。①sendMessage()戻り値をSendMessageResult型に拡張（text+toolCalls）②AI応答にsource属性（user/pulse/observation）を付与し、ラベル色で視覚的区別（spectra>/[pulse] spectra>/[roblox] spectra>）③ツール呼び出し（roblox_action, save_memory等）をChat内にインライン表示④Roblox観測イベント・Pulseトリガーをコンテキスト行としてChatに表示（[roblox]/[pulse]ラベル）⑤Pulse/観測応答時にchat入力がdisabledにならないバグを修正（source=userの場合のみ解除）⑥テスト基盤修正（observation-server: port 0でテスト隔離、vitest.config.ts: dist/除外）。テスト115件全通過
 
@@ -101,7 +101,7 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 
 **プロセス分離**: FieldRuntime（場の全ロジック）をElectron Mainプロセス内に同居＋論理分離。Rendererは薄いIPCクライアント。
 - FieldRuntime: 6要素（場契約/媒体投影/参与文脈/往復回路/共存記録/健全性管理）、Pulse(cron)、観測受信(HTTP)、Grok API呼出、永続化。すべてMain内で完結
-- Renderer: 5ペインの描画＋ユーザー入力の送信＋イベント購読のみ。FieldRuntimeへの直接参照なし
+- Renderer: 6ペインの描画＋ユーザー入力の送信＋イベント購読のみ。FieldRuntimeへの直接参照なし
 - IPCプロトコル: メッセージ形式 `{ type, actor?, correlationId?, ...ペイロード }`。typeは `<domain>.<action>` の2語（chat.post, terminal.output等）。Zod検証。トランスポートはElectron標準IPC（ipcMain/webContents.send）でスタート、型はストリーム対応（.stream/.output パターン）。パフォーマンス問題が出たらMessagePortに差替え
 - IPCセキュリティ: nodeIntegration:false / contextIsolation:true / sandbox:true。preload.tsでcontextBridge経由の最小API公開（ipcRendererの直接公開禁止）。Main側でZodバリデーション必須
 - ウィンドウ閉じ = channel.detach（Mainは生存しタスクトレイ常駐）、再度開き = channel.attach + カーソルベースの状態再同期
@@ -112,22 +112,23 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 
 **設計メタファー**: 二層構造。平常時は「共存の窓」（Chat中心）、障害時は手動で「監視室モード」（Terminal中心）に切替。自動遷移は実装しない。
 
-**レイアウト（3列構成）**:
+**レイアウト（3列6ペイン、2行×3列）**:
 ```
-┌─── Left 24% ───┬──── Main 52% ────┬─── Right 24% ──┐
-│ FS       (58%) │                  │ Roblox   (62%) │
-├────────────────┤  Chat            ├────────────────┤
-│ Terminal (42%) │                  │ X Monitor(38%) │
-└────────────────┴──────────────────┴────────────────┘
+┌── Left 25% ──┬── Center 50% ──┬── Right 25% ──┐
+│ FS           │ Chat           │ Avatar        │
+├──────────────┼────────────────┼───────────────┤
+│ X            │ Terminal       │ Roblox        │
+└──────────────┴────────────────┴───────────────┘
 ```
-- 判断根拠: 往復回路の主インターフェース（Chat）を視覚中心に据える。実行系（FS/Terminal）を左に近接配置、監視系（Roblox/X）を右にまとめる
-- 棄却案: Terminal中央46%案 — 設計主語「場の継続＋往復維持」と不一致（Roblox操作もChat経由のため）
-- 手動監視室モード: Ctrl+数字でChat/Terminal中央入替（5ペイン維持）
+- 判断根拠: 往復回路の主インターフェース（Chat）を視覚中心に据える。実行系（FS/Terminal）を左に近接配置、監視系（Roblox/X）を右にまとめる。Avatarを独立ペインに分離し口開閉アニメーションを維持
+- 棄却案: Terminal中央案 — 設計主語「場の継続＋往復維持」と不一致。フラットCSS Grid案 — 列ごと独立行リサイズが不可能
+- ペインD&D入替: ペインヘッダーをドラッグ→別ペインにドロップで位置交換
+- 手動監視室モード: D&Dで任意のペイン配置に変更可能（Ctrl+数字は廃止）
 
 **リサイズ規則**:
-- 最小ウィンドウ: 1280x800
-- 基準比率: 24/52/24（ユーザー調整範囲: 20-60-20）
-- 縮退順: Alert表示固定 → Chat最小42ch → Terminal最小260x180 → 右列タブ化 → FSドロワー化
+- 列幅: スプリッタードラッグで自由調整（初期比率 1:2:1）
+- 列ごとの行高さ: 各列独立にスプリッタードラッグで調整（初期比率 1:1）
+- 最小トラック: 100px
 
 **デザイントークン（TUI-in-GUI）**:
 ```css
@@ -155,7 +156,7 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 原則: 正常時はモノクロ基調（色が出た瞬間に「何かある」と分かる）。優先度: integrity.alert > field.state > chat.reply > focus > normal
 
 **ペイン実装優先順位（技術依存ベース）**:
-1. ~~共通基盤~~ ✅ — レイアウトスロット、splitter、トークン適用、状態正規化器
+1. ~~共通基盤~~ ✅ — 3列6ペイン（Avatar独立化）、列幅+列ごと行高さスプリッター、ペインD&D入替、トークン適用、状態正規化器
 2. ~~Chatペイン強化~~ ✅ — source別ラベル表示、ツール呼び出し可視化、観測/Pulseコンテキスト行、disabled修正
 3. ~~Roblox Monitor~~ ✅ — 観測イベントログ表示（FieldRuntime観測統合で実装済み）
 4. X Monitor — Roblox Monitorの横展開
@@ -183,13 +184,17 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 - `src/main/field-runtime.ts`: startPulse/startObservationに`isFieldActive`ゲート追加、correlationIdを場で一回生成しコールバック貫通
 - `src/main/ipc-handlers.ts`: ゲート関数渡し、コールバック経由のcorrelationId使用（自前生成を廃止）
 - `src/cli.ts`: 3パス（user/observation/pulse）でcreateParticipationInput使用
-- テスト122件全通過（participation-context.test.ts 7件追加）
+- テスト全通過（participation-context.test.ts 7件追加）
 
-### 次の候補
-- **具体→抽象の修正フェーズ（継続）** — 残り5要素（①②④⑤⑥）+ 入出力契約 + 受入シナリオの検証
-- **永続モデル設計（#5）** — 共存記録の実装設計
-- **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
-- **テスト計画（#7）** — 受入シナリオのテスト実装
+### 次の計画（方針: 具体→抽象の往復を継続）
+
+③参与文脈の帰納的検証で「具体が抽象を修正する」有効性を確認。残り要素も同じ方法（実装→不足発見→修正）で進める。
+
+**優先順位**:
+1. **⑤共存記録の実装** — v0.3到達状態の最大ギャップ（「再起動をまたいで関係が継続」）を直接埋める。実装しながら①④の不足も発見する
+2. **⑥健全性管理の実装** — v0.3到達状態の残ギャップ（「共存故障を検知できる」）。⑤完了後に着手
+3. **残り要素（①②④）の帰納的検証** — ⑤⑥実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
+4. **テスト計画（#7）** — 受入シナリオのテスト実装
 
 ## 場モデル6要素のv0.3実装度
 
