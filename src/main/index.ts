@@ -8,8 +8,10 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
+    width: 1280,
+    height: 800,
+    minWidth: 1280,
+    minHeight: 800,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       nodeIntegration: false,

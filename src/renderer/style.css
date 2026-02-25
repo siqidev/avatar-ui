@@ -1,3 +1,27 @@
+/* === デザイントークン（TUI-in-GUI） === */
+:root {
+  --bg-app: #0a0d12;
+  --bg-pane: #0c1118;
+  --bg-pane-alt: #0d1420;
+  --fg-main: #d3dde6;
+  --fg-muted: #93a4b8;
+  --fg-dim: #6b7a8c;
+  --line-default: #1e2a38;
+  --line-focus: #3dd6f5;
+  --state-info: #22d3ee;
+  --state-ok: #34d399;
+  --state-warn: #f59e0b;
+  --state-critical: #f43f5e;
+  --border-width: 1px;
+  --border-radius: 0;
+  --font-mono: "Iosevka Term", "JetBrains Mono", "Cascadia Mono", monospace;
+  --font-size: 13px;
+  --line-height: 1.45;
+  --splitter-width: 4px;
+  --pane-header-height: 28px;
+}
+
+/* === リセット + ベース === */
 * {
   margin: 0;
   padding: 0;
@@ -5,88 +29,294 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  background: var(--bg-app);
+  color: var(--fg-main);
   height: 100vh;
+  overflow: hidden;
+}
+
+/* === 3列レイアウト（CSS Grid） === */
+#console {
+  display: grid;
+  grid-template-columns: 1fr var(--splitter-width) 1fr var(--splitter-width) 1fr;
+  grid-template-rows: 1fr;
+  height: 100vh;
+  gap: 0;
+}
+
+.column {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
 }
 
-#app {
+/* === スプリッター === */
+.splitter-v {
+  width: var(--splitter-width);
+  background: var(--line-default);
+  cursor: col-resize;
+  transition: background 0.15s;
+  z-index: 10;
+}
+
+.splitter-v:hover,
+.splitter-v.dragging {
+  background: var(--line-focus);
+}
+
+.splitter-h {
+  height: var(--splitter-width);
+  background: var(--line-default);
+  cursor: row-resize;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.splitter-h:hover,
+.splitter-h.dragging {
+  background: var(--line-focus);
+}
+
+/* === ペイン共通 === */
+.pane {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 16px;
+  overflow: hidden;
+  border: var(--border-width) solid var(--line-default);
+  border-radius: var(--border-radius);
+  background: var(--bg-pane);
+  min-height: 0;
 }
 
-#status {
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 8px;
+.pane-header {
+  height: var(--pane-header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--bg-pane-alt);
+  border-bottom: var(--border-width) solid var(--line-default);
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  gap: 8px;
+  user-select: none;
 }
 
-#chat-messages {
+.pane-header .badge {
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.pane-header .unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-info);
+  margin-left: auto;
+  display: none;
+}
+
+.pane-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* === 状態→視覚マッピング（data-state属性） === */
+.pane[data-state="normal"] {
+  border-color: var(--line-default);
+}
+
+.pane[data-state="reply"] {
+  border-color: var(--state-info);
+}
+
+.pane[data-state="reply"] .unread-dot {
+  display: block;
+}
+
+.pane[data-state="active"] {
+  border-color: var(--state-info);
+}
+
+.pane[data-state="active"] .badge {
+  color: var(--state-info);
+}
+
+.pane[data-state="warn"] {
+  border-color: var(--state-warn);
+}
+
+.pane[data-state="warn"] .badge {
+  color: var(--state-warn);
+}
+
+.pane[data-state="critical"] {
+  border-color: var(--state-critical);
+}
+
+.pane[data-state="critical"] .badge {
+  color: var(--state-critical);
+}
+
+.pane:focus-within {
+  border-color: var(--line-focus);
+}
+
+/* 状態色はfocusより優先 */
+.pane[data-state="reply"]:focus-within { border-color: var(--state-info); }
+.pane[data-state="active"]:focus-within { border-color: var(--state-info); }
+.pane[data-state="warn"]:focus-within { border-color: var(--state-warn); }
+.pane[data-state="critical"]:focus-within { border-color: var(--state-critical); }
+
+/* === アラートバー（CRITICAL時） === */
+.alert-bar {
+  display: none;
+  padding: 4px 10px;
+  background: var(--state-critical);
+  color: var(--bg-app);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.pane[data-state="critical"] .alert-bar {
+  display: block;
+}
+
+/* === Chatペイン固有 === */
+#pane-chat .pane-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  min-height: 0;
 }
 
 .message {
-  margin-bottom: 12px;
-  line-height: 1.5;
+  margin-bottom: 8px;
+  line-height: var(--line-height);
+  word-break: break-word;
 }
 
 .message-human {
-  color: #a0d2db;
+  color: var(--fg-muted);
 }
 
 .message-ai {
-  color: #e0e0e0;
+  color: var(--fg-main);
 }
 
 .message .label {
-  font-weight: bold;
+  color: var(--fg-dim);
   margin-right: 8px;
 }
 
-#chat-form {
-  display: flex;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #333;
+.message-human .label {
+  color: var(--state-info);
 }
 
-#chat-input {
+.chat-form {
+  display: flex;
+  gap: 0;
+  border-top: var(--border-width) solid var(--line-default);
+  flex-shrink: 0;
+}
+
+.chat-form input {
   flex: 1;
-  padding: 8px 12px;
-  background: #16213e;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: #e0e0e0;
-  font-size: 14px;
+  padding: 8px 10px;
+  background: var(--bg-pane-alt);
+  border: none;
+  color: var(--fg-main);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
   outline: none;
 }
 
-#chat-input:focus {
-  border-color: #a0d2db;
+.chat-form input::placeholder {
+  color: var(--fg-dim);
 }
 
-#chat-form button {
-  padding: 8px 16px;
-  background: #0f3460;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: #e0e0e0;
+.chat-form button {
+  padding: 8px 14px;
+  background: var(--bg-pane-alt);
+  border: none;
+  border-left: var(--border-width) solid var(--line-default);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
   cursor: pointer;
-  font-size: 14px;
 }
 
-#chat-form button:hover {
-  background: #16437e;
+.chat-form button:hover {
+  color: var(--fg-main);
+  background: var(--line-default);
 }
 
-#chat-form button:disabled {
-  opacity: 0.5;
+.chat-form button:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* === 空ペインのプレースホルダー === */
+.pane-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+/* === 左右列のペイン比率 === */
+#col-left .pane:first-child {
+  flex: 58;
+}
+
+#col-left .pane:last-child {
+  flex: 42;
+}
+
+#col-right .pane:first-child {
+  flex: 62;
+}
+
+#col-right .pane:last-child {
+  flex: 38;
+}
+
+/* === ステータス表示 === */
+.pane-header .status-text {
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+
+/* === スクロールバー === */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-dim);
 }

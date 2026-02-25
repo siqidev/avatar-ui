@@ -8,14 +8,80 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="app">
-    <div id="status">接続中...</div>
-    <div id="chat-messages"></div>
-    <form id="chat-form">
-      <input type="text" id="chat-input" placeholder="メッセージを入力" autocomplete="off" />
-      <button type="submit">送信</button>
-    </form>
+  <div id="console">
+    <!-- 左列: FS + Terminal -->
+    <div id="col-left" class="column">
+      <div id="pane-fs" class="pane" data-state="normal">
+        <div class="pane-header">
+          <span>FS</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">FS</div>
+        </div>
+      </div>
+      <div class="splitter-h" data-col="left"></div>
+      <div id="pane-terminal" class="pane" data-state="normal">
+        <div class="pane-header">
+          <span>Terminal</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">Terminal</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 左スプリッター -->
+    <div class="splitter-v" id="splitter-left"></div>
+
+    <!-- 中央列: Chat -->
+    <div id="col-main" class="column">
+      <div id="pane-chat" class="pane" data-state="normal">
+        <div class="pane-header">
+          <span>Chat</span>
+          <span class="status-text" id="field-status"></span>
+          <span class="unread-dot"></span>
+          <span class="badge"></span>
+        </div>
+        <div class="alert-bar" id="alert-bar"></div>
+        <div class="pane-body">
+          <div class="chat-messages" id="chat-messages"></div>
+          <form class="chat-form" id="chat-form">
+            <input type="text" id="chat-input" placeholder="メッセージを入力" autocomplete="off" />
+            <button type="submit">送信</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右スプリッター -->
+    <div class="splitter-v" id="splitter-right"></div>
+
+    <!-- 右列: Roblox + X Monitor -->
+    <div id="col-right" class="column">
+      <div id="pane-roblox" class="pane" data-state="normal">
+        <div class="pane-header">
+          <span>Roblox</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">Roblox Monitor</div>
+        </div>
+      </div>
+      <div class="splitter-h" data-col="right"></div>
+      <div id="pane-x" class="pane" data-state="normal">
+        <div class="pane-header">
+          <span>X</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">X Monitor</div>
+        </div>
+      </div>
+    </div>
   </div>
+
   <script type="module" src="./main.ts"></script>
 </body>
 </html>
