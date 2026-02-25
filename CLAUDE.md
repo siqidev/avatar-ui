@@ -10,7 +10,7 @@
 3. docs/architecture.md — 現行アーキテクチャの正本（v0.3で刷新予定）
 4. docs/api.md — 現行API仕様の正本（v0.3で刷新予定）
 
-## 現在の状況（2026-02-25）
+## 現在の状況（2026-02-26）
 
 ### ブランチ戦略
 - **main** = v0.2系の公開最新（v0.2コード + v0.3設計ドキュメント）
@@ -24,13 +24,14 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク7本完了（会話基盤/長期記憶/Pulse/Roblox連携v2/観測パイプライン/Console縦切り/Robloxチャット統合）。CLIとRoblox双方向接続が動作中。詳細はPLAN.mdの開発進捗を参照。
+スパイク8本完了（会話基盤/長期記憶/Pulse/Roblox連携v2/観測パイプライン/Console縦切り/Robloxチャット統合/Console UI共通基盤）。CLIとRoblox双方向接続が動作中。Console: 3列5ペインレイアウト+TUI-in-GUIデザイン+スプリッター+状態正規化器が実装済み。詳細はPLAN.mdの開発進捗を参照。
 
 ### 次のアクション
-1. **具体→抽象修正** — 7本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
-2. **Console拡張** — チャット以外の4ペイン段階的実装
-3. **FieldRuntime観測統合** — Electron Main内に観測サーバーを統合（現在CLIのみ）
-4. **未着手の実装設計** — #5永続モデル / #6健全性管理 / #7テスト計画
+1. **Chatペイン強化** — roblox_action導線、返信表示改善、未読管理
+2. **FieldRuntime観測統合** — Electron Main内に観測サーバーを統合（現在CLIのみ）。Roblox Monitorの前提条件
+3. **Roblox Monitorペイン** — 観測イベントのリアルタイム表示（観測統合が先）
+4. **具体→抽象修正** — 8本のスパイク結果をもとに抽象設計を検証・修正する
+5. **未着手の実装設計** — #5永続モデル / #6健全性管理 / #7テスト計画
 
 ## avatar-ui 60秒コンテキスト
 
@@ -150,8 +151,12 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/field-fsm.ts | 場FSM（純関数transition） |
 | src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
-| src/preload/index.mts | contextBridge最小API |
-| src/renderer/ | Renderer（チャットペイン） |
+| src/preload/index.ts | contextBridge最小API |
+| src/renderer/index.html | 3列5ペインレイアウト構造 |
+| src/renderer/main.ts | Rendererエントリー（スプリッター+チャット+状態管理） |
+| src/renderer/style.css | TUI-in-GUIデザイントークン+レイアウトCSS |
+| src/renderer/state-normalizer.ts | IPC入力→視覚状態マッピング（純粋関数） |
+| src/renderer/layout-manager.ts | 列幅計算・リサイズ制約・縮退判定 |
 | src/shared/ipc-schema.ts | IPCメッセージZodスキーマ |
 | roblox/ | Roblox Studio用スクリプト群 |
 | roblox/ObservationSender.server.luau | 観測送信（Roblox→場） |

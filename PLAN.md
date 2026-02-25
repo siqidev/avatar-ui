@@ -26,7 +26,7 @@
 - 設計の主語が変わる: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
 - **具体⇄抽象の往復**: 抽象設計だけ積み上げてもイメージしづらい。具体（実装スパイク）を先に進め、具体が抽象を修正する方針。抽象設計(#1-#4)→具体不足の懸念→スパイク優先に転換した経緯あり
 
-## 開発進捗（2026-02-25時点）
+## 開発進捗（2026-02-26時点）
 
 ### 完了済みスパイク
 1. **Console会話基盤** — Grok Responses API + readline、being.md人格定義、previous_response_id継続
@@ -36,6 +36,7 @@
 5. **Roblox観測パイプライン** — ObservationSender（Roblox ServerScript）→ Cloudflare Tunnel → observation-server（TypeScript HTTP）→ CLI直列キュー。双方向接続の完成。Roblox Studioはlocalhost HTTPをブロックするためトンネル経由が必須
 6. **Console縦切り（Spike-01）** — Electron + electron-vite + FieldRuntime（Main内論理分離）+ field-fsm（generated→active→paused→resumed→terminated）+ IPCスキーマ（Zod検証）+ チャットペイン。セキュリティ: nodeIntegration:false/contextIsolation:true/sandbox:true
 7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
+8. **Console UI共通基盤** — 3列5ペインレイアウト（24/52/24）、TUI-in-GUIデザイントークン、スプリッタードラッグ（列幅・ペイン高さ）、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト32件（state-normalizer 16件 + layout-manager 16件）。ウィンドウ最小1280x800
 
 ### Roblox接続設計（議論合意 2026-02-24）
 
@@ -152,17 +153,18 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 原則: 正常時はモノクロ基調（色が出た瞬間に「何かある」と分かる）。優先度: integrity.alert > field.state > chat.reply > focus > normal
 
 **ペイン実装優先順位（技術依存ベース）**:
-1. 共通基盤 — レイアウトスロット、splitter、トークン適用、状態正規化器
-2. Chatペイン — roblox_action導線、返信表示、未読管理（主導線なので最優先）
-3. Roblox Monitor — field.state可視化、イベントログ
+1. ~~共通基盤~~ ✅ — レイアウトスロット、splitter、トークン適用、状態正規化器
+2. Chatペイン強化 — roblox_action導線、返信表示改善、未読管理（主導線なので最優先）
+3. Roblox Monitor — field.state可視化、イベントログ（観測サーバーのConsole統合が前提）
 4. X Monitor — Roblox Monitorの横展開
 5. Terminal — まずログビューア（node-ptyはスコープ確定後）
 6. FSペイン — read-only tree + 選択情報表示
 
 ### 次の候補
-- **Console拡張** — チャットペイン以外の4ペイン（ターミナル/FS/Robloxモニタ/Xモニタ）の段階的実装
-- **FieldRuntime観測統合** — field-runtime.tsに観測サーバー統合（現在はCLIのみ対応）
-- **具体→抽象の修正フェーズ** — スパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **Chatペイン強化** — roblox_action導線（チャットからRoblox操作）、返信ストリーミング表示、未読管理
+- **FieldRuntime観測統合** — field-runtime.tsに観測サーバー統合（現在はCLIのみ対応）。Roblox Monitorの前提条件
+- **Roblox Monitorペイン** — 観測イベントのリアルタイム表示、field.state可視化（観測統合が先）
+- **具体→抽象の修正フェーズ** — 8本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
 - **永続モデル設計（#5）** — 共存記録の実装設計
 - **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
 - **テスト計画（#7）** — 受入シナリオのテスト実装
