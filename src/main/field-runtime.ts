@@ -10,6 +10,7 @@ import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
+import { generateCorrelationId } from "../shared/participation-context.js"
 import * as log from "../logger.js"
 import type { Env } from "../config.js"
 
@@ -85,14 +86,24 @@ export function processChat(text: string): Promise<SendMessageResult> {
 }
 
 // Pulseを開始する（AI起点の定期発話）
-export function startPulse(onReply: (result: SendMessageResult) => void): void {
+// isFieldActive: 場状態ゲート（非アクティブ時はスキップ）
+export function startPulse(
+  onReply: (result: SendMessageResult, correlationId: string) => void,
+  isFieldActive: () => boolean,
+): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   cron.schedule(APP_CONFIG.pulseCron, () => {
+    if (!isFieldActive()) {
+      log.info("[PULSE] 場が非アクティブ — スキップ")
+      return
+    }
+
     const pulseContent = loadPulse()
     if (!pulseContent) return
 
-    log.info("[PULSE] 発火")
+    const correlationId = generateCorrelationId("pulse")
+    log.info(`[PULSE] 発火 (${correlationId})`)
     enqueue(async () => {
       try {
         const result = await sendMessage(
@@ -106,7 +117,7 @@ export function startPulse(onReply: (result: SendMessageResult) => void): void {
         saveState(state)
         if (!result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
           log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
-          onReply(result)
+          onReply(result, correlationId)
         } else {
           log.info("[PULSE] 対応不要")
         }
@@ -124,9 +135,11 @@ export function startPulse(onReply: (result: SendMessageResult) => void): void {
 // onReply: AI応答通知（chat.reply用）
 let observationServer: http.Server | null = null
 
+// isFieldActive: 場状態ゲート（非アクティブ時はスキップ）
 export function startObservation(
-  onEvent: (event: ObservationEvent, formatted: string) => void,
-  onReply: (result: SendMessageResult) => void,
+  onEvent: (event: ObservationEvent, formatted: string, correlationId: string) => void,
+  onReply: (result: SendMessageResult, correlationId: string) => void,
+  isFieldActive: () => boolean,
 ): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
   if (!isRobloxEnabled(env)) {
@@ -136,16 +149,23 @@ export function startObservation(
 
   observationServer = startObservationServer(
     (event: ObservationEvent) => {
+      if (!isFieldActive()) {
+        log.info("[OBSERVATION] 場が非アクティブ — スキップ")
+        return
+      }
+
+      // correlationIdを1回だけ生成し、onEventとonReplyで同一IDを使う
+      const correlationId = generateCorrelationId("observation")
       const formatted = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
-      onEvent(event, formatted)
+      onEvent(event, formatted, correlationId)
 
       enqueue(async () => {
         try {
-          log.info(`[OBSERVATION→AI] ${formatted}`)
+          log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, env, state, beingPrompt, formatted)
           saveState(state)
-          log.info(`[AI→OBSERVATION] ${result.text.substring(0, 100)}`)
-          onReply(result)
+          log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
+          onReply(result, correlationId)
         } catch (err) {
           log.error(`[OBSERVATION] AI応答エラー: ${err instanceof Error ? err.message : err}`)
         }

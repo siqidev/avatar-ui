@@ -57,35 +57,36 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // Pulse開始（Runtime初期化成功時のみ）
   if (runtimeReady) {
-    startPulse((result) => {
-      const correlationId = `pulse-${Date.now()}`
-      const win = getMainWindow()
-      // Chatペインにコンテキスト行（Pulse発火）
-      pushHistory("human", "定期確認", correlationId, "pulse")
-      sendToRenderer(win, {
-        type: "chat.reply",
-        actor: "human",
-        correlationId,
-        text: "定期確認",
-        source: "pulse",
-        toolCalls: [],
-      })
-      // AI応答
-      pushHistory("ai", result.text, correlationId, "pulse", result.toolCalls)
-      sendToRenderer(win, {
-        type: "chat.reply",
-        actor: "ai",
-        correlationId,
-        text: result.text,
-        source: "pulse",
-        toolCalls: result.toolCalls,
-      })
-    })
+    startPulse(
+      (result, correlationId) => {
+        const win = getMainWindow()
+        // Chatペインにコンテキスト行（Pulse発火）
+        pushHistory("human", "定期確認", correlationId, "pulse")
+        sendToRenderer(win, {
+          type: "chat.reply",
+          actor: "human",
+          correlationId,
+          text: "定期確認",
+          source: "pulse",
+          toolCalls: [],
+        })
+        // AI応答
+        pushHistory("ai", result.text, correlationId, "pulse", result.toolCalls)
+        sendToRenderer(win, {
+          type: "chat.reply",
+          actor: "ai",
+          correlationId,
+          text: result.text,
+          source: "pulse",
+          toolCalls: result.toolCalls,
+        })
+      },
+      () => isActive(fieldState),
+    )
 
     // 観測サーバー起動（Roblox連携有効時のみ）
     startObservation(
-      (event, formatted) => {
-        const correlationId = `obs-${Date.now()}`
+      (event, formatted, correlationId) => {
         const win = getMainWindow()
         // Roblox Monitorペインへ
         sendToRenderer(win, {
@@ -106,8 +107,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           toolCalls: [],
         })
       },
-      (result) => {
-        const correlationId = `obs-${Date.now()}`
+      (result, correlationId) => {
         pushHistory("ai", result.text, correlationId, "observation", result.toolCalls)
         const win = getMainWindow()
         sendToRenderer(win, {
@@ -119,6 +119,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           toolCalls: result.toolCalls,
         })
       },
+      () => isActive(fieldState),
     )
   }
 

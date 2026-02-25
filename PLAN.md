@@ -162,8 +162,31 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 5. Terminal — まずログビューア（node-ptyはスコープ確定後）
 6. FSペイン — read-only tree + 選択情報表示
 
+### 具体→抽象修正（議論合意 2026-02-25）
+
+**③参与文脈の帰納的検証結果**:
+- 10本のスパイクを帰納的に検証し、③の3責務（参与入力の一次化/現在文脈の保持/位相同調）の実在を確認
+- 単一起点（Spike 1,2,8）では③不在でも問題なし。多起点・非同期（Spike 3-7,9,10）で繰り返しバグが発生:
+  - 番号札（correlationId）が入力と応答で別々に生成され、因果追跡が不能
+  - 場が一時停止中でもPulse/観測がゲートを素通り
+  - 全入力がただの文字列でAIに渡され、メタ情報（誰が/どこから/何に関連するか）が構造化されていない
+
+**合意内容**: 6要素モデルを維持。③参与文脈の最小実装を作る
+- ParticipationInput型（actor/source/correlationId/channel/timestamp/text）を定義 ✅
+- 全起点（chat/pulse/observation）に共通の場状態ゲートを適用 ✅
+- correlationIdを入力時に確定し、AI応答まで同一IDで貫通保持 ✅
+- モード可達性の観測指標 → ⑥健全性管理の実装時に扱う（保留）
+- 位相同調の完全モデル → v0.3到達後に再検討（保留）
+
+**実装完了（2026-02-25）**:
+- `src/shared/participation-context.ts`: ParticipationInput型 + generateCorrelationId + createParticipationInputファクトリ
+- `src/main/field-runtime.ts`: startPulse/startObservationに`isFieldActive`ゲート追加、correlationIdを場で一回生成しコールバック貫通
+- `src/main/ipc-handlers.ts`: ゲート関数渡し、コールバック経由のcorrelationId使用（自前生成を廃止）
+- `src/cli.ts`: 3パス（user/observation/pulse）でcreateParticipationInput使用
+- テスト122件全通過（participation-context.test.ts 7件追加）
+
 ### 次の候補
-- **具体→抽象の修正フェーズ** — 10本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **具体→抽象の修正フェーズ（継続）** — 残り5要素（①②④⑤⑥）+ 入出力契約 + 受入シナリオの検証
 - **永続モデル設計（#5）** — 共存記録の実装設計
 - **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
 - **テスト計画（#7）** — 受入シナリオのテスト実装
@@ -278,5 +301,5 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 
 - v0.2コードの移植・互換維持
 - X / マルチチャネル本格対応
-- 参与文脈（ParticipationContext）の独立コンポーネント化
+- 参与文脈（ParticipationContext）の完全独立コンポーネント化（最小実装はIN）
 - 配信拡張（Live2D/3D、音声）

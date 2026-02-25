@@ -9,6 +9,7 @@ import { projectPendingIntents } from "./roblox/projector.js"
 import { startObservationServer } from "./roblox/observation-server.js"
 import type { ObservationEvent } from "./roblox/observation-server.js"
 import { formatObservation } from "./roblox/observation-formatter.js"
+import { createParticipationInput } from "./shared/participation-context.js"
 import * as log from "./logger.js"
 
 // being.mdから人格定義を読み込む
@@ -101,7 +102,8 @@ async function main(): Promise<void> {
       (event: ObservationEvent) => {
         enqueue(async () => {
           const prompt = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
-          log.info(`[OBSERVATION→SPECTRA] ${prompt}`)
+          const input = createParticipationInput("human", "observation", prompt)
+          log.info(`[OBSERVATION→SPECTRA] (${input.correlationId}) ${prompt}`)
 
           readline.clearLine(process.stdout, 0)
           readline.cursorTo(process.stdout, 0)
@@ -112,9 +114,9 @@ async function main(): Promise<void> {
             env,
             state,
             beingPrompt,
-            prompt,
+            input.text,
           )
-          log.info(`[SPECTRA] ${result.text}`)
+          log.info(`[SPECTRA] (${input.correlationId}) ${result.text}`)
           process.stdout.write(`\nspectra> ${result.text}\n\n`)
           saveState(state)
           rl.prompt()
@@ -131,15 +133,16 @@ async function main(): Promise<void> {
       return
     }
     enqueue(async () => {
-      log.info(`[USER] ${userInput}`)
+      const input = createParticipationInput("human", "user", userInput)
+      log.info(`[USER] (${input.correlationId}) ${input.text}`)
       const result = await sendMessage(
         client,
         env,
         state,
         beingPrompt,
-        userInput,
+        input.text,
       )
-      log.info(`[SPECTRA] ${result.text}`)
+      log.info(`[SPECTRA] (${input.correlationId}) ${result.text}`)
       process.stdout.write(`\nspectra> ${result.text}\n\n`)
       saveState(state)
       rl.prompt()
@@ -157,22 +160,23 @@ async function main(): Promise<void> {
       const systemPrompt = `${beingPrompt}\n\n${pulseContent}`
 
       // 層C: sendMessage（forceSystemPrompt=trueでsystem再送信）
-      log.info("Pulse発火")
+      const input = createParticipationInput("ai", "pulse", APP_CONFIG.pulsePrompt)
+      log.info(`[PULSE] (${input.correlationId}) 発火`)
       const result = await sendMessage(
         client,
         env,
         state,
         systemPrompt,
-        APP_CONFIG.pulsePrompt,
+        input.text,
         true,
       )
       saveState(state)
 
       // PULSE_OK先頭→ログのみ、それ以外→readline割り込み表示
       if (result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
-        log.info(`[PULSE] 対応不要: ${result.text.slice(0, 80)}`)
+        log.info(`[PULSE] (${input.correlationId}) 対応不要: ${result.text.slice(0, 80)}`)
       } else {
-        log.info(`[PULSE→SPECTRA] ${result.text}`)
+        log.info(`[PULSE→SPECTRA] (${input.correlationId}) ${result.text}`)
         // readlineの現在行をクリアして割り込み表示
         readline.clearLine(process.stdout, 0)
         readline.cursorTo(process.stdout, 0)
