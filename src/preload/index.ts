@@ -17,4 +17,6 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("chat.reply", (_e, data) => cb(data)),
   onIntegrityAlert: (cb: (data: unknown) => void) =>
     ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
+  onObservation: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("observation.event", (_e, data) => cb(data)),
 })

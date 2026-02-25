@@ -2,6 +2,7 @@ import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { registerIpcHandlers } from "./ipc-handlers.js"
+import { stopRuntime } from "./field-runtime.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
@@ -49,4 +50,9 @@ app.on("activate", () => {
 app.on("window-all-closed", () => {
   // app.quit() しない = Main常駐
   log.info("[ELECTRON] 全ウィンドウ閉じ — Main常駐")
+})
+
+// アプリ終了時に観測サーバーをクリーンアップ
+app.on("before-quit", () => {
+  stopRuntime()
 })

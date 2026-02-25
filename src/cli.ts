@@ -8,6 +8,7 @@ import { sendMessage } from "./services/chat-session-service.js"
 import { projectPendingIntents } from "./roblox/projector.js"
 import { startObservationServer } from "./roblox/observation-server.js"
 import type { ObservationEvent } from "./roblox/observation-server.js"
+import { formatObservation } from "./roblox/observation-formatter.js"
 import * as log from "./logger.js"
 
 // being.mdから人格定義を読み込む
@@ -32,29 +33,6 @@ function loadPulse(): string | null {
   }
 }
 
-// 観測イベントをSpectraへの入力テキストに変換する
-// 観測イベントのプレイヤー名を解決（isOwner=trueなら表示名に変換）
-function resolvePlayerName(p: Record<string, unknown>, ownerDisplayName?: string): string {
-  if (p.isOwner === true && ownerDisplayName) return ownerDisplayName
-  return String(p.player)
-}
-
-function formatObservation(event: ObservationEvent, ownerDisplayName?: string): string {
-  const p = event.payload as Record<string, unknown>
-  const name = resolvePlayerName(p, ownerDisplayName)
-  switch (event.type) {
-    case "player_chat":
-      return `[Roblox観測] ${name}がRoblox内チャットで話しかけた: 「${p.message}」\nRoblox内で応答するにはroblox_actionのnpc sayを使うこと。`
-    case "player_proximity":
-      return p.action === "enter"
-        ? `[Roblox観測] ${name}が近づいてきた（距離: ${p.distance}スタッド）`
-        : `[Roblox観測] ${name}が離れた`
-    case "projection_ack":
-      return `[Roblox観測] 投影結果: ${JSON.stringify(p)}`
-    default:
-      return `[Roblox観測] ${event.type}: ${JSON.stringify(p)}`
-  }
-}
 
 async function main(): Promise<void> {
   const env = loadEnv()

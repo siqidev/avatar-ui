@@ -60,11 +60,20 @@ export const integrityAlertSchema = z.object({
   message: z.string(),
 })
 
+export const observationEventIpcSchema = z.object({
+  type: z.literal("observation.event"),
+  eventType: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  formatted: z.string(),
+  timestamp: z.string(),
+})
+
 // Main → Renderer の全メッセージ
 export const toRendererSchema = z.discriminatedUnion("type", [
   chatReplySchema,
   fieldStateSchema,
   integrityAlertSchema,
+  observationEventIpcSchema,
 ])
 
 export type ToRendererMessage = z.infer<typeof toRendererSchema>

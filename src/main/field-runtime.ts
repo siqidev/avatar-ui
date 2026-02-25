@@ -1,10 +1,14 @@
 import OpenAI from "openai"
+import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { loadEnv, APP_CONFIG } from "../config.js"
+import { loadEnv, isRobloxEnabled, APP_CONFIG } from "../config.js"
 import { loadState, saveState } from "../state/state-repository.js"
 import type { State } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
+import { startObservationServer } from "../roblox/observation-server.js"
+import type { ObservationEvent } from "../roblox/observation-server.js"
+import { formatObservation } from "../roblox/observation-formatter.js"
 import * as log from "../logger.js"
 import type { Env } from "../config.js"
 
@@ -112,6 +116,53 @@ export function startPulse(onReply: (text: string) => void): void {
   })
 
   log.info(`[PULSE] cron開始: ${APP_CONFIG.pulseCron}`)
+}
+
+// 観測サーバーを起動する（Roblox連携有効時のみ）
+// onEvent: 生イベント通知（Renderer表示用）
+// onReply: AI応答通知（chat.reply用）
+let observationServer: http.Server | null = null
+
+export function startObservation(
+  onEvent: (event: ObservationEvent, formatted: string) => void,
+  onReply: (text: string) => void,
+): void {
+  if (!initialized) throw new Error("FieldRuntime未初期化")
+  if (!isRobloxEnabled(env)) {
+    log.info("[OBSERVATION] Roblox連携無効 — 観測サーバー起動スキップ")
+    return
+  }
+
+  observationServer = startObservationServer(
+    (event: ObservationEvent) => {
+      const formatted = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
+      onEvent(event, formatted)
+
+      enqueue(async () => {
+        try {
+          log.info(`[OBSERVATION→AI] ${formatted}`)
+          const reply = await sendMessage(client, env, state, beingPrompt, formatted)
+          saveState(state)
+          log.info(`[AI→OBSERVATION] ${reply.substring(0, 100)}`)
+          onReply(reply)
+        } catch (err) {
+          log.error(`[OBSERVATION] AI応答エラー: ${err instanceof Error ? err.message : err}`)
+        }
+      })
+    },
+    env.ROBLOX_OBSERVATION_SECRET,
+  )
+
+  log.info("[OBSERVATION] 観測サーバー起動")
+}
+
+// ランタイム停止（観測サーバーのクリーンアップ）
+export function stopRuntime(): void {
+  if (observationServer) {
+    observationServer.close()
+    observationServer = null
+    log.info("[OBSERVATION] 観測サーバー停止")
+  }
 }
 
 // 現在のlastResponseIdを取得（会話継続性の確認用）

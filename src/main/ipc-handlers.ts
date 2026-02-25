@@ -3,7 +3,7 @@ import type { BrowserWindow } from "electron"
 import { chatPostSchema } from "../shared/ipc-schema.js"
 import type { FieldState, ToRendererMessage } from "../shared/ipc-schema.js"
 import { transition, initialState, isActive } from "./field-fsm.js"
-import { initRuntime, processChat, startPulse } from "./field-runtime.js"
+import { initRuntime, processChat, startPulse, startObservation } from "./field-runtime.js"
 import * as log from "../logger.js"
 
 // 場の状態（モジュールスコープで保持）
@@ -54,6 +54,31 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         text,
       })
     })
+
+    // 観測サーバー起動（Roblox連携有効時のみ）
+    startObservation(
+      (event, formatted) => {
+        const win = getMainWindow()
+        sendToRenderer(win, {
+          type: "observation.event",
+          eventType: event.type,
+          payload: event.payload,
+          formatted,
+          timestamp: new Date().toISOString(),
+        })
+      },
+      (reply) => {
+        const correlationId = `obs-${Date.now()}`
+        pushHistory("ai", reply, correlationId)
+        const win = getMainWindow()
+        sendToRenderer(win, {
+          type: "chat.reply",
+          actor: "ai",
+          correlationId,
+          text: reply,
+        })
+      },
+    )
   }
 
   // channel.attach: ウィンドウ接続

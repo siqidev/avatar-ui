@@ -14,6 +14,7 @@ declare global {
       onFieldState: (cb: (data: unknown) => void) => void
       onChatReply: (cb: (data: unknown) => void) => void
       onIntegrityAlert: (cb: (data: unknown) => void) => void
+      onObservation: (cb: (data: unknown) => void) => void
     }
   }
 }
@@ -31,6 +32,8 @@ const messagesEl = document.getElementById("chat-messages") as HTMLDivElement
 const formEl = document.getElementById("chat-form") as HTMLFormElement
 const inputEl = document.getElementById("chat-input") as HTMLInputElement
 const chatPane = document.getElementById("pane-chat") as HTMLDivElement
+const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
+const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
 
 // === レイアウト管理 ===
 let currentRatios: [number, number, number] = [0.24, 0.52, 0.24]
@@ -236,6 +239,55 @@ window.fieldApi.onIntegrityAlert((data) => {
   // エラー時もUI入力を再有効化
   inputEl.disabled = false
   formEl.querySelector("button")!.disabled = false
+})
+
+// === Roblox Monitorペイン ===
+const MAX_OBSERVATION_ENTRIES = 50
+
+function appendObservation(eventType: string, formatted: string, timestamp: string): void {
+  // プレースホルダーを初回のみ削除
+  const placeholder = robloxBody.querySelector(".pane-placeholder")
+  if (placeholder) placeholder.remove()
+
+  const entry = document.createElement("div")
+  entry.className = "observation-entry"
+
+  const time = document.createElement("span")
+  time.className = "observation-time"
+  const d = new Date(timestamp)
+  time.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
+
+  const tag = document.createElement("span")
+  tag.className = `observation-tag observation-tag-${eventType}`
+  tag.textContent = eventType
+
+  const text = document.createElement("span")
+  text.className = "observation-text"
+  text.textContent = formatted
+
+  entry.appendChild(time)
+  entry.appendChild(tag)
+  entry.appendChild(text)
+
+  // 最新を上に追加
+  robloxBody.insertBefore(entry, robloxBody.firstChild)
+
+  // 上限を超えたら古い要素を削除
+  while (robloxBody.children.length > MAX_OBSERVATION_ENTRIES) {
+    robloxBody.removeChild(robloxBody.lastChild!)
+  }
+}
+
+// 観測イベントを受信
+window.fieldApi.onObservation((data) => {
+  const obs = data as { eventType: string; formatted: string; timestamp: string }
+  appendObservation(obs.eventType, obs.formatted, obs.timestamp)
+
+  // ペインを一時的にactiveに
+  robloxPane.dataset.state = "active"
+  setTimeout(() => {
+    robloxPane.dataset.state = "normal"
+  }, 3000)
 })
 
 // チャット送信

@@ -320,3 +320,51 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--fg-dim);
 }
+
+/* === Roblox Monitorペイン === */
+#pane-roblox .pane-body {
+  padding: 4px 0;
+  overflow-y: auto;
+}
+
+.observation-entry {
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--line-default);
+}
+
+.observation-entry:hover {
+  background: var(--bg-pane-alt);
+}
+
+.observation-time {
+  color: var(--fg-dim);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.observation-tag {
+  color: var(--state-info);
+  flex-shrink: 0;
+  min-width: 10ch;
+}
+
+.observation-tag-player_chat {
+  color: var(--state-ok);
+}
+
+.observation-tag-player_proximity {
+  color: var(--fg-muted);
+}
+
+.observation-tag-projection_ack {
+  color: var(--state-warn);
+}
+
+.observation-text {
+  color: var(--fg-main);
+  word-break: break-word;
+}

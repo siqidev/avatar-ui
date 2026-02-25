@@ -37,6 +37,7 @@
 6. **Console縦切り（Spike-01）** — Electron + electron-vite + FieldRuntime（Main内論理分離）+ field-fsm（generated→active→paused→resumed→terminated）+ IPCスキーマ（Zod検証）+ チャットペイン。セキュリティ: nodeIntegration:false/contextIsolation:true/sandbox:true
 7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
 8. **Console UI共通基盤** — 3列5ペインレイアウト（24/52/24）、TUI-in-GUIデザイントークン、スプリッタードラッグ（列幅・ペイン高さ）、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト32件（state-normalizer 16件 + layout-manager 16件）。ウィンドウ最小1280x800
+9. **FieldRuntime観測統合** — 観測サーバーをElectron Main内のFieldRuntimeに統合。CLI専用だった観測処理をCLI/Electron共通化（observation-formatter抽出）。IPC経路: observation-server→FieldRuntime.enqueue→sendMessage(AI)→chat.reply + observation.event→Renderer。Roblox Monitorペインに観測ログ表示（タイムスタンプ+イベント種別+整形テキスト、最新上、最大50件）。アプリ終了時の観測サーバークリーンアップ。テスト10件追加（observation-formatter）
 
 ### Roblox接続設計（議論合意 2026-02-24）
 
@@ -155,16 +156,14 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 **ペイン実装優先順位（技術依存ベース）**:
 1. ~~共通基盤~~ ✅ — レイアウトスロット、splitter、トークン適用、状態正規化器
 2. Chatペイン強化 — roblox_action導線、返信表示改善、未読管理（主導線なので最優先）
-3. Roblox Monitor — field.state可視化、イベントログ（観測サーバーのConsole統合が前提）
+3. ~~Roblox Monitor~~ ✅ — 観測イベントログ表示（FieldRuntime観測統合で実装済み）
 4. X Monitor — Roblox Monitorの横展開
 5. Terminal — まずログビューア（node-ptyはスコープ確定後）
 6. FSペイン — read-only tree + 選択情報表示
 
 ### 次の候補
 - **Chatペイン強化** — roblox_action導線（チャットからRoblox操作）、返信ストリーミング表示、未読管理
-- **FieldRuntime観測統合** — field-runtime.tsに観測サーバー統合（現在はCLIのみ対応）。Roblox Monitorの前提条件
-- **Roblox Monitorペイン** — 観測イベントのリアルタイム表示、field.state可視化（観測統合が先）
-- **具体→抽象の修正フェーズ** — 8本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
+- **具体→抽象の修正フェーズ** — 9本のスパイク結果をもとに抽象設計（場モデル6要素・入出力契約）を検証・修正する
 - **永続モデル設計（#5）** — 共存記録の実装設計
 - **健全性管理設計（#6）** — 検知・自動復旧・委譲の実装設計
 - **テスト計画（#7）** — 受入シナリオのテスト実装
