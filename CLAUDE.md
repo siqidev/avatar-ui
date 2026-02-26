@@ -24,11 +24,11 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Chatペイン+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期（Part単位建築の根本的限界を確認、プリファブ方式への転換が必要）。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
+スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Streamペイン（旧Chat、擬似ストリーム+テキストSE+リップシンク）+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
 
 ### v0.3 Robloxスコープ
 - **IN**: 空間認識（SpatialService）、移動・追従（NpcMotionOps）、対話（NpcOps say/emote）
-- **OUT（v0.4）**: 建築品質改善（プリファブ方式）、Console用3Dマップ、TypeScript側整理
+- **OUT（v0.4）**: 建築品質改善（プリファブ方式）、File Systemペイン実装、Console用3Dマップ、TypeScript側整理
 
 ### 次のアクション
 1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
@@ -109,6 +109,7 @@ avatar-uiはSIQIの制作プロジェクトの1つ。SIQIの全体戦略にお�
 | 場 | 共存が成立する器。受動的環境であり意思を持たない |
 | 往復回路 | 意図→行為→応答→再解釈の因果ループ。AI側の設計要件、人間は自由 |
 | 起点対称性 | human起点とai起点の双方が成立すること |
+| Avatar Space | AIの生命活動空間。`AVATAR_SPACE`環境変数で指定されたディレクトリ（デフォルト`~/Avatar/space`）。自己進化・創造・実世界への出力経路 |
 | cosmology | 式乃シトの宇宙観の正本（5公理→19原理→定理→実践系） |
 
 ## AI作業ルール
@@ -157,7 +158,7 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
 | src/preload/index.ts | contextBridge最小API |
 | src/renderer/index.html | 3列6ペインレイアウト構造（2行×3列） |
-| src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+チャット+状態管理） |
+| src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+Stream+状態管理） |
 | src/renderer/style.css | TUI-in-GUIデザイントークン+レイアウトCSS |
 | src/renderer/state-normalizer.ts | IPC入力→視覚状態マッピング（純粋関数） |
 | src/renderer/layout-manager.ts | 2×3グリッド配置管理+ペイン入替（純粋関数） |

@@ -219,8 +219,8 @@ body {
   image-rendering: pixelated;
 }
 
-/* === Chatペイン固有 === */
-#pane-chat .pane-body {
+/* === Streamペイン固有 === */
+#pane-stream .pane-body {
   display: flex;
   flex-direction: column;
 }
@@ -264,7 +264,7 @@ body {
   color: var(--state-warn);
 }
 
-/* 非Console入力のコンテキスト行（Chatペイン内） */
+/* 非Console入力のコンテキスト行（Streamペイン内） */
 .message-human.source-observation,
 .message-human.source-pulse {
   color: var(--fg-dim);

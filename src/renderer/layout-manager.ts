@@ -1,8 +1,8 @@
 // レイアウト管理: 2×3グリッド配置 + ペイン入替
 
 export const GRID_SLOTS = [
-  "fs",
-  "chat",
+  "filesystem",
+  "stream",
   "avatar",
   "x",
   "terminal",
@@ -12,10 +12,10 @@ export const GRID_SLOTS = [
 export type GridSlot = (typeof GRID_SLOTS)[number]
 
 // デフォルト配置（スクリーンショット準拠）
-// 上段: FS / Chat / Avatar
-// 下段: X  / Terminal / Roblox
+// 上段: File System / Stream / Avatar
+// 下段: X           / Terminal / Roblox
 export const DEFAULT_LAYOUT: GridSlot[][] = [
-  ["fs", "chat", "avatar"],
+  ["filesystem", "stream", "avatar"],
   ["x", "terminal", "roblox"],
 ]
 

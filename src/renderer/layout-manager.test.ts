@@ -10,43 +10,43 @@ import type { GridSlot } from "./layout-manager.js"
 describe("buildGridAreas", () => {
   it("デフォルト配置からCSS文字列を生成（スプリッタートラック含む5×3）", () => {
     const result = buildGridAreas(DEFAULT_LAYOUT)
-    expect(result).toBe('"fs . chat . avatar" ". . . . ." "x . terminal . roblox"')
+    expect(result).toBe('"filesystem . stream . avatar" ". . . . ." "x . terminal . roblox"')
   })
 
   it("入替後の配置でも正しいCSS文字列を生成", () => {
     const swapped: GridSlot[][] = [
-      ["avatar", "chat", "fs"],
+      ["avatar", "stream", "filesystem"],
       ["x", "terminal", "roblox"],
     ]
     const result = buildGridAreas(swapped)
-    expect(result).toBe('"avatar . chat . fs" ". . . . ." "x . terminal . roblox"')
+    expect(result).toBe('"avatar . stream . filesystem" ". . . . ." "x . terminal . roblox"')
   })
 })
 
 describe("swapPanes", () => {
   it("2ペインの位置を入れ替える", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "fs", "roblox")
+    const result = swapPanes(DEFAULT_LAYOUT, "filesystem", "roblox")
     expect(result).toEqual([
-      ["roblox", "chat", "avatar"],
-      ["x", "terminal", "fs"],
+      ["roblox", "stream", "avatar"],
+      ["x", "terminal", "filesystem"],
     ])
   })
 
   it("同一ペインのswap → 変化なし", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "chat", "chat")
+    const result = swapPanes(DEFAULT_LAYOUT, "stream", "stream")
     expect(result).toEqual(DEFAULT_LAYOUT)
   })
 
   it("同じ行内の入替", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "fs", "avatar")
+    const result = swapPanes(DEFAULT_LAYOUT, "filesystem", "avatar")
     expect(result).toEqual([
-      ["avatar", "chat", "fs"],
+      ["avatar", "stream", "filesystem"],
       ["x", "terminal", "roblox"],
     ])
   })
 
   it("入替後も全スロットが存在する", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "chat", "terminal")
+    const result = swapPanes(DEFAULT_LAYOUT, "stream", "terminal")
     const flat = result.flat()
     for (const slot of GRID_SLOTS) {
       expect(flat).toContain(slot)
@@ -55,7 +55,7 @@ describe("swapPanes", () => {
 
   it("元の配列を変更しない（immutable）", () => {
     const original = DEFAULT_LAYOUT.map((row) => [...row])
-    swapPanes(DEFAULT_LAYOUT, "fs", "roblox")
+    swapPanes(DEFAULT_LAYOUT, "filesystem", "roblox")
     expect(DEFAULT_LAYOUT).toEqual(original)
   })
 

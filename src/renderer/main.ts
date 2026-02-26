@@ -1,4 +1,4 @@
-// Renderer エントリー: 3列レイアウト + 縦横スプリッター + ペインD&D入替 + チャット
+// Renderer エントリー: 3列レイアウト + 縦横スプリッター + ペインD&D入替 + Stream
 
 import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
 import type { GridSlot } from "./layout-manager.js"
@@ -27,7 +27,7 @@ const alertBar = document.getElementById("alert-bar") as HTMLDivElement
 const messagesEl = document.getElementById("chat-messages") as HTMLDivElement
 const formEl = document.getElementById("chat-form") as HTMLFormElement
 const inputEl = document.getElementById("chat-input") as HTMLInputElement
-const chatPane = document.getElementById("pane-chat") as HTMLDivElement
+const streamPane = document.getElementById("pane-stream") as HTMLDivElement
 const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
 const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
 const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
@@ -339,13 +339,13 @@ function removeThinking(): void {
 }
 
 // === 状態管理 ===
-let chatPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }
+let streamPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }
 
-function updateChatPaneVisual(): void {
-  const visual = normalizeState(chatPaneInput)
-  chatPane.dataset.state = visual.level
+function updateStreamPaneVisual(): void {
+  const visual = normalizeState(streamPaneInput)
+  streamPane.dataset.state = visual.level
 
-  const badgeEl = chatPane.querySelector(".pane-header .badge") as HTMLSpanElement
+  const badgeEl = streamPane.querySelector(".pane-header .badge") as HTMLSpanElement
   if (badgeEl) {
     badgeEl.textContent = visual.badge ?? ""
   }
@@ -357,13 +357,13 @@ function updateChatPaneVisual(): void {
   }
 }
 
-chatPane.addEventListener("focusin", () => {
-  chatPaneInput.hasFocus = true
-  updateChatPaneVisual()
+streamPane.addEventListener("focusin", () => {
+  streamPaneInput.hasFocus = true
+  updateStreamPaneVisual()
 })
-chatPane.addEventListener("focusout", () => {
-  chatPaneInput.hasFocus = false
-  updateChatPaneVisual()
+streamPane.addEventListener("focusout", () => {
+  streamPaneInput.hasFocus = false
+  updateStreamPaneVisual()
 })
 
 // === チャットUI ===
@@ -460,8 +460,8 @@ window.fieldApi.onFieldState((data) => {
   }
   statusEl.textContent = msg.state
 
-  chatPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
-  updateChatPaneVisual()
+  streamPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
+  updateStreamPaneVisual()
 
   if (msg.lastMessages && msg.lastMessages.length > 0) {
     enableStream = false
@@ -489,20 +489,20 @@ window.fieldApi.onChatReply((data) => {
     formEl.querySelector("button")!.disabled = false
   }
 
-  if (!chatPaneInput.hasFocus) {
-    chatPaneInput.ipcEvents = [
-      ...chatPaneInput.ipcEvents.filter((e) => e.type !== "chat.reply"),
+  if (!streamPaneInput.hasFocus) {
+    streamPaneInput.ipcEvents = [
+      ...streamPaneInput.ipcEvents.filter((e) => e.type !== "chat.reply"),
       { type: "chat.reply" },
     ]
-    updateChatPaneVisual()
+    updateStreamPaneVisual()
   }
 })
 
 window.fieldApi.onIntegrityAlert((data) => {
   const alert = data as { code: string; message: string }
   alertBar.textContent = `${alert.code}: ${alert.message}`
-  chatPaneInput.ipcEvents = [{ type: "integrity.alert", code: alert.code, message: alert.message }]
-  updateChatPaneVisual()
+  streamPaneInput.ipcEvents = [{ type: "integrity.alert", code: alert.code, message: alert.message }]
+  updateStreamPaneVisual()
 
   inputEl.disabled = false
   formEl.querySelector("button")!.disabled = false
@@ -565,8 +565,8 @@ formEl.addEventListener("submit", (e) => {
   inputEl.disabled = true
   formEl.querySelector("button")!.disabled = true
 
-  chatPaneInput.ipcEvents = chatPaneInput.ipcEvents.filter((ev) => ev.type !== "chat.reply")
-  updateChatPaneVisual()
+  streamPaneInput.ipcEvents = streamPaneInput.ipcEvents.filter((ev) => ev.type !== "chat.reply")
+  updateStreamPaneVisual()
 
   showThinking()
   window.fieldApi.postChat(text, correlationId)
