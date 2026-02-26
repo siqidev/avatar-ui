@@ -186,15 +186,93 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 - `src/cli.ts`: 3パス（user/observation/pulse）でcreateParticipationInput使用
 - テスト全通過（participation-context.test.ts 7件追加）
 
+### Roblox空間改善設計（議論合意 2026-02-26）
+
+**問題**: AIが3D座標を直接計算する設計が構造的に機能しない。「こっち来て」で明後日に走る、建築でドア/出入口が正しく配置できない等。根本原因は「絶対座標で操作させているのに、AI側に座標系の知覚入力がない」こと。
+
+**設計原則**: AIは「意図+参照+制約」を出す。Robloxが「座標解決+実行+物理検証」を決定的に行い、ACKで閉ループする。
+
+**3つの本質的変更**:
+1. **AIが座標を計算しない仕組み（制約ベース汎用メカニズム）** — LLMは3D座標計算が苦手。「何をしたいか」と制約を出せば、Robloxが座標を解決する
+2. **結果が返ってくる仕組み（共通ACK）** — 全操作に対して成功/失敗+物理検証結果を返却。AIが自動修正できる
+3. **AIが空間を聞ける仕組み（空間照会）** — 「周りに何がある？」「自分はどこ？」をオンデマンドで照会
+
+**最小制約タイプ（3種で開始、レジストリで拡張可能）**:
+| type | 意味 | 例 |
+|------|------|-----|
+| `attach` | 面同士を接着 | 壁を地面に接地 |
+| `offset` | 参照点からの相対移動 | 既存壁の5studs右に配置 |
+| `non_overlap` | 重なり防止 | 他パーツとの衝突回避 |
+
+**全命令仕様**:
+| カテゴリ | 命令 | AI→Roblox | Roblox決定処理 |
+|---------|------|-----------|--------------|
+| npc | `go_to_player` | `{user_id, standoff?}` | プレイヤー位置解決→Pathfinding |
+| npc | `follow_player` | `{user_id, standoff?}` | 追従ループ開始（0.5秒再経路） |
+| npc | `stop_following` | `{follow_id?}` | 追従ループ停止 |
+| build | `apply_constraints` | `{target, refs, constraints[], validate[]}` | 参照解決→制約適用→Part生成→物理検証 |
+| terrain | `apply_constraints` | `{action, brush, refs, constraints[], validate[]}` | 参照解決→制約適用→Terrain操作→検証 |
+| spatial | `query` | `{mode, center, radius?, limit?}` | pose取得/近傍探索/相対計算 |
+
+**通信契約**:
+- AI→Roblox: `{ schema_version, intent_id, category, reason, ops }` （Open Cloud Messaging, 1KB制限）
+- Roblox→AI（ACK）: `{ type:"command_ack", payload: { success, data?, error?, meta: { intent_id, op, validation? } } }` （HttpService POST）
+- 追従イベント: `{ type:"npc_follow_event", payload: { follow_id, state, user_id } }`
+
+**物理検証（ACKに含める）**:
+- 移動: 経路成立（PathfindingService.Status）、到達判定（MoveToFinished+最終距離）
+- 建築: 重なり（GetPartsInPart）、接地（Raycast）、制約充足
+- 地形: 実変化量（ReadVoxels前後差分）
+
+**Robloxモジュール構造（14ファイル: 新規6 + 再構成8）**:
+| ファイル | 種別 | 責務 |
+|---------|------|------|
+| `CommandReceiver.server.luau` | 再構成 | intentをレジストリ経由で実行し共通ACKを返すエントリポイント |
+| `ObservationSender.server.luau` | 再構成 | チャット/接近/追従状態の観測イベント送信 |
+| `CommandRegistry.luau` | **新規** | カテゴリ+opを実行関数に解決する登録型ルータ |
+| `ObservationClient.luau` | **新規** | 観測イベントとACK送信の共通HTTPクライアント |
+| `SpatialService.luau` | **新規** | pose取得・近傍探索・相対距離/方位計算 |
+| `ConstraintSolver.luau` | **新規** | attach/offset/non_overlapの制約解決+物理検証 |
+| `NpcMotionOps.luau` | **新規** | go_to_player/follow_player/stop_followingの移動制御 |
+| `BuildOps.luau` | **新規** | build.apply_constraintsの実行、PartOpsへ反映 |
+| `NpcOps.luau` | 再構成 | say/emoteの窓口維持、移動はNpcMotionOpsへ委譲 |
+| `PartOps.luau` | 再構成 | create/set/delete+演出+永続化の低レベルPart実行器 |
+| `TerrainOps.luau` | 再構成 | 既存操作+terrain.apply_constraints |
+| `EffectOps.luau` | 維持 | エフェクト操作 |
+| `WorldStore.luau` | 維持 | DataStore永続化ラッパー |
+| `Config.luau` | 再構成 | 通信先・検知間隔・しきい値設定 |
+
+**TypeScriptモジュール構造（7ファイル: 新規3 + 再構成4）**:
+| ファイル | 種別 | 責務 |
+|---------|------|------|
+| `roblox-action-tool.ts` | 再構成 | roblox_actionの公開窓口（description組立） |
+| `roblox-action-catalog.ts` | **新規** | カテゴリ/命令仕様のレジストリ（肥大化防止） |
+| `roblox-action-schema.ts` | **新規** | build/terrain/spatial/npc引数のZodスキーマ |
+| `projector.ts` | 再構成 | intent_id付きMessaging送信+投影状態更新 |
+| `observation-server.ts` | 再構成 | 汎用イベント封筒受信+登録バリデータ検証 |
+| `observation-events.ts` | **新規** | イベント種別のpayloadスキーマ/formatter登録 |
+| `observation-formatter.ts` | 再構成 | イベント別フォーマッタでAI入力文変換 |
+
+**既存互換**: `part create/set/delete`, `terrain fill/excavate/paint`はフォールバックとして残す。
+
+**棄却案と理由**:
+- 個別命令方式（`place_opening_on_wall`等）→ 用途が増えるたびに新命令が必要で設計爆発
+- メッセージ都度の座標同梱 → 対症療法で本質的でない
+- BEING.md依存の改善 → プロンプトエンジニアリングに依存しない仕組みを優先
+
+**残リスク**: ConstraintSolver実装量（最小3制約で100-200行Luau）。複雑な制約組み合わせのエッジケース
+
 ### 次の計画（方針: 具体→抽象の往復を継続）
 
 ③参与文脈の帰納的検証で「具体が抽象を修正する」有効性を確認。残り要素も同じ方法（実装→不足発見→修正）で進める。
 
 **優先順位**:
-1. **⑤共存記録の実装** — v0.3到達状態の最大ギャップ（「再起動をまたいで関係が継続」）を直接埋める。実装しながら①④の不足も発見する
-2. **⑥健全性管理の実装** — v0.3到達状態の残ギャップ（「共存故障を検知できる」）。⑤完了後に着手
-3. **残り要素（①②④）の帰納的検証** — ⑤⑥実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
+1. **Roblox空間改善の実装** — 制約ベース汎用メカニズム + 既存スクリプト再構成 + 追従制御。Roblox体験の本質的改善
+2. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）。故障が静かに壊れる現状を改善する
+3. **残り要素（①②④）の帰納的検証** — 実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
 4. **テスト計画（#7）** — 受入シナリオのテスト実装
+
+**⑤共存記録について**: v0.3では追加実装不要と判断（2026-02-26）。previous_response_id（Grok API会話継続）+ save_memory（ローカルJSONL + Collections API）+ roblox-intents.jsonl（未送信リトライ）で「再起動をまたいで関係が継続」を実質的に充足。唯一のリスクはGrok APIの会話履歴パージだが、現時点で発生していないため、対策は挙動が判明してから検討する
 
 ## 場モデル6要素のv0.3実装度
 
@@ -204,8 +282,8 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 | 2 | 媒体投影（ChannelProjection） | 最小実装（Console単一チャネル） | ❶❻ |
 | 3 | 参与文脈（ParticipationContext） | 実装 | ❸❹❺ |
 | 4 | 往復回路（ReciprocityLoop） | 実装 | ❹❻ |
-| 5 | 共存記録（CoexistenceStore） | 実装 | ❶❻ |
-| 6 | 健全性管理（IntegrityManager） | 実装 | ❷ |
+| 5 | 共存記録（CoexistenceStore） | v0.3充足（previous_response_id + save_memory + intents.jsonl） | ❶❻ |
+| 6 | 健全性管理（IntegrityManager） | 未実装 | ❷ |
 
 ## 不変条件のv0.3検証
 
