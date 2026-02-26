@@ -233,16 +233,109 @@ function initPaneDragAndDrop(): void {
 
 initPaneDragAndDrop()
 
-// === アバター口開閉 ===
-let avatarTimer: ReturnType<typeof setTimeout> | null = null
+// === テキストSE + リップシンク ===
+const CHAR_DELAY_MS = 28
+const BLIP_FREQ_HZ = 880
+const BLIP_DURATION_MS = 25
+const BLIP_VOLUME = 0.03
+const LIP_SYNC_INTERVAL_MS = 80
 
-function setAvatarTalking(): void {
-  avatarImg.src = "./talk.png"
-  if (avatarTimer) clearTimeout(avatarTimer)
-  avatarTimer = setTimeout(() => {
-    avatarImg.src = "./idle.png"
-    avatarTimer = null
-  }, 2000)
+let audioCtx: AudioContext | null = null
+let lipSyncActive = false
+let lipSyncOn = false
+let lipSyncTimer: ReturnType<typeof setTimeout> | null = null
+let streamingAbort: (() => void) | null = null
+
+function initAudioCtx(): AudioContext | null {
+  if (audioCtx) return audioCtx
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  if (!Ctx) return null
+  audioCtx = new Ctx()
+  return audioCtx
+}
+
+function playBlip(): void {
+  const ctx = initAudioCtx()
+  if (!ctx) return
+  if (ctx.state === "suspended") void ctx.resume()
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = "square"
+  osc.frequency.value = BLIP_FREQ_HZ
+  osc.connect(gain).connect(ctx.destination)
+  const t = ctx.currentTime
+  const dur = BLIP_DURATION_MS / 1000
+  gain.gain.setValueAtTime(BLIP_VOLUME, t)
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur)
+  osc.start(t)
+  osc.stop(t + dur + 0.01)
+}
+
+function applyLipSync(): void {
+  avatarImg.src = lipSyncActive && lipSyncOn ? "./talk.png" : "./idle.png"
+}
+
+function scheduleLipSync(): void {
+  if (!lipSyncActive) return
+  lipSyncOn = !lipSyncOn
+  applyLipSync()
+  lipSyncTimer = setTimeout(scheduleLipSync, LIP_SYNC_INTERVAL_MS)
+}
+
+function startLipSync(): void {
+  if (lipSyncActive) return
+  lipSyncActive = true
+  scheduleLipSync()
+}
+
+function stopLipSync(): void {
+  lipSyncActive = false
+  if (lipSyncTimer) { clearTimeout(lipSyncTimer); lipSyncTimer = null }
+  lipSyncOn = false
+  applyLipSync()
+}
+
+// 擬似ストリーム: 完成テキストを1文字ずつ流し込む
+function streamText(textNode: Text, text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!text) { resolve(); return }
+    let i = 0
+    let cancelled = false
+    streamingAbort = () => { cancelled = true; textNode.textContent = text; resolve() }
+    const step = (): void => {
+      if (cancelled) return
+      if (i >= text.length) { streamingAbort = null; resolve(); return }
+      const ch = text.charAt(i++)
+      textNode.textContent += ch
+      messagesEl.scrollTop = messagesEl.scrollHeight
+      if (!/\s/.test(ch)) playBlip()
+      setTimeout(step, CHAR_DELAY_MS)
+    }
+    step()
+  })
+}
+
+// thinkingインジケータ
+let thinkingEl: HTMLDivElement | null = null
+
+function showThinking(): void {
+  if (thinkingEl) return
+  thinkingEl = document.createElement("div")
+  thinkingEl.className = "message message-ai thinking"
+  const label = document.createElement("span")
+  label.className = "label"
+  label.textContent = "spectra>"
+  const dots = document.createElement("span")
+  dots.className = "thinking-dots"
+  dots.textContent = "..."
+  thinkingEl.appendChild(label)
+  thinkingEl.appendChild(dots)
+  messagesEl.appendChild(thinkingEl)
+  messagesEl.scrollTop = messagesEl.scrollHeight
+}
+
+function removeThinking(): void {
+  if (thinkingEl) { thinkingEl.remove(); thinkingEl = null }
 }
 
 // === 状態管理 ===
@@ -275,6 +368,7 @@ chatPane.addEventListener("focusout", () => {
 
 // === チャットUI ===
 type ToolCallDisplay = { name: string; args: Record<string, unknown>; result: string }
+let enableStream = true // 履歴復元中はfalse
 
 function appendMessage(
   actor: string,
@@ -335,9 +429,20 @@ function appendMessage(
     label.textContent = "spectra>"
   }
   div.appendChild(label)
-  div.appendChild(document.createTextNode(text))
-  messagesEl.appendChild(div)
-  messagesEl.scrollTop = messagesEl.scrollHeight
+
+  // AI応答は擬似ストリーム表示（履歴復元時は即表示）
+  if (actor === "ai" && text && enableStream) {
+    const textNode = document.createTextNode("")
+    div.appendChild(textNode)
+    messagesEl.appendChild(div)
+    messagesEl.scrollTop = messagesEl.scrollHeight
+    startLipSync()
+    void streamText(textNode, text).then(() => stopLipSync())
+  } else {
+    div.appendChild(document.createTextNode(text))
+    messagesEl.appendChild(div)
+    messagesEl.scrollTop = messagesEl.scrollHeight
+  }
 }
 
 // === IPC接続 ===
@@ -359,10 +464,13 @@ window.fieldApi.onFieldState((data) => {
   updateChatPaneVisual()
 
   if (msg.lastMessages && msg.lastMessages.length > 0) {
+    enableStream = false
+    if (streamingAbort) streamingAbort()
     messagesEl.innerHTML = ""
     for (const m of msg.lastMessages) {
       appendMessage(m.actor, m.text, m.source, m.toolCalls)
     }
+    enableStream = true
   }
 })
 
@@ -373,11 +481,8 @@ window.fieldApi.onChatReply((data) => {
     source?: string
     toolCalls?: ToolCallDisplay[]
   }
+  removeThinking()
   appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls)
-
-  if (reply.actor === "ai") {
-    setAvatarTalking()
-  }
 
   if (!reply.source || reply.source === "user") {
     inputEl.disabled = false
@@ -463,6 +568,7 @@ formEl.addEventListener("submit", (e) => {
   chatPaneInput.ipcEvents = chatPaneInput.ipcEvents.filter((ev) => ev.type !== "chat.reply")
   updateChatPaneVisual()
 
+  showThinking()
   window.fieldApi.postChat(text, correlationId)
 })
 

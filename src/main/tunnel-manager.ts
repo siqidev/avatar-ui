@@ -10,6 +10,7 @@ const TUNNEL_LOG_FILE = `${APP_CONFIG.dataDir}/cloudflared.log`
 
 let tunnelProcess: ChildProcess | null = null
 let logStream: fs.WriteStream | null = null
+let stopping = false
 
 export function startTunnel(token: string): void {
   if (tunnelProcess) {
@@ -50,7 +51,9 @@ export function startTunnel(token: string): void {
   })
 
   tunnelProcess.on("exit", (code, signal) => {
-    log.error(`[TUNNEL] cloudflared終了: code=${code} signal=${signal}`)
+    if (!stopping) {
+      log.error(`[TUNNEL] cloudflared予期しない終了: code=${code} signal=${signal}`)
+    }
     logStream?.write(`--- cloudflared終了 code=${code} signal=${signal} ---\n`)
     tunnelProcess = null
     logStream?.end()
@@ -67,7 +70,7 @@ export function startTunnel(token: string): void {
 
 export function stopTunnel(): void {
   if (!tunnelProcess) return
-  log.info("[TUNNEL] cloudflared停止要求")
+  stopping = true
   tunnelProcess.kill("SIGTERM")
 }
 

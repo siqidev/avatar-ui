@@ -279,6 +279,16 @@ body {
   color: var(--state-ok);
 }
 
+/* thinkingインジケータ */
+.thinking .thinking-dots {
+  animation: blink 1s step-end infinite;
+  color: var(--fg-muted);
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* ツール呼び出し表示 */
 .tool-call {
   font-size: 11px;
