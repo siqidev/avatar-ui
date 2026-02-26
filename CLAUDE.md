@@ -24,13 +24,16 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間改善（Luau側）完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Chatペイン+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装（制約ベース建築BuildOps/ConstraintSolver、空間照会SpatialService、NPC追従NpcMotionOps含む）。NPC追従はHumanoid.Runningイベント駆動アニメーション+Raycast直行+WPスキップで動作確認済み。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
+スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Chatペイン+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期（Part単位建築の根本的限界を確認、プリファブ方式への転換が必要）。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
+
+### v0.3 Robloxスコープ
+- **IN**: 空間認識（SpatialService）、移動・追従（NpcMotionOps）、対話（NpcOps say/emote）
+- **OUT（v0.4）**: 建築品質改善（プリファブ方式）、Console用3Dマップ、TypeScript側整理
 
 ### 次のアクション
-1. **Roblox体験の残課題** — 建築品質（制約ベース建築のAI利用パターン検証）、TypeScript側整理（catalog/schema/events未作成）
-2. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
-3. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
-4. **テスト計画（#7）** — 受入シナリオのテスト実装
+1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
+2. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
+3. **テスト計画（#7）** — 受入シナリオのテスト実装
 - ⑤共存記録はv0.3充足と判断（previous_response_id + save_memory + intents.jsonlで実質カバー）
 
 ## avatar-ui 60秒コンテキスト

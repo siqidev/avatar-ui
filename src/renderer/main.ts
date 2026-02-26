@@ -430,11 +430,13 @@ function appendObservation(eventType: string, formatted: string, timestamp: stri
   entry.appendChild(tag)
   entry.appendChild(text)
 
-  robloxBody.insertBefore(entry, robloxBody.firstChild)
+  robloxBody.appendChild(entry)
 
   while (robloxBody.children.length > MAX_OBSERVATION_ENTRIES) {
-    robloxBody.removeChild(robloxBody.lastChild!)
+    robloxBody.removeChild(robloxBody.firstChild!)
   }
+
+  robloxBody.scrollTop = robloxBody.scrollHeight
 }
 
 window.fieldApi.onObservation((data) => {

@@ -87,6 +87,13 @@ export function startObservationServer(
   })
 
   const listenPort = port ?? APP_CONFIG.observationPort
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      log.error(`[OBSERVATION] ポート${listenPort}が使用中。前回のプロセスが残っている可能性あり`)
+    } else {
+      throw err
+    }
+  })
   server.listen(listenPort, () => {
     log.info(
       `[OBSERVATION] サーバー起動: port=${listenPort}`,
