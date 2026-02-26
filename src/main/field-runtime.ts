@@ -149,6 +149,15 @@ export function startObservation(
 
   observationServer = startObservationServer(
     (event: ObservationEvent) => {
+      // roblox_log: 表示+ログのみ、AIには送らない
+      if (event.type === "roblox_log") {
+        const formatted = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
+        log.info(`[ROBLOX] ${formatted}`)
+        const correlationId = generateCorrelationId("observation")
+        onEvent(event, formatted, correlationId)
+        return
+      }
+
       if (!isFieldActive()) {
         log.info("[OBSERVATION] 場が非アクティブ — スキップ")
         return

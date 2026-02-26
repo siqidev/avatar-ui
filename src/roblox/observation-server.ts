@@ -4,8 +4,16 @@ import { APP_CONFIG } from "../config.js"
 import * as log from "../logger.js"
 
 // 観測イベントスキーマ（Roblox→場の入力）
+// v3: command_ack, npc_follow_eventを追加
 export const observationEventSchema = z.object({
-  type: z.enum(["player_chat", "player_proximity", "projection_ack"]),
+  type: z.enum([
+    "player_chat",
+    "player_proximity",
+    "projection_ack",
+    "command_ack",
+    "npc_follow_event",
+    "roblox_log",
+  ]),
   serverId: z.string().optional(),
   timestamp: z.string().optional(),
   payload: z.record(z.string(), z.unknown()),

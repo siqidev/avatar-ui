@@ -85,4 +85,69 @@ describe("formatObservation", () => {
     expect(result).toContain("[Roblox観測]")
     expect(result).toContain("unknown_event")
   })
+
+  it("command_ack(成功) → ACK成功テキスト", () => {
+    const event: ObservationEvent = {
+      type: "command_ack",
+      payload: {
+        intent_id: "abc12345-6789",
+        op: "apply_constraints",
+        success: true,
+        data: { created_ids: ["wall-1"] },
+      },
+    }
+    const result = formatObservation(event)
+    expect(result).toContain("[Roblox ACK]")
+    expect(result).toContain("apply_constraints")
+    expect(result).toContain("成功")
+    expect(result).toContain("abc12345")
+    expect(result).toContain("wall-1")
+  })
+
+  it("command_ack(失敗+検証) → ACK失敗テキスト+検証結果", () => {
+    const event: ObservationEvent = {
+      type: "command_ack",
+      payload: {
+        intent_id: "def99999",
+        op: "apply_constraints",
+        success: false,
+        error: { code: "VALIDATION_FAILED", message: "物理検証失敗", retryable: true },
+        meta: { validation: { passed: false, checks: [{ name: "non_overlap", ok: false }] } },
+      },
+    }
+    const result = formatObservation(event)
+    expect(result).toContain("失敗")
+    expect(result).toContain("VALIDATION_FAILED")
+    expect(result).toContain("再試行可能")
+    expect(result).toContain("検証結果")
+    expect(result).toContain("non_overlap")
+  })
+
+  it("npc_follow_event(started) → 追従開始テキスト", () => {
+    const event: ObservationEvent = {
+      type: "npc_follow_event",
+      payload: { follow_id: "follow-1", state: "started", user_id: 123 },
+    }
+    const result = formatObservation(event)
+    expect(result).toContain("追従開始")
+    expect(result).toContain("follow-1")
+  })
+
+  it("npc_follow_event(lost) → 見失いテキスト", () => {
+    const event: ObservationEvent = {
+      type: "npc_follow_event",
+      payload: { follow_id: "follow-2", state: "lost", user_id: 456 },
+    }
+    const result = formatObservation(event)
+    expect(result).toContain("見失った")
+  })
+
+  it("npc_follow_event(stopped) → 追従停止テキスト", () => {
+    const event: ObservationEvent = {
+      type: "npc_follow_event",
+      payload: { follow_id: "follow-3", state: "stopped" },
+    }
+    const result = formatObservation(event)
+    expect(result).toContain("追従停止")
+  })
 })

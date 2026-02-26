@@ -10,6 +10,7 @@ const envSchema = z.object({
   ROBLOX_OBSERVATION_PORT: z.string().regex(/^\d+$/).optional(),
   ROBLOX_OBSERVATION_SECRET: z.string().min(1).optional(),
   ROBLOX_OWNER_DISPLAY_NAME: z.string().min(1).optional(),
+  CLOUDFLARED_TOKEN: z.string().min(1).optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

@@ -3,6 +3,7 @@ import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { registerIpcHandlers } from "./ipc-handlers.js"
 import { stopRuntime } from "./field-runtime.js"
+import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
@@ -34,6 +35,12 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // cloudflaredトンネル起動（トークン設定時のみ）
+  const tunnelToken = process.env.CLOUDFLARED_TOKEN
+  if (tunnelToken) {
+    startTunnel(tunnelToken)
+  }
+
   registerIpcHandlers(() => mainWindow)
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
@@ -52,7 +59,8 @@ app.on("window-all-closed", () => {
   log.info("[ELECTRON] 全ウィンドウ閉じ — Main常駐")
 })
 
-// アプリ終了時に観測サーバーをクリーンアップ
+// アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
+  stopTunnel()
   stopRuntime()
 })
