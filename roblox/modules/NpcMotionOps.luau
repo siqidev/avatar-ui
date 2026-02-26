@@ -3,6 +3,12 @@
 
   追従ループはRoblox内で閉じ、AIには状態変化イベントのみ送信する。
   PathfindingServiceで経路計算、0.5秒ごとに再計算。
+
+  アニメーション制御:
+  Humanoid.Runningイベント駆動（物理速度に連動）。
+  移動ロジックからアニメーションを完全分離し、
+  「止まっているのに走りモーション」問題を根治する。
+  速度ウォッチドッグ（AssemblyLinearVelocity）をフォールバックとして併用。
 ]]
 
 local PathfindingService = game:GetService("PathfindingService")
@@ -14,13 +20,19 @@ local ObservationClient = require(script.Parent.ObservationClient)
 local WALK_ANIM_ID = "rbxassetid://507777826"
 local IDLE_ANIM_ID = "rbxassetid://507766666"
 
+-- ヒステリシス幅（standoff境界での移動/停止振動を防ぐ）
+local HYSTERESIS_MARGIN = 1.5
+
+-- アニメーション速度閾値（Humanoid.Running速度でのヒステリシス）
+local WALK_SPEED_THRESHOLD = 0.8
+local IDLE_SPEED_THRESHOLD = 0.2
+
 -- 追従状態
 local activeFollow: {
 	followId: string,
 	userId: number,
 	standoff: number,
 	running: boolean,
-	walkTrack: AnimationTrack?,
 }? = nil
 
 local followCounter = 0
@@ -50,19 +62,11 @@ local function getAnimator(humanoid: Humanoid): Animator
 	return animator
 end
 
--- Animator上の全再生中トラックを即停止（残留アニメ防止）
+-- Animator上の全再生中トラックを停止
 local function stopAllTracks(humanoid: Humanoid)
 	local animator = getAnimator(humanoid)
 	for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-		track:Stop(0)
-	end
-end
-
--- Animateスクリプトを無効化（存在すれば）
-local function disableAnimateScript(npc: Model)
-	local animateScript = npc:FindFirstChild("Animate")
-	if animateScript then
-		animateScript.Disabled = true
+		track:Stop(0.1)
 	end
 end
 
@@ -74,15 +78,72 @@ local function loadAnim(humanoid: Humanoid, animId: string): AnimationTrack
 	return animator:LoadAnimation(anim)
 end
 
--- 歩行アニメーション開始（開始前に全トラック停止）
-local function startWalk(humanoid: Humanoid): AnimationTrack
+--[[
+  アニメーションコントローラ（Humanoid.Runningイベント駆動）
+
+  移動ロジックからアニメーションを完全分離する。
+  - Humanoid.Running: NPCの物理速度に連動して自動切替（一次情報源）
+  - checkVelocity: AssemblyLinearVelocity監視（Runningイベント不発時のフォールバック）
+  - destroy: 接続解除＋全トラック停止（必ず呼ぶこと）
+]]
+local function createAnimController(humanoid: Humanoid, rootPart: BasePart)
 	stopAllTracks(humanoid)
-	local track = loadAnim(humanoid, WALK_ANIM_ID)
-	track:Play()
-	return track
+
+	local walkTrack = loadAnim(humanoid, WALK_ANIM_ID)
+	local idleTrack = loadAnim(humanoid, IDLE_ANIM_ID)
+	local isWalking = false
+
+	local function switchToWalk()
+		if not isWalking then
+			idleTrack:Stop(0.1)
+			walkTrack:Play()
+			isWalking = true
+		end
+	end
+
+	local function switchToIdle()
+		if isWalking then
+			walkTrack:Stop(0.1)
+			idleTrack:Play()
+			isWalking = false
+		end
+	end
+
+	-- Humanoid.Running: NPCの物理的な移動速度に直結
+	local runningConn = humanoid.Running:Connect(function(speed)
+		if speed > WALK_SPEED_THRESHOLD then
+			switchToWalk()
+		elseif speed < IDLE_SPEED_THRESHOLD then
+			switchToIdle()
+		end
+	end)
+
+	-- 初期状態: idle
+	idleTrack:Play()
+
+	return {
+		switchToIdle = switchToIdle,
+		isWalking = function() return isWalking end,
+
+		-- 速度ウォッチドッグ: Runningイベントが発火しない場合のフォールバック
+		checkVelocity = function()
+			local vel = rootPart.AssemblyLinearVelocity
+			local horizSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+			if isWalking and horizSpeed < IDLE_SPEED_THRESHOLD then
+				switchToIdle()
+			end
+		end,
+
+		destroy = function()
+			runningConn:Disconnect()
+			walkTrack:Stop(0.1)
+			idleTrack:Stop(0.1)
+			stopAllTracks(humanoid)
+		end,
+	}
 end
 
--- パスに沿って歩く（ワンショット）
+-- パスに沿って歩く（ワンショット）— アニメーションはRunningイベント駆動
 local function walkPath(npc: Model, targetPos: Vector3): (boolean, string, number)
 	local humanoid = npc:FindFirstChildOfClass("Humanoid")
 	local rootPart = SpatialService.getRootPart(npc)
@@ -106,23 +167,33 @@ local function walkPath(npc: Model, targetPos: Vector3): (boolean, string, numbe
 	local waypoints = path:GetWaypoints()
 	print("[NpcMotionOps] 経路計算成功: " .. #waypoints .. "ウェイポイント")
 
-	local walkTrack = startWalk(humanoid)
+	-- アニメーションはRunningイベントが自動制御
+	local animCtrl = createAnimController(humanoid, rootPart)
 
+	local reached = true
 	for _, waypoint in ipairs(waypoints) do
 		if waypoint.Action == Enum.PathWaypointAction.Jump then
 			humanoid.Jump = true
 		end
 		humanoid:MoveTo(waypoint.Position)
-		humanoid.MoveToFinished:Wait()
+		local waypointReached = humanoid.MoveToFinished:Wait()
+		if not waypointReached then
+			-- 8秒タイムアウト: 経路到達失敗
+			print("[NpcMotionOps] walkPath: ウェイポイント到達タイムアウト")
+			reached = false
+			break
+		end
 	end
 
-	walkTrack:Stop(0)
-	stopAllTracks(humanoid) -- 残留トラックも含めて全停止
-	humanoid:Move(Vector3.zero) -- 移動ベクトルをゼロに
+	-- 移動停止 → Runningイベントでidle化 → ウォッチドッグで確認
+	humanoid:Move(Vector3.zero)
+	task.wait(0.15)
+	animCtrl.checkVelocity()
+	animCtrl.destroy()
 
 	local finalDistance = (rootPart.Position - targetPos).Magnitude
 	print("[NpcMotionOps] walkPath完了: 最終距離=" .. math.floor(finalDistance + 0.5))
-	return true, "SUCCESS", math.floor(finalDistance + 0.5)
+	return reached, reached and "SUCCESS" or "MOVE_TIMEOUT", math.floor(finalDistance + 0.5)
 end
 
 -- go_to_player: プレイヤーの現在位置へワンショット移動
@@ -130,10 +201,8 @@ function module.goToPlayer(op): { [string]: any }
 	local npc = SpatialService.findNpc()
 	if not npc then error("[NpcMotionOps] goToPlayer: NPCが見つからない") end
 
-	-- Animateスクリプト無効化 + 全トラック停止（go_to_playerでも必要）
-	disableAnimateScript(npc)
 	local humanoid = npc:FindFirstChildOfClass("Humanoid")
-	if humanoid then stopAllTracks(humanoid) end
+	if not humanoid then error("[NpcMotionOps] goToPlayer: Humanoidが見つからない") end
 
 	local rootPart = SpatialService.getRootPart(npc)
 	if not rootPart then error("[NpcMotionOps] goToPlayer: NPCにルートPartがない") end
@@ -211,7 +280,6 @@ function module.followPlayer(op): { [string]: any }
 		userId = userId,
 		standoff = standoff,
 		running = true,
-		walkTrack = nil,
 	}
 
 	print("[NpcMotionOps] follow_player開始: followId=" .. followId .. " userId=" .. tostring(userId) .. " standoff=" .. standoff)
@@ -225,30 +293,32 @@ function module.followPlayer(op): { [string]: any }
 
 	-- 追従ループ（非同期、xpcallでエラー可視化）
 	task.spawn(function()
+		-- クリーンアップ対象をxpcall外で宣言（エラー時もdestroy可能にする）
+		local animCtrl = nil
+		local animateScript = nil
+
 		local ok, err = xpcall(function()
 		local humanoid = npc:FindFirstChildOfClass("Humanoid")
 		if not humanoid then error("[NpcMotionOps] followループ: Humanoidが見つからない") end
 
-		-- Animate無効化 + 全トラック停止
-		disableAnimateScript(npc)
-		stopAllTracks(humanoid)
-
-		local walkTrack = loadAnim(humanoid, WALK_ANIM_ID)
-		local idleTrack = loadAnim(humanoid, IDLE_ANIM_ID)
-		-- 開始時はアイドル浮遊から
-		idleTrack:Play()
-		if activeFollow then
-			activeFollow.walkTrack = walkTrack
+		-- Animateスクリプト無効化（存在すれば。NPC手動アニメと競合防止）
+		animateScript = npc:FindFirstChild("Animate")
+		if animateScript then
+			animateScript.Disabled = true
 		end
+
+		-- アニメーションはRunningイベント駆動（移動ロジックから完全分離）
+		animCtrl = createAnimController(humanoid, rootPart)
 
 		local lostTimer = 0
 
 		while activeFollow and activeFollow.followId == followId and activeFollow.running do
-			local player = SpatialService.findPlayer(userId)
-			if not player or not player.Character then
+			local currentPlayer = SpatialService.findPlayer(userId)
+			if not currentPlayer or not currentPlayer.Character then
 				lostTimer += repathInterval
 				if lostTimer >= lostTimeout then
 					warn("[NpcMotionOps] followループ: プレイヤーを見失った")
+					humanoid:Move(Vector3.zero)
 					ObservationClient.send("npc_follow_event", {
 						follow_id = followId,
 						state = "lost",
@@ -260,10 +330,11 @@ function module.followPlayer(op): { [string]: any }
 				continue
 			end
 
-			local playerRoot = SpatialService.getRootPart(player.Character)
-			if not playerRoot then
+			local currentPlayerRoot = SpatialService.getRootPart(currentPlayer.Character)
+			if not currentPlayerRoot then
 				lostTimer += repathInterval
 				if lostTimer >= lostTimeout then
+					humanoid:Move(Vector3.zero)
 					break
 				end
 				task.wait(repathInterval)
@@ -271,74 +342,111 @@ function module.followPlayer(op): { [string]: any }
 			end
 			lostTimer = 0
 
-			local playerPos = playerRoot.Position
+			local playerPos = currentPlayerRoot.Position
 			local npcPos = rootPart.Position
 			-- 水平距離（XZ）で判定（段差でstandoff判定が狂うのを防ぐ）
 			local diff2d = Vector3.new(playerPos.X - npcPos.X, 0, playerPos.Z - npcPos.Z)
 			local distance = diff2d.Magnitude
 
-			if distance > standoff then
-				-- 移動開始: walk再生、idle停止
-				if not walkTrack.IsPlaying then
-					idleTrack:Stop()
-					walkTrack:Play()
-				end
+			-- ヒステリシス: 移動開始はstandoff+マージン、停止はstandoff以内
+			-- アニメ状態（物理速度由来）を参照し、距離判定の振動を防ぐ
+			local shouldMove = if animCtrl.isWalking()
+				then distance > standoff
+				else distance > standoff + HYSTERESIS_MARGIN
 
+			if shouldMove then
 				-- standoff手前を目標（ゼロ距離ガード）
 				local diff = playerPos - npcPos
 				local targetPos = if diff.Magnitude > 0.1
 					then playerPos - diff.Unit * standoff
 					else playerPos
 
-				local path = PathfindingService:CreatePath({
-					AgentRadius = 2,
-					AgentHeight = 5,
-					AgentCanJump = true,
-				})
+				-- C: 障害物チェック（Raycast）— なければ直接MoveTo
+				local rayOrigin = Vector3.new(npcPos.X, npcPos.Y + 3, npcPos.Z)
+				local rayGoal = Vector3.new(targetPos.X, targetPos.Y + 3, targetPos.Z)
+				local rayParams = RaycastParams.new()
+				rayParams.FilterDescendantsInstances = {npc}
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				local rayResult = workspace:Raycast(rayOrigin, rayGoal - rayOrigin, rayParams)
 
-				path:ComputeAsync(npcPos, targetPos)
-				if path.Status == Enum.PathStatus.Success then
-					local waypoints = path:GetWaypoints()
-					-- 最初の数ウェイポイントだけ歩く（再計算のため）
-					local maxWaypoints = math.min(3, #waypoints)
-					for i = 1, maxWaypoints do
-						if not activeFollow or activeFollow.followId ~= followId or not activeFollow.running then
-							break
-						end
-						local wp = waypoints[i]
-						if wp.Action == Enum.PathWaypointAction.Jump then
-							humanoid.Jump = true
-						end
-						humanoid:MoveTo(wp.Position)
-						humanoid.MoveToFinished:Wait()
-					end
+				if not rayResult then
+					-- 障害物なし: 直接MoveTo（連続呼出しで滑らかに歩く）
+					humanoid:MoveTo(targetPos)
+					task.wait(0.3)
 				else
-					-- 経路計算失敗: 全停止 + idle再生
-					humanoid:Move(Vector3.zero)
-					stopAllTracks(humanoid)
-					idleTrack:Play()
-					ObservationClient.send("npc_follow_event", {
-						follow_id = followId,
-						state = "path_failed",
-						user_id = userId,
+					-- 障害物あり: Pathfinding + A: WPスキップ
+					local path = PathfindingService:CreatePath({
+						AgentRadius = 2,
+						AgentHeight = 5,
+						AgentCanJump = true,
 					})
+
+					path:ComputeAsync(npcPos, targetPos)
+					if path.Status == Enum.PathStatus.Success then
+						local waypoints = path:GetWaypoints()
+						-- A: 2個おきにWPを歩く（減速停止回数を削減）
+						local step = if #waypoints > 4 then 2 else 1
+						local maxIdx = math.min(step * 4, #waypoints)
+						local i = step
+						while i <= maxIdx do
+							if not activeFollow or activeFollow.followId ~= followId or not activeFollow.running then
+								break
+							end
+							-- スキップ区間にジャンプWPがあればジャンプ
+							for j = math.max(1, i - step + 1), i do
+								if waypoints[j] and waypoints[j].Action == Enum.PathWaypointAction.Jump then
+									humanoid.Jump = true
+									break
+								end
+							end
+							humanoid:MoveTo(waypoints[i].Position)
+							local wpReached = humanoid.MoveToFinished:Wait()
+							if not wpReached then
+								humanoid:Move(Vector3.zero)
+								break
+							end
+							i += step
+						end
+					else
+						-- 経路計算失敗: 停止して通常間隔待機
+						humanoid:Move(Vector3.zero)
+						ObservationClient.send("npc_follow_event", {
+							follow_id = followId,
+							state = "path_failed",
+							user_id = userId,
+						})
+						task.wait(repathInterval)
+					end
 				end
+				continue
 			else
-				-- standoff距離内: 全停止 + idle再生
+				-- E: standoff内 — 停止してプレイヤーの方を向く
 				humanoid:Move(Vector3.zero)
-				stopAllTracks(humanoid)
-				idleTrack:Play()
+				local lookTarget = Vector3.new(playerPos.X, rootPart.Position.Y, playerPos.Z)
+				if (lookTarget - rootPart.Position).Magnitude > 0.5 then
+					rootPart.CFrame = CFrame.lookAt(rootPart.Position, lookTarget)
+				end
 			end
 
+			-- standoff内: ウォッチドッグ確認 + 通常間隔で待機
+			animCtrl.checkVelocity()
 			task.wait(repathInterval)
 		end
 
-		walkTrack:Stop()
-		idleTrack:Stop()
+		-- ループ終了: 移動停止
+		humanoid:Move(Vector3.zero)
+		end, debug.traceback) -- xpcall終了
 
-		-- Animateスクリプトを復帰
+		-- クリーンアップ（正常終了・エラー終了とも必ず実行）
+		if animCtrl then
+			animCtrl.destroy()
+		end
 		if animateScript then
 			animateScript.Disabled = false
+		end
+
+		if not ok then
+			warn("[NpcMotionOps] followループ内エラー（fail-fast）: " .. tostring(err))
 		end
 
 		-- 終了処理
@@ -351,11 +459,6 @@ function module.followPlayer(op): { [string]: any }
 			activeFollow = nil
 		end
 		print("[NpcMotionOps] followループ終了: " .. followId)
-		end, debug.traceback) -- xpcall終了
-		if not ok then
-			warn("[NpcMotionOps] followループ内エラー（fail-fast）: " .. tostring(err))
-			activeFollow = nil
-		end
 	end)
 
 	return {

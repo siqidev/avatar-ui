@@ -39,12 +39,13 @@ local function getAnimator(humanoid)
 	return animator
 end
 
--- アニメーション再生
+-- アニメーション再生（Animateスクリプトのidle/walkより優先するためAction設定）
 local function playAnimation(humanoid, animId)
 	local animator = getAnimator(humanoid)
 	local anim = Instance.new("Animation")
 	anim.AnimationId = animId
 	local track = animator:LoadAnimation(anim)
+	track.Priority = Enum.AnimationPriority.Action
 	track:Play()
 	return track
 end
@@ -129,7 +130,8 @@ local function handleMoveTo(op)
 		humanoid.MoveToFinished:Wait()
 	end
 
-	walkTrack:Stop()
+	walkTrack:Stop(0.1)
+	humanoid:Move(Vector3.zero)
 
 	return { success = true, data = { target = { target.X, target.Y, target.Z } } }
 end
