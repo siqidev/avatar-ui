@@ -151,7 +151,9 @@ end
 -- create: パーツ生成 + 永続化
 local function handleCreate(op)
 	local result = materializePart(op, true)
-	if not result then return end
+	if not result then
+		return { success = false, error = { code = "CREATE_FAILED", message = "パーツ生成失敗: " .. tostring(op.shape or "Block") } }
+	end
 
 	-- 永続化用にopデータを名前で登録
 	local name = result.Name
@@ -160,14 +162,14 @@ local function handleCreate(op)
 	persistParts()
 
 	print("[PartOps] create: " .. name)
-	return result
+	return { success = true, data = { name = name } }
 end
 
 -- set: 既存パーツのプロパティ変更 + 永続化
 local function handleSet(op)
 	if not op.name then
 		warn("[PartOps] set: name が必要")
-		return
+		return { success = false, error = { code = "NO_NAME", message = "set: nameが必要" } }
 	end
 
 	local target = nil
@@ -180,7 +182,7 @@ local function handleSet(op)
 
 	if not target then
 		warn("[PartOps] set: 対象が見つかりません: " .. op.name)
-		return
+		return { success = false, error = { code = "NOT_FOUND", message = "対象が見つかりません: " .. op.name } }
 	end
 
 	local props = op.props or {}
@@ -225,6 +227,7 @@ local function handleSet(op)
 	end
 
 	print("[PartOps] set: " .. target.Name)
+	return { success = true, data = { name = target.Name } }
 end
 
 -- delete: パーツ削除 + 永続化
@@ -242,9 +245,15 @@ local function handleDelete(op)
 		targets = CollectionService:GetTagged(AI_TAG)
 	end
 
+	if #targets == 0 and op.name then
+		return { success = false, error = { code = "NOT_FOUND", message = "削除対象が見つかりません: " .. tostring(op.name) } }
+	end
+
+	local deletedNames = {}
 	for _, target in ipairs(targets) do
 		-- 永続化データから削除
 		partsRegistry[target.Name] = nil
+		table.insert(deletedNames, target.Name)
 
 		if target:IsA("BasePart") then
 			local emitter = Instance.new("ParticleEmitter")
@@ -268,6 +277,7 @@ local function handleDelete(op)
 
 	persistParts()
 	print("[PartOps] delete: " .. #targets .. "個")
+	return { success = true, data = { deleted = deletedNames, count = #targets } }
 end
 
 local module = {}
@@ -287,20 +297,25 @@ function module.restore()
 end
 
 function module.execute(ops)
+	local results = {}
 	for i, op in ipairs(ops) do
+		local result
 		if op.op == "create" then
-			handleCreate(op)
+			result = handleCreate(op)
 		elseif op.op == "set" then
-			handleSet(op)
+			result = handleSet(op)
 		elseif op.op == "delete" then
-			handleDelete(op)
+			result = handleDelete(op)
 		else
 			warn("[PartOps] 未知の操作: " .. tostring(op.op))
+			result = { success = false, error = { code = "UNKNOWN_OP", message = "未知の操作: " .. tostring(op.op) } }
 		end
+		table.insert(results, result)
 		if i < #ops and op.op == "create" then
 			task.wait(0.2)
 		end
 	end
+	return results
 end
 
 return module

@@ -11,12 +11,44 @@ import {
 import { publishMessage } from "./roblox-messaging.js"
 import * as log from "../logger.js"
 
+// npc_motion ops の user_id を送信前に検証・正規化する（システム境界の防波堤）
+function validateNpcMotionOps(ops: unknown[]): void {
+  for (const op of ops) {
+    const o = op as Record<string, unknown>
+    if (o.user_id !== undefined) {
+      if (typeof o.user_id === "number") continue
+      if (typeof o.user_id === "string") {
+        const num = Number(o.user_id)
+        if (!Number.isNaN(num) && Number.isFinite(num)) {
+          o.user_id = num // 数値文字列はnumberに変換
+          continue
+        }
+        // 非数値文字列 = AIがユーザー名を送信している → fail-fast
+        throw new Error(
+          `[PROJECTOR] npc_motion user_id に非数値文字列: "${o.user_id}" — AIがUserId(数値)ではなくユーザー名を送信している`,
+        )
+      }
+      throw new Error(
+        `[PROJECTOR] npc_motion user_id の型が不正: ${typeof o.user_id}`,
+      )
+    }
+  }
+}
+
 // 単一の意図をRobloxに投影する（送信 + ステータス更新）
+// v3: schema_version + intent_idを付与してACK閉ループを可能にする
 export async function projectIntent(
   intent: IntentRecord,
   env: Env,
 ): Promise<boolean> {
+  // npc_motion の user_id を送信前に検証
+  if (intent.category === "npc_motion") {
+    validateNpcMotionOps(intent.ops)
+  }
+
   const message = JSON.stringify({
+    schema_version: "3",
+    intent_id: intent.id,
     category: intent.category,
     ops: intent.ops,
   })

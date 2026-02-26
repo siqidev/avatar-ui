@@ -1,15 +1,22 @@
 --[[
-  NpcOps — NPC操作モジュール
+  NpcOps — NPC操作モジュール（v3）
 
-  操作: move_to / say / emote
+  操作: say / emote / move_to（レガシー互換）
+  移動制御はNpcMotionOpsに委譲。NPC検索はSpatialService経由。
 ]]
 
-local PathfindingService = game:GetService("PathfindingService")
 local Chat = game:GetService("Chat")
 
--- R15デフォルトアニメーションID
+local SpatialService = require(script.Parent.SpatialService)
+local NpcMotionOps = require(script.Parent.NpcMotionOps)
+
+-- アニメーションID（R15デフォルト）
 local ANIM_IDS = {
-	walk = "rbxassetid://507777826",
+	walk = "rbxassetid://507777826",     -- R15 Walk
+	run = "rbxassetid://507767714",      -- R15 Run
+	idle = "rbxassetid://507766666",     -- R15 Idle
+	jump = "rbxassetid://507765000",     -- R15 Jump
+	fall = "rbxassetid://507767968",     -- R15 Fall
 	wave = "rbxassetid://507770239",
 	cheer = "rbxassetid://507770677",
 	dance = "rbxassetid://507771019",
@@ -17,20 +24,10 @@ local ANIM_IDS = {
 	point = "rbxassetid://507770453",
 }
 
-local NPC_NAME = "SpectraCommunicator"
-
 -- チャット履歴表示用RemoteEvent（サーバー→クライアント転送）
 local spectraChatEvent = Instance.new("RemoteEvent")
 spectraChatEvent.Name = "SpectraChatEvent"
 spectraChatEvent.Parent = game.ReplicatedStorage
-
-local function getNpc()
-	local npc = workspace:FindFirstChild(NPC_NAME)
-	if not npc then
-		warn("[NpcOps] NPCが見つかりません: " .. NPC_NAME)
-	end
-	return npc
-end
 
 -- Animator取得（なければ作成）
 local function getAnimator(humanoid)
@@ -52,14 +49,63 @@ local function playAnimation(humanoid, animId)
 	return track
 end
 
--- move_to: PathfindingServiceで目的地まで歩く（歩行アニメーション付き）
-local function handleMoveTo(op)
-	local npc = getNpc()
-	if not npc then return end
+-- say: 吹き出し表示（Chat:Chatで頭上バブル）
+local function handleSay(op)
+	local npc = SpatialService.findNpc()
+	if not npc then return { success = false, error = { code = "NPC_NOT_FOUND", message = "NPCが見つかりません" } } end
+
+	local text = op.text or ""
+	if text == "" then return { success = false, error = { code = "EMPTY_TEXT", message = "textが空" } } end
+
+	local head = npc:FindFirstChild("Head")
+	if not head then
+		return { success = false, error = { code = "NO_HEAD", message = "NPCにHeadがありません" } }
+	end
+
+	Chat:Chat(head, text, Enum.ChatColor.Blue)
+	spectraChatEvent:FireAllClients(text)
+
+	return { success = true, data = { text = text } }
+end
+
+-- emote: アニメーション再生
+local function handleEmote(op)
+	local npc = SpatialService.findNpc()
+	if not npc then return { success = false, error = { code = "NPC_NOT_FOUND", message = "NPCが見つかりません" } } end
 
 	local humanoid = npc:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
+	if not humanoid then return { success = false, error = { code = "NO_HUMANOID", message = "Humanoidが見つかりません" } } end
 
+	local emoteName = op.name or "wave"
+	local animId = ANIM_IDS[emoteName]
+	if not animId then
+		return { success = false, error = { code = "UNKNOWN_EMOTE", message = "未知のエモート: " .. emoteName } }
+	end
+
+	local track = playAnimation(humanoid, animId)
+	track.Stopped:Wait()
+
+	return { success = true, data = { emote = emoteName } }
+end
+
+-- move_to: レガシー互換（v2形式の絶対座標移動）→ NpcMotionOpsに委譲
+local function handleMoveTo(op)
+	-- v3: user_idがあればgo_to_playerとして処理
+	if op.user_id then
+		return NpcMotionOps.goToPlayer(op)
+	end
+
+	-- v2互換: 絶対座標移動
+	local npc = SpatialService.findNpc()
+	if not npc then return { success = false, error = { code = "NPC_NOT_FOUND", message = "NPCが見つかりません" } } end
+
+	local humanoid = npc:FindFirstChildOfClass("Humanoid")
+	local rootPart = SpatialService.getRootPart(npc)
+	if not humanoid or not rootPart then
+		return { success = false, error = { code = "NO_HUMANOID", message = "Humanoid/ルートPartが見つかりません" } }
+	end
+
+	local PathfindingService = game:GetService("PathfindingService")
 	local pos = op.pos or { 0, 0, 0 }
 	local target = Vector3.new(pos[1] or 0, pos[2] or 0, pos[3] or 0)
 	local path = PathfindingService:CreatePath({
@@ -68,13 +114,11 @@ local function handleMoveTo(op)
 		AgentCanJump = true,
 	})
 
-	path:ComputeAsync(npc.HumanoidRootPart.Position, target)
+	path:ComputeAsync(rootPart.Position, target)
 	if path.Status ~= Enum.PathStatus.Success then
-		warn("[NpcOps] 経路計算失敗: " .. tostring(path.Status))
-		return
+		return { success = false, error = { code = "NO_PATH", message = "経路計算失敗: " .. tostring(path.Status), retryable = true } }
 	end
 
-	-- 歩行アニメーション開始
 	local walkTrack = playAnimation(humanoid, ANIM_IDS.walk)
 
 	for _, waypoint in ipairs(path:GetWaypoints()) do
@@ -85,68 +129,29 @@ local function handleMoveTo(op)
 		humanoid.MoveToFinished:Wait()
 	end
 
-	-- 歩行アニメーション停止
 	walkTrack:Stop()
-	print("[NpcOps] 移動完了: " .. tostring(target))
-end
 
--- say: 吹き出し表示（Chat:Chatで頭上バブル）
-local function handleSay(op)
-	local npc = getNpc()
-	if not npc then return end
-
-	local text = op.text or ""
-	if text == "" then return end
-
-	local head = npc:FindFirstChild("Head")
-	if not head then
-		warn("[NpcOps] NPCにHeadがありません: " .. NPC_NAME)
-		return
-	end
-
-	Chat:Chat(head, text, Enum.ChatColor.Blue)
-
-	-- チャット履歴にも表示（クライアント側で実行するためRemoteEvent送信）
-	spectraChatEvent:FireAllClients(text)
-
-	print("[NpcOps] 発話: " .. text)
-end
-
--- emote: アニメーション再生
-local function handleEmote(op)
-	local npc = getNpc()
-	if not npc then return end
-
-	local humanoid = npc:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
-
-	local emoteName = op.name or "wave"
-	local animId = ANIM_IDS[emoteName]
-	if not animId then
-		warn("[NpcOps] 未知のエモート: " .. emoteName)
-		return
-	end
-
-	local track = playAnimation(humanoid, animId)
-	-- アニメーション完了まで待機
-	track.Stopped:Wait()
-	print("[NpcOps] エモート: " .. emoteName)
+	return { success = true, data = { target = { target.X, target.Y, target.Z } } }
 end
 
 local module = {}
 
 function module.execute(ops)
+	local results = {}
 	for _, op in ipairs(ops) do
-		if op.op == "move_to" then
-			handleMoveTo(op)
-		elseif op.op == "say" then
-			handleSay(op)
+		local result
+		if op.op == "say" then
+			result = handleSay(op)
 		elseif op.op == "emote" then
-			handleEmote(op)
+			result = handleEmote(op)
+		elseif op.op == "move_to" then
+			result = handleMoveTo(op)
 		else
-			warn("[NpcOps] 未知の操作: " .. tostring(op.op))
+			result = { success = false, error = { code = "UNKNOWN_OP", message = "未知の操作: " .. tostring(op.op) } }
 		end
+		table.insert(results, result)
 	end
+	return results
 end
 
 return module

@@ -112,20 +112,23 @@ end
 -- create: エフェクト生成 + 永続化
 local function handleCreate(op)
 	local instance = materializeEffect(op)
-	if not instance then return end
+	if not instance then
+		return { success = false, error = { code = "CREATE_FAILED", message = "エフェクト生成失敗: " .. tostring(op.type) } }
+	end
 
 	op.name = instance.Name
 	effectsRegistry[instance.Name] = op
 	persistEffects()
 
 	print("[EffectOps] create: " .. instance.Name .. " → " .. instance.Parent.Name)
+	return { success = true, data = { name = instance.Name, parent = instance.Parent.Name } }
 end
 
 -- set: エフェクトのプロパティ変更 + 永続化
 local function handleSet(op)
 	if not op.name then
 		warn("[EffectOps] set: name が必要")
-		return
+		return { success = false, error = { code = "NO_NAME", message = "set: nameが必要" } }
 	end
 
 	local target = nil
@@ -138,7 +141,7 @@ local function handleSet(op)
 
 	if not target then
 		warn("[EffectOps] set: 対象が見つかりません: " .. op.name)
-		return
+		return { success = false, error = { code = "NOT_FOUND", message = "対象が見つかりません: " .. op.name } }
 	end
 
 	local props = op.props or {}
@@ -169,6 +172,7 @@ local function handleSet(op)
 	end
 
 	print("[EffectOps] set: " .. target.Name)
+	return { success = true, data = { name = target.Name } }
 end
 
 -- delete: エフェクト削除 + 永続化
@@ -186,13 +190,20 @@ local function handleDelete(op)
 		targets = CollectionService:GetTagged(EFFECT_TAG)
 	end
 
+	if #targets == 0 and op.name then
+		return { success = false, error = { code = "NOT_FOUND", message = "削除対象が見つかりません: " .. tostring(op.name) } }
+	end
+
+	local deletedNames = {}
 	for _, target in ipairs(targets) do
 		effectsRegistry[target.Name] = nil
+		table.insert(deletedNames, target.Name)
 		target:Destroy()
 	end
 
 	persistEffects()
 	print("[EffectOps] delete: " .. #targets .. "個")
+	return { success = true, data = { deleted = deletedNames, count = #targets } }
 end
 
 local module = {}
@@ -212,17 +223,22 @@ function module.restore()
 end
 
 function module.execute(ops)
+	local results = {}
 	for _, op in ipairs(ops) do
+		local result
 		if op.op == "create" then
-			handleCreate(op)
+			result = handleCreate(op)
 		elseif op.op == "set" then
-			handleSet(op)
+			result = handleSet(op)
 		elseif op.op == "delete" then
-			handleDelete(op)
+			result = handleDelete(op)
 		else
 			warn("[EffectOps] 未知の操作: " .. tostring(op.op))
+			result = { success = false, error = { code = "UNKNOWN_OP", message = "未知の操作: " .. tostring(op.op) } }
 		end
+		table.insert(results, result)
 	end
+	return results
 end
 
 return module
