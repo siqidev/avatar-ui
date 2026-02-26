@@ -24,10 +24,10 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar独立化、列幅+列ごと行高さスプリッター、ペインD&D入替）+Chatペイン（source別表示+ツール可視化+観測/Pulseコンテキスト行）+Roblox Monitorの統合パイプラインが動作中。③参与文脈: ParticipationInput型定義、全起点共通の場状態ゲート、correlationId貫通保持を実装。テスト116件。詳細はPLAN.mdの開発進捗を参照。
+スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間改善（Luau側）完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Chatペイン+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装（制約ベース建築BuildOps/ConstraintSolver、空間照会SpatialService、NPC追従NpcMotionOps含む）。NPC追従はHumanoid.Runningイベント駆動アニメーション+Raycast直行+WPスキップで動作確認済み。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
 
 ### 次のアクション
-1. **Roblox空間改善の実装** — 制約ベース汎用メカニズム + 既存スクリプト再構成 + 追従制御（詳細はPLAN.md参照）
+1. **Roblox体験の残課題** — 建築品質（制約ベース建築のAI利用パターン検証）、TypeScript側整理（catalog/schema/events未作成）
 2. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
 3. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
 4. **テスト計画（#7）** — 受入シナリオのテスト実装

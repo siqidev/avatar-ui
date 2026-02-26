@@ -262,12 +262,35 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 
 **残リスク**: ConstraintSolver実装量（最小3制約で100-200行Luau）。複雑な制約組み合わせのエッジケース
 
+### Roblox空間改善 実装状況（2026-02-26）
+
+**Luau側: 全14モジュール実装完了** ✅
+- CommandRegistry登録: part, terrain, npc, npc_motion, effect, build, spatial の7カテゴリ
+- ConstraintSolver: attach/offset/non_overlap制約 + 物理検証（non_overlap, ground_contact）
+- BuildOps: apply_constraints → ConstraintSolver.solve → PartOps.execute → ACK返却
+- SpatialService: entities/nearbyクエリ + pose取得 + 相対関係計算
+- NpcMotionOps: go_to_player/follow_player/stop_following + Humanoid.Runningイベント駆動アニメーション + Raycast障害物チェック直行 + WPスキップ + standoff内lookAt
+
+**TypeScript側: ツール定義+投影+観測は実装済み、整理用ファイル3件は未作成**
+- roblox-action-tool.ts: 7カテゴリ全定義済み ✅
+- projector.ts: schema_version=3, intent_id伝播, pending retry ✅
+- observation-server.ts / observation-formatter.ts: ACK+観測イベント処理 ✅
+- **未作成**: roblox-action-catalog.ts, roblox-action-schema.ts, observation-events.ts（肥大化防止の整理用。機能は動作中）
+
+**インフラ**:
+- cloudflaredトンネル自動管理（Electronライフサイクル連動）✅
+- Robloxログ転送（LogService→観測チャネル、AI非送信）✅
+
+**残課題**:
+- 建築品質: 制約ベース建築がAIに正しく使われるかの実運用検証（ConstraintSolver実装はあるが、AIがbuildカテゴリを適切に利用するかはプロンプト/ツール記述の調整が必要な可能性）
+- TypeScript整理: catalog/schema/eventsの分離（現状roblox-action-tool.tsに全集約で動作はするが、カテゴリ追加時に肥大化リスク）
+
 ### 次の計画（方針: 具体→抽象の往復を継続）
 
 ③参与文脈の帰納的検証で「具体が抽象を修正する」有効性を確認。残り要素も同じ方法（実装→不足発見→修正）で進める。
 
 **優先順位**:
-1. **Roblox空間改善の実装** — 制約ベース汎用メカニズム + 既存スクリプト再構成 + 追従制御。Roblox体験の本質的改善
+1. **Roblox体験の残課題** — 建築品質の実運用検証 + TypeScript側整理（必要に応じて）
 2. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）。故障が静かに壊れる現状を改善する
 3. **残り要素（①②④）の帰納的検証** — 実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
 4. **テスト計画（#7）** — 受入シナリオのテスト実装
