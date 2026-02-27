@@ -41,7 +41,7 @@ body {
 /* === 3列レイアウト（CSS Grid: 列 + 縦スプリッター） === */
 #console {
   display: grid;
-  grid-template-columns: 1fr var(--splitter-width) 2fr var(--splitter-width) 1fr;
+  grid-template-columns: 15fr var(--splitter-width) 42fr var(--splitter-width) 43fr;
   height: 100vh;
 }
 
@@ -204,8 +204,8 @@ body {
   display: block;
 }
 
-/* === File Systemペイン === */
-#pane-filesystem .pane-body {
+/* === Spaceペイン === */
+#pane-space .pane-body {
   padding: 0;
   overflow-y: auto;
 }
@@ -578,7 +578,7 @@ body {
   word-break: break-word;
 }
 
-/* === File Systemペイン — キーボードフォーカス === */
+/* === Spaceペイン — キーボードフォーカス === */
 .fs-tree:focus {
   outline: none;
 }
@@ -589,7 +589,7 @@ body {
   outline-offset: -1px;
 }
 
-/* === File Systemペイン — 拡張子別カラー === */
+/* === Spaceペイン — 拡張子別カラー === */
 [data-ext=".ts"] > .fs-entry-row .fs-name,
 [data-ext=".tsx"] > .fs-entry-row .fs-name,
 [data-ext=".js"] > .fs-entry-row .fs-name,

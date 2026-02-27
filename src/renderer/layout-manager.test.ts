@@ -10,25 +10,25 @@ import type { GridSlot } from "./layout-manager.js"
 describe("buildGridAreas", () => {
   it("デフォルト配置からCSS文字列を生成（スプリッタートラック含む5×3）", () => {
     const result = buildGridAreas(DEFAULT_LAYOUT)
-    expect(result).toBe('"filesystem . stream . avatar" ". . . . ." "x . terminal . roblox"')
+    expect(result).toBe('"avatar . canvas . stream" ". . . . ." "space . terminal . roblox"')
   })
 
   it("入替後の配置でも正しいCSS文字列を生成", () => {
     const swapped: GridSlot[][] = [
-      ["avatar", "stream", "filesystem"],
-      ["x", "terminal", "roblox"],
+      ["avatar", "stream", "canvas"],
+      ["space", "terminal", "roblox"],
     ]
     const result = buildGridAreas(swapped)
-    expect(result).toBe('"avatar . stream . filesystem" ". . . . ." "x . terminal . roblox"')
+    expect(result).toBe('"avatar . stream . canvas" ". . . . ." "space . terminal . roblox"')
   })
 })
 
 describe("swapPanes", () => {
   it("2ペインの位置を入れ替える", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "filesystem", "roblox")
+    const result = swapPanes(DEFAULT_LAYOUT, "space", "roblox")
     expect(result).toEqual([
-      ["roblox", "stream", "avatar"],
-      ["x", "terminal", "filesystem"],
+      ["avatar", "canvas", "stream"],
+      ["roblox", "terminal", "space"],
     ])
   })
 
@@ -38,10 +38,10 @@ describe("swapPanes", () => {
   })
 
   it("同じ行内の入替", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "filesystem", "avatar")
+    const result = swapPanes(DEFAULT_LAYOUT, "space", "roblox")
     expect(result).toEqual([
-      ["avatar", "stream", "filesystem"],
-      ["x", "terminal", "roblox"],
+      ["avatar", "canvas", "stream"],
+      ["roblox", "terminal", "space"],
     ])
   })
 
@@ -55,8 +55,16 @@ describe("swapPanes", () => {
 
   it("元の配列を変更しない（immutable）", () => {
     const original = DEFAULT_LAYOUT.map((row) => [...row])
-    swapPanes(DEFAULT_LAYOUT, "filesystem", "roblox")
+    swapPanes(DEFAULT_LAYOUT, "space", "roblox")
     expect(DEFAULT_LAYOUT).toEqual(original)
+  })
+
+  it("行をまたいだ入替", () => {
+    const result = swapPanes(DEFAULT_LAYOUT, "avatar", "terminal")
+    expect(result).toEqual([
+      ["terminal", "canvas", "stream"],
+      ["space", "avatar", "roblox"],
+    ])
   })
 
   it("全組み合わせで有効なグリッドを維持", () => {

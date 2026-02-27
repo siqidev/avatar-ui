@@ -24,16 +24,18 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + File Systemペイン完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+File System（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト142件。詳細はPLAN.mdの開発進捗を参照。
+スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Spaceペイン完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）+Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。レイアウト再構成確定済み（左15%:中央42%:右43%、Avatar左上/Canvas中央上/Stream右上、Xペイン廃止→Stream吸収）。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト142件。詳細はPLAN.mdの開発進捗を参照。
 
 ### v0.3 Robloxスコープ
 - **IN**: 空間認識（SpatialService）、移動・追従（NpcMotionOps）、対話（NpcOps say/emote）
 - **OUT（v0.4）**: 建築品質改善（プリファブ方式）、Console用3Dマップ、TypeScript側整理
 
 ### 次のアクション
-1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
-2. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
-3. **テスト計画（#7）** — 受入シナリオのテスト実装
+1. **レイアウト再構成** — 新配置適用（Avatar左上/Canvas中央上/Stream右上、比率15:42:43、X廃止）
+2. **Canvasペイン実装** — ファイル内容表示 + 画像昇格表示（Spaceからのファイルオープン導線）
+3. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
+4. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
+5. **テスト計画（#7）** — 受入シナリオのテスト実装
 - ⑤共存記録はv0.3充足と判断（previous_response_id + save_memory + intents.jsonlで実質カバー）
 
 ## avatar-ui 60秒コンテキスト
@@ -160,9 +162,9 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/main/fs-ipc-handlers.ts | FS系IPC handle登録（5チャンネル: rootName/list/read/write/mutate） |
 | src/shared/fs-schema.ts | FS IPC Zodスキーマ+型定義（discriminated union含む） |
 | src/tools/filesystem-tool.ts | LLMツール定義（fs_list/fs_read/fs_write/fs_mutate） |
-| src/renderer/filesystem-pane.ts | File Systemペイン（ツリー表示+IDE UX+キーボードナビ） |
+| src/renderer/filesystem-pane.ts | Spaceペイン（旧File System。ツリー表示+IDE UX+キーボードナビ） |
 | src/preload/index.ts | contextBridge最小API |
-| src/renderer/index.html | 3列6ペインレイアウト構造（2行×3列） |
+| src/renderer/index.html | 3列6ペインレイアウト構造（Avatar/Space/Canvas/Stream/Terminal/Roblox） |
 | src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+Stream+状態管理） |
 | src/renderer/style.css | TUI-in-GUIデザイントークン+レイアウトCSS |
 | src/renderer/state-normalizer.ts | IPC入力→視覚状態マッピング（純粋関数） |

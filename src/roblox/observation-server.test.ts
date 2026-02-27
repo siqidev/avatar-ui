@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest"
-import type { Server, AddressInfo } from "node:http"
+import type { Server } from "node:http"
+import type { AddressInfo } from "node:net"
 import { startObservationServer } from "./observation-server.js"
 import type { ObservationEvent } from "./observation-server.js"
 

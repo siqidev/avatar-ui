@@ -66,13 +66,13 @@ const columns = [
 ]
 const columnSplitters = columns.map((col) => col.querySelector(".splitter-h")! as HTMLElement)
 
-// 列幅比率 [left, center, right] — 初期 1:2:1
-const colRatios = [1, 2, 1]
+// 列幅比率 [left, center, right] — 初期 15:42:43
+const colRatios = [15, 42, 43]
 // 列ごとの行比率 [top, bottom] — 各列独立
 const rowRatios: [number, number][] = [
-  [1, 1],
-  [1, 1],
-  [1, 1],
+  [30, 70], // 左列: Avatar小 / Space大
+  [65, 35], // 中央列: Canvas大 / Terminal小
+  [65, 35], // 右列: Stream大 / Roblox小
 ]
 
 const SPLITTER_WIDTH = 4
@@ -490,7 +490,7 @@ window.fieldApi.onFieldState((data) => {
     enableStream = true
   }
 
-  // File Systemペイン初期化（場がアクティブ時）
+  // Spaceペイン初期化（場がアクティブ時）
   if (msg.state === "active") {
     initFilesystemPane().catch(() => {})
   }

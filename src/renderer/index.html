@@ -9,9 +9,21 @@
 </head>
 <body>
   <div id="console">
-    <!-- 左列 -->
+    <!-- 左列: Avatar + Space -->
     <div class="column" id="col-0">
-      <div id="pane-filesystem" class="pane" data-slot="filesystem" data-state="normal">
+      <div id="pane-avatar" class="pane" data-slot="avatar" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Avatar</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="avatar-display">
+            <img id="avatar-img" src="./idle.png" alt="Spectra" />
+          </div>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-space" class="pane" data-slot="space" data-state="normal">
         <div class="pane-header" draggable="true">
           <span class="fs-path-display"></span>
           <button class="fs-action-btn" id="fs-new-file" title="New File"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></button>
@@ -24,36 +36,19 @@
           <div class="fs-error" id="fs-error"></div>
         </div>
       </div>
-      <div class="splitter-h"></div>
-      <div id="pane-x" class="pane" data-slot="x" data-state="normal">
-        <div class="pane-header" draggable="true">
-          <span>X</span>
-          <span class="badge"></span>
-        </div>
-        <div class="pane-body">
-          <div class="pane-placeholder">X Monitor</div>
-        </div>
-      </div>
     </div>
 
     <div class="splitter-v" id="splitter-v1"></div>
 
-    <!-- 中央列 -->
+    <!-- 中央列: Canvas + Terminal -->
     <div class="column" id="col-1">
-      <div id="pane-stream" class="pane" data-slot="stream" data-state="normal">
+      <div id="pane-canvas" class="pane" data-slot="canvas" data-state="normal">
         <div class="pane-header" draggable="true">
-          <span>Stream</span>
-          <span class="status-text" id="field-status"></span>
-          <span class="unread-dot"></span>
+          <span>Canvas</span>
           <span class="badge"></span>
         </div>
-        <div class="alert-bar" id="alert-bar"></div>
         <div class="pane-body">
-          <div class="chat-messages" id="chat-messages"></div>
-          <form class="chat-form" id="chat-form">
-            <input type="text" id="chat-input" placeholder="メッセージを入力" autocomplete="off" />
-            <button type="submit">送信</button>
-          </form>
+          <div class="pane-placeholder">Canvas</div>
         </div>
       </div>
       <div class="splitter-h"></div>
@@ -70,17 +65,22 @@
 
     <div class="splitter-v" id="splitter-v2"></div>
 
-    <!-- 右列 -->
+    <!-- 右列: Stream + Roblox -->
     <div class="column" id="col-2">
-      <div id="pane-avatar" class="pane" data-slot="avatar" data-state="normal">
+      <div id="pane-stream" class="pane" data-slot="stream" data-state="normal">
         <div class="pane-header" draggable="true">
-          <span>Avatar</span>
+          <span>Stream</span>
+          <span class="status-text" id="field-status"></span>
+          <span class="unread-dot"></span>
           <span class="badge"></span>
         </div>
+        <div class="alert-bar" id="alert-bar"></div>
         <div class="pane-body">
-          <div class="avatar-display">
-            <img id="avatar-img" src="./idle.png" alt="Spectra" />
-          </div>
+          <div class="chat-messages" id="chat-messages"></div>
+          <form class="chat-form" id="chat-form">
+            <input type="text" id="chat-input" placeholder="メッセージを入力" autocomplete="off" />
+            <button type="submit">送信</button>
+          </form>
         </div>
       </div>
       <div class="splitter-h"></div>

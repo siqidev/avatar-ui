@@ -1,22 +1,22 @@
 // レイアウト管理: 2×3グリッド配置 + ペイン入替
 
 export const GRID_SLOTS = [
-  "filesystem",
-  "stream",
   "avatar",
-  "x",
+  "space",
+  "canvas",
+  "stream",
   "terminal",
   "roblox",
 ] as const
 
 export type GridSlot = (typeof GRID_SLOTS)[number]
 
-// デフォルト配置（スクリーンショット準拠）
-// 上段: File System / Stream / Avatar
-// 下段: X           / Terminal / Roblox
+// デフォルト配置
+// 上段: Avatar / Canvas   / Stream
+// 下段: Space  / Terminal / Roblox
 export const DEFAULT_LAYOUT: GridSlot[][] = [
-  ["filesystem", "stream", "avatar"],
-  ["x", "terminal", "roblox"],
+  ["avatar", "canvas", "stream"],
+  ["space", "terminal", "roblox"],
 ]
 
 // 配置からgrid-template-areas CSS文字列を生成
