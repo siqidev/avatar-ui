@@ -9,6 +9,13 @@ import type {
   FsWriteResult,
   FsMutateResult,
 } from "../shared/fs-schema.js"
+import type {
+  TerminalExecArgs,
+  TerminalStdinArgs,
+  TerminalStopArgs,
+  TerminalResizeArgs,
+  TerminalSnapshot,
+} from "../shared/terminal-schema.js"
 
 // Renderer に公開する最小API
 // ipcRendererの直接公開は禁止。1チャネル1メソッドで公開する
@@ -31,6 +38,18 @@ contextBridge.exposeInMainWorld("fieldApi", {
   fsMutate: (args: FsMutateArgs): Promise<FsMutateResult> =>
     ipcRenderer.invoke("fs.mutate", args),
 
+  // Renderer → Main（Terminal: request-response）
+  terminalExec: (args: TerminalExecArgs): Promise<{ accepted: boolean; reason?: string }> =>
+    ipcRenderer.invoke("terminal.exec", args),
+  terminalStdin: (args: TerminalStdinArgs): Promise<{ ok: boolean; reason?: string }> =>
+    ipcRenderer.invoke("terminal.stdin", args),
+  terminalStop: (args: TerminalStopArgs): Promise<{ ok: boolean; reason?: string }> =>
+    ipcRenderer.invoke("terminal.stop", args),
+  terminalResize: (args: TerminalResizeArgs): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("terminal.resize", args),
+  terminalSnapshot: (): Promise<TerminalSnapshot> =>
+    ipcRenderer.invoke("terminal.snapshot"),
+
   // Main → Renderer（イベント購読）
   onFieldState: (cb: (data: unknown) => void) =>
     ipcRenderer.on("field.state", (_e, data) => cb(data)),
@@ -40,4 +59,10 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
   onObservation: (cb: (data: unknown) => void) =>
     ipcRenderer.on("observation.event", (_e, data) => cb(data)),
+  onTerminalOutput: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("terminal.output", (_e, data) => cb(data)),
+  onTerminalLifecycle: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("terminal.lifecycle", (_e, data) => cb(data)),
+  onTerminalSnapshot: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("terminal.snapshot", (_e, data) => cb(data)),
 })

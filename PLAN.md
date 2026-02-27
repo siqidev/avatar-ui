@@ -73,7 +73,7 @@
 | Space | space | AIの生命活動空間（Avatar Space）の可視化と操作 | 読み書き |
 | Canvas | canvas | 主作業領域。ファイル編集 + 画像昇格表示 | 読み書き |
 | Stream | stream | 場の全入出力の統合ストリーム（human↔AI対話 + Pulse + 観測 + ツール可視化 + X投稿承認） | 読み書き |
-| Terminal | terminal | node-pty等のシェルエミュレータ。AIも人間も双方が直接操作可能 | 読み書き |
+| Terminal | terminal | 情報空間への能動的介入経路。シェルエミュレータ（node-pty）。AIも人間も双方が直接操作可能 | 読み書き |
 | Roblox | roblox | 3Dミニマップ + イベントログ（後述） | 読み取り専用 |
 
 **責務境界**: 入力正規化（post_message）+ 状態可視化（イベント購読）+ ローカルUI状態のみ。正本管理・権限判定・場ライフサイクル遷移・外部への直叩きはConsoleの責務外。
@@ -172,7 +172,7 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 4. ~~Spaceペイン（旧File System）~~ ✅ — Avatar Spaceの可視化・操作（4 IPC + IDE UX）
 5. ~~レイアウト再構成~~ ✅ — 新配置適用（Avatar左上/Canvas中央上/Stream右上、比率15:42:43、X廃止）
 6. ~~Canvasペイン~~ ✅ — ファイル内容表示（行番号付き読み取り専用）+ 画像昇格表示 + focus stack
-7. Terminal — node-pty統合（シェルエミュレータ）
+7. Terminal — child_process.spawn + xterm.js（情報空間への能動的介入経路）
 
 ### 具体→抽象修正（議論合意 2026-02-25）
 
@@ -400,6 +400,40 @@ invoke/handleパターン（リクエスト-レスポンス）を使用。actor 
 6. field-runtime.ts統合 — LLMツールからfilesystem-serviceを呼ぶ
 7. テスト — service単体 + IPC結合
 
+### Terminalペイン概念設計（2026-02-27）
+
+**概念**: 単なるシェルエミュレータではなく、AIが情報空間に能動的に介入する最も自由度の高い経路。
+
+**背景**: OpenClawの設計哲学「ファイルシステム = 状態、LLM = オーケストレーター」を参照。データアクセス可能性がエージェント能力を決定する。avatar-uiではConsoleの6ペインをAIの生命活動の6つの窓として位置づけ、各ペインは「情報空間を生きるAIの、ある側面が見える窓」。SpaceもTerminalも手足の一つであり、責務を固定的に分離するものではない。
+
+**AIが情報空間を生きる手足**:
+- Space（fs操作） — 内面世界の管理（蓄積・整理・創造）
+- Terminal（シェル） — 環境への能動的介入（スキル自作・ツール獲得・ビルド・外部連携）
+- Roblox — 空間世界での存在・行為
+- X — 社会的存在・発信・対話
+- ブラウザ — Web空間への自由なアクセス
+- Stream — 人間との直接対話
+
+Terminalは上記の中で「環境に直接介入できる窓」。npm install、git操作、スクリプト実行、エージェントスキルの構築など、構造化されたAPIでは表現しきれない自由な行為をシェル経由で実行する。Spaceが「何を持っているか」の可視化なら、Terminalは「何でもできる」の経路。ただし両者は排他的ではなく、どの手足をどう使うかはAI自身が判断する。
+
+**業界パターン**: OpenClaw（group:fs = 構造化CRUD、group:runtime = シェル実行）、Claude Code（Read/Write/Edit = 構造化、Bash = シェル）、Codex CLI（同様の分離）。いずれもファイルCRUDはネイティブAPI、任意コマンドはシェル。avatar-uiのSpace/Terminal分離はこのハイブリッドパターンをUIレベルで可視化したもの。
+
+**v0.3実装方式: child_process.spawn + xterm.js**
+
+技術選定（2026-02-27）:
+- バックエンド: `child_process.spawn`（Node.js標準API）。ネイティブモジュール不要、ビルド問題ゼロ
+- フロントエンド: xterm.jsでコマンド出力をリアルタイム表示
+- AI/人間ともにコマンド実行→出力表示が可能。ls, git, npm, curl, python等の非対話コマンドは正常動作
+- 制約: PTYなし。vim/top/less等のフルスクリーンTUI、Tab補完、シェルプロンプト表示は不可
+- 権限昇格: sudoは設計上不要（Avatar Space内操作にroot不要）。必要時は人間承認フローで対応
+
+棄却案:
+- node-pty: PTY（真の端末）を提供するが、ネイティブモジュール（node-gyp）のビルド問題が大きい。Electronバージョンアップ毎にリビルド必須。v0.3では過剰
+- @lydell/node-pty: プリビルド版でビルド問題を緩和。将来フルTUIが必要になった時点で導入検討
+- Bun.Terminal: Electronと別ランタイムになり複雑すぎる
+
+参考: VSCodeはnode-pty + xterm.jsで実装（Main→PTY Host Utility Process→Renderer）。OpenClawはPTY不使用、child_process相当でコマンド実行（ターミナルUIなし）。
+
 ### 次の計画（方針: 具体→抽象の往復を継続）
 
 ③参与文脈の帰納的検証で「具体が抽象を修正する」有効性を確認。残り要素も同じ方法（実装→不足発見→修正）で進める。
@@ -525,7 +559,7 @@ invoke/handleパターン（リクエスト-レスポンス）を使用。actor 
 ### Console
 - **Canvas双方向編集** — 読み取り専用→読み書き対応（AIコーディング+人間編集）
 - **SpaceペインD&D** — ファイル/フォルダのドラッグ&ドロップ移動
-- **Terminalペイン** — node-pty統合（シェルエミュレータ。AIも人間も双方が直接操作可能）
+- **Terminal PTY昇格** — child_process.spawn→@lydell/node-pty（フルTUI対応: vim/top/Tab補完/シェルプロンプト）
 - **Console用3Dマップ** — Roblox空間のリアルタイム可視化
 
 ### Roblox

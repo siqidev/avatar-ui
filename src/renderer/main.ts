@@ -7,6 +7,7 @@ import type { PaneInput } from "./state-normalizer.js"
 import { initFilesystemPane } from "./filesystem-pane.js"
 import { initCanvasPane } from "./canvas-pane.js"
 import type { CanvasPaneController } from "./canvas-pane.js"
+import { initTerminalPane } from "./terminal-pane.js"
 
 import type {
   FsListArgs,
@@ -18,6 +19,13 @@ import type {
   FsWriteResult,
   FsMutateResult,
 } from "../shared/fs-schema.js"
+import type {
+  TerminalExecArgs,
+  TerminalStdinArgs,
+  TerminalStopArgs,
+  TerminalResizeArgs,
+  TerminalSnapshot,
+} from "../shared/terminal-schema.js"
 
 declare global {
   interface Window {
@@ -31,10 +39,18 @@ declare global {
       fsRead: (args: FsReadArgs) => Promise<FsReadResult>
       fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
       fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
+      terminalExec: (args: TerminalExecArgs) => Promise<{ accepted: boolean; reason?: string }>
+      terminalStdin: (args: TerminalStdinArgs) => Promise<{ ok: boolean; reason?: string }>
+      terminalStop: (args: TerminalStopArgs) => Promise<{ ok: boolean; reason?: string }>
+      terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
+      terminalSnapshot: () => Promise<TerminalSnapshot>
       onFieldState: (cb: (data: unknown) => void) => void
       onChatReply: (cb: (data: unknown) => void) => void
       onIntegrityAlert: (cb: (data: unknown) => void) => void
       onObservation: (cb: (data: unknown) => void) => void
+      onTerminalOutput: (cb: (data: unknown) => void) => void
+      onTerminalLifecycle: (cb: (data: unknown) => void) => void
+      onTerminalSnapshot: (cb: (data: unknown) => void) => void
     }
   }
 }
@@ -54,6 +70,9 @@ const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
 // === Canvasペイン初期化 ===
 const canvas: CanvasPaneController = initCanvasPane()
 let spaceInitialized = false
+
+// === Terminalペイン初期化 ===
+initTerminalPane()
 
 // === レイアウト管理 ===
 let currentLayout: GridSlot[][] = DEFAULT_LAYOUT.map((row) => [...row])

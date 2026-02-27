@@ -3,6 +3,8 @@ import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { registerIpcHandlers } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
+import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
+import { dispose as disposeTerminal } from "./terminal-service.js"
 import { stopRuntime } from "./field-runtime.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import * as log from "../logger.js"
@@ -44,6 +46,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers(() => mainWindow)
   registerFsIpcHandlers()
+  registerTerminalIpcHandlers(() => mainWindow)
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
 })
@@ -63,6 +66,7 @@ app.on("window-all-closed", () => {
 
 // アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
+  disposeTerminal()
   stopTunnel()
   stopRuntime()
 })
