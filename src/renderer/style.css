@@ -360,6 +360,87 @@ body {
   image-rendering: pixelated;
 }
 
+/* === Canvasペイン === */
+#pane-canvas .pane-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.canvas-empty[hidden] {
+  display: none;
+}
+
+.canvas-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Canvas: ファイル表示（行番号付きモノスペース） */
+.canvas-code {
+  padding: 4px 0;
+}
+
+.canvas-code-row {
+  display: flex;
+  line-height: var(--line-height);
+  font-size: var(--font-size);
+}
+
+.canvas-code-row:hover {
+  background: var(--bg-pane-alt);
+}
+
+.canvas-line-no {
+  box-sizing: content-box;
+  color: var(--fg-dim);
+  text-align: right;
+  padding: 0 12px 0 8px;
+  flex-shrink: 0;
+  width: 3ch;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-line-text {
+  color: var(--fg-main);
+  white-space: pre;
+  padding-right: 10px;
+}
+
+/* Canvas: 画像表示 */
+.canvas-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 10px;
+  background: var(--bg-pane-alt);
+}
+
+.canvas-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Canvas: エラー表示 */
+.canvas-error {
+  color: var(--state-critical);
+  font-size: 11px;
+  padding: 10px;
+}
+
 /* === Streamペイン固有 === */
 #pane-stream .pane-body {
   display: flex;

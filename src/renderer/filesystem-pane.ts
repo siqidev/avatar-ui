@@ -1,6 +1,10 @@
-// File Systemペイン — Avatar Spaceのツリー表示と操作
+// Spaceペイン — Avatar Spaceのツリー表示と操作
 
 import type { FsEntry, FsListResult, FsReadResult } from "../shared/fs-schema.js"
+
+export type FilesystemPaneOptions = {
+  onFileOpen?: (path: string) => void
+}
 
 // --- DOM参照 ---
 
@@ -12,6 +16,8 @@ const newFileBtn = document.getElementById("fs-new-file") as HTMLButtonElement
 const newFolderBtn = document.getElementById("fs-new-folder") as HTMLButtonElement
 
 // --- 状態 ---
+
+let paneOptions: FilesystemPaneOptions = {}
 
 /** 現在表示中のパス */
 let currentPath = "."
@@ -157,11 +163,12 @@ async function handleEntryClick(entry: FsEntry, entryPath: string, el: HTMLDivEl
       await loadAndRenderChildren(entryPath, children)
     }
   } else {
-    // ファイル: 選択状態の視覚フィードバック
+    // ファイル: 選択状態の視覚フィードバック + Canvas連携
     treeEl.querySelectorAll(".fs-entry-row.selected").forEach((r) => r.classList.remove("selected"))
     const targetRow = el.querySelector(".fs-entry-row")
     if (targetRow) targetRow.classList.add("selected")
     pathDisplay.textContent = entryPath
+    paneOptions.onFileOpen?.(entryPath)
   }
 }
 
@@ -426,7 +433,8 @@ export async function refreshTree(): Promise<void> {
 }
 
 /** 初期化 — ルートディレクトリを読み込む + リフレッシュボタン接続 */
-export async function initFilesystemPane(): Promise<void> {
+export async function initFilesystemPane(options?: FilesystemPaneOptions): Promise<void> {
+  if (options) paneOptions = options
   const rootName = await window.fieldApi.fsRootName()
   pathDisplay.textContent = rootName + "/"
   refreshBtn.addEventListener("click", () => refreshTree())

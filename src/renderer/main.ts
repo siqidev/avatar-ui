@@ -5,6 +5,8 @@ import type { GridSlot } from "./layout-manager.js"
 import { normalizeState } from "./state-normalizer.js"
 import type { PaneInput } from "./state-normalizer.js"
 import { initFilesystemPane } from "./filesystem-pane.js"
+import { initCanvasPane } from "./canvas-pane.js"
+import type { CanvasPaneController } from "./canvas-pane.js"
 
 import type {
   FsListArgs,
@@ -48,6 +50,10 @@ const streamPane = document.getElementById("pane-stream") as HTMLDivElement
 const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
 const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
 const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
+
+// === Canvasペイン初期化 ===
+const canvas: CanvasPaneController = initCanvasPane()
+let spaceInitialized = false
 
 // === レイアウト管理 ===
 let currentLayout: GridSlot[][] = DEFAULT_LAYOUT.map((row) => [...row])
@@ -490,9 +496,14 @@ window.fieldApi.onFieldState((data) => {
     enableStream = true
   }
 
-  // Spaceペイン初期化（場がアクティブ時）
-  if (msg.state === "active") {
-    initFilesystemPane().catch(() => {})
+  // Spaceペイン初期化（場がアクティブ時）+ Canvas連携
+  if (msg.state === "active" && !spaceInitialized) {
+    spaceInitialized = true
+    initFilesystemPane({
+      onFileOpen: (path) => {
+        canvas.openFile({ path, actor: "human", origin: "space" }).catch(() => {})
+      },
+    }).catch(() => { spaceInitialized = false })
   }
 })
 

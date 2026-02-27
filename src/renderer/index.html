@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; img-src 'self' https: data: blob:" />
   <title>avatar-ui Console</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -44,11 +44,12 @@
     <div class="column" id="col-1">
       <div id="pane-canvas" class="pane" data-slot="canvas" data-state="normal">
         <div class="pane-header" draggable="true">
-          <span>Canvas</span>
+          <span id="canvas-title">Canvas</span>
           <span class="badge"></span>
         </div>
         <div class="pane-body">
-          <div class="pane-placeholder">Canvas</div>
+          <div class="canvas-empty" id="canvas-empty">Canvas</div>
+          <div class="canvas-content" id="canvas-content"></div>
         </div>
       </div>
       <div class="splitter-h"></div>
