@@ -13,10 +13,10 @@ export type GridSlot = (typeof GRID_SLOTS)[number]
 
 // デフォルト配置
 // 上段: Avatar / Canvas   / Stream
-// 下段: Space  / Terminal / Roblox
+// 下段: Space  / Roblox   / Terminal
 export const DEFAULT_LAYOUT: GridSlot[][] = [
   ["avatar", "canvas", "stream"],
-  ["space", "terminal", "roblox"],
+  ["space", "roblox", "terminal"],
 ]
 
 // 配置からgrid-template-areas CSS文字列を生成

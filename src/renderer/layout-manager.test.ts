@@ -10,25 +10,25 @@ import type { GridSlot } from "./layout-manager.js"
 describe("buildGridAreas", () => {
   it("デフォルト配置からCSS文字列を生成（スプリッタートラック含む5×3）", () => {
     const result = buildGridAreas(DEFAULT_LAYOUT)
-    expect(result).toBe('"avatar . canvas . stream" ". . . . ." "space . terminal . roblox"')
+    expect(result).toBe('"avatar . canvas . stream" ". . . . ." "space . roblox . terminal"')
   })
 
   it("入替後の配置でも正しいCSS文字列を生成", () => {
     const swapped: GridSlot[][] = [
       ["avatar", "stream", "canvas"],
-      ["space", "terminal", "roblox"],
+      ["space", "roblox", "terminal"],
     ]
     const result = buildGridAreas(swapped)
-    expect(result).toBe('"avatar . stream . canvas" ". . . . ." "space . terminal . roblox"')
+    expect(result).toBe('"avatar . stream . canvas" ". . . . ." "space . roblox . terminal"')
   })
 })
 
 describe("swapPanes", () => {
   it("2ペインの位置を入れ替える", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "space", "roblox")
+    const result = swapPanes(DEFAULT_LAYOUT, "space", "terminal")
     expect(result).toEqual([
       ["avatar", "canvas", "stream"],
-      ["roblox", "terminal", "space"],
+      ["terminal", "roblox", "space"],
     ])
   })
 
@@ -38,10 +38,10 @@ describe("swapPanes", () => {
   })
 
   it("同じ行内の入替", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "space", "roblox")
+    const result = swapPanes(DEFAULT_LAYOUT, "space", "terminal")
     expect(result).toEqual([
       ["avatar", "canvas", "stream"],
-      ["roblox", "terminal", "space"],
+      ["terminal", "roblox", "space"],
     ])
   })
 
@@ -60,10 +60,10 @@ describe("swapPanes", () => {
   })
 
   it("行をまたいだ入替", () => {
-    const result = swapPanes(DEFAULT_LAYOUT, "avatar", "terminal")
+    const result = swapPanes(DEFAULT_LAYOUT, "avatar", "roblox")
     expect(result).toEqual([
-      ["terminal", "canvas", "stream"],
-      ["space", "avatar", "roblox"],
+      ["roblox", "canvas", "stream"],
+      ["space", "avatar", "terminal"],
     ])
   })
 
