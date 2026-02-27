@@ -40,7 +40,7 @@
 
     <div class="splitter-v" id="splitter-v1"></div>
 
-    <!-- 中央列: Canvas + Terminal -->
+    <!-- 中央列: Canvas + Roblox -->
     <div class="column" id="col-1">
       <div id="pane-canvas" class="pane" data-slot="canvas" data-state="normal">
         <div class="pane-header" draggable="true">
@@ -53,20 +53,20 @@
         </div>
       </div>
       <div class="splitter-h"></div>
-      <div id="pane-terminal" class="pane" data-slot="terminal" data-state="normal">
+      <div id="pane-roblox" class="pane" data-slot="roblox" data-state="normal">
         <div class="pane-header" draggable="true">
-          <span>Terminal</span>
+          <span>Roblox</span>
           <span class="badge"></span>
         </div>
         <div class="pane-body">
-          <div id="terminal-container" class="terminal-container"></div>
+          <div class="pane-placeholder">Roblox Monitor</div>
         </div>
       </div>
     </div>
 
     <div class="splitter-v" id="splitter-v2"></div>
 
-    <!-- 右列: Stream + Roblox -->
+    <!-- 右列: Stream + Terminal -->
     <div class="column" id="col-2">
       <div id="pane-stream" class="pane" data-slot="stream" data-state="normal">
         <div class="pane-header" draggable="true">
@@ -85,13 +85,13 @@
         </div>
       </div>
       <div class="splitter-h"></div>
-      <div id="pane-roblox" class="pane" data-slot="roblox" data-state="normal">
+      <div id="pane-terminal" class="pane" data-slot="terminal" data-state="normal">
         <div class="pane-header" draggable="true">
-          <span>Roblox</span>
+          <span>Terminal</span>
           <span class="badge"></span>
         </div>
         <div class="pane-body">
-          <div class="pane-placeholder">Roblox Monitor</div>
+          <div id="terminal-container" class="terminal-container"></div>
         </div>
       </div>
     </div>
