@@ -2,6 +2,7 @@
 
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
+import "@xterm/xterm/css/xterm.css"
 import type {
   TerminalOutputEvent,
   TerminalLifecycleEvent,
@@ -16,7 +17,7 @@ const containerEl = document.getElementById("terminal-container") as HTMLDivElem
 // --- xterm初期化 ---
 
 const term = new Terminal({
-  fontFamily: "var(--font-mono)",
+  fontFamily: "'Iosevka Term', 'JetBrains Mono', 'Cascadia Mono', monospace",
   fontSize: 13,
   lineHeight: 1.45,
   theme: {

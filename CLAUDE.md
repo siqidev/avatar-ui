@@ -24,7 +24,7 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Console UI実装進行中。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）レイアウト確定・実装済み。Canvasペイン（ファイル内容表示+画像昇格+focus stack）実装済み。Terminalペイン（xterm.js + child_process per-command spawn + cwd追跡 + AI exec_commandツール）実装済み。Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証は将来に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト177件。詳細はPLAN.mdの開発進捗を参照。
+スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Console UI実装進行中。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）レイアウト確定・実装済み。Canvasペイン（ファイル内容表示+画像昇格+focus stack）実装済み。Terminalペイン（xterm.js + per-command spawn + cwd追跡 + AI terminalツール統合）実装済み。Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証は将来に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト177件。詳細はPLAN.mdの開発進捗を参照。
 
 ### 次のアクション
 1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
@@ -148,7 +148,7 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/roblox/observation-server.ts | 観測受信HTTPサーバー（Roblox→場） |
 | src/roblox/observation-formatter.ts | 観測イベント→テキスト変換（CLI/Electron共通） |
 | src/roblox/projector.ts | 投影（場→Roblox、Open Cloud Messaging API） |
-| src/tools/ | Grokツール定義（save_memory, roblox_action, exec_command等） |
+| src/tools/ | Grokツール定義（save_memory, roblox_action, terminal等） |
 | src/main/index.ts | Electron Mainエントリーポイント |
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/field-fsm.ts | 場FSM（純関数transition） |
@@ -160,7 +160,7 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/shared/fs-schema.ts | FS IPC Zodスキーマ+型定義（discriminated union含む） |
 | src/shared/terminal-schema.ts | Terminal IPC Zodスキーマ+型定義 |
 | src/tools/filesystem-tool.ts | LLMツール定義（fs_list/fs_read/fs_write/fs_mutate） |
-| src/tools/exec-command-tool.ts | LLMツール定義（exec_command） |
+| src/tools/terminal-tool.ts | LLMツール定義（terminal: cmd有=実行、cmd無=出力取得） |
 | src/renderer/filesystem-pane.ts | Spaceペイン（ツリー表示+IDE UX+キーボードナビ+Canvas連携） |
 | src/renderer/canvas-pane.ts | Canvasペイン（ファイル内容表示+画像昇格表示） |
 | src/renderer/canvas-focus-stack.ts | Canvas focus stack（push/pop純粋関数、起点対称性） |

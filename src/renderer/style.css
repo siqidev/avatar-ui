@@ -714,11 +714,12 @@ body {
 #pane-terminal .pane-body {
   padding: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .terminal-container {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
 }
 
 .terminal-container .xterm {

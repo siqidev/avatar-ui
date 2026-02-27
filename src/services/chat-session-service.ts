@@ -18,6 +18,15 @@ import {
   fsWriteToolDef,
   fsMutateToolDef,
 } from "../tools/filesystem-tool.js"
+import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
+import {
+  execCommand,
+  waitForExit,
+  getCommandOutput,
+  getSnapshot,
+  getCwd,
+  isBusy,
+} from "../main/terminal-service.js"
 import {
   fsListArgsSchema,
   fsReadArgsSchema,
@@ -130,6 +139,7 @@ function buildTools(env: Env): Tool[] {
     fsReadToolDef,
     fsWriteToolDef,
     fsMutateToolDef,
+    terminalToolDef,
   ]
   if (isCollectionsEnabled(env) && env.XAI_COLLECTION_ID) {
     tools.push({
@@ -184,6 +194,9 @@ async function handleToolCall(
   }
   if (call.name === "fs_mutate") {
     return handleFsMutate(call.args)
+  }
+  if (call.name === "terminal") {
+    return handleTerminal(call.args)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -318,4 +331,63 @@ async function handleFsMutate(argsJson: string): Promise<string> {
   }
   const result = await fsMutate(validation.data)
   return JSON.stringify(result)
+}
+
+// terminalツールの実行（コマンド実行 or 直近出力取得）
+async function handleTerminal(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = terminalArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`terminal引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const { cmd, timeoutMs } = validation.data
+
+  // cmd省略: 直近のコマンド出力を取得
+  if (!cmd) {
+    const snapshot = getSnapshot()
+    const output = getCommandOutput()
+    return JSON.stringify({
+      status: "output",
+      busy: snapshot.busy,
+      cwd: snapshot.cwd,
+      lastCmd: snapshot.lastCmd ?? null,
+      lastExitCode: snapshot.lastExitCode ?? null,
+      output: output.lines,
+      truncated: output.truncated,
+    })
+  }
+
+  // cmd指定: コマンド実行
+  if (isBusy()) {
+    return JSON.stringify({ status: "error", reason: "TERMINAL_BUSY" })
+  }
+
+  const correlationId = crypto.randomUUID()
+  const execResult = execCommand({
+    actor: "ai",
+    correlationId,
+    cmd,
+    timeoutMs,
+  })
+
+  if (!execResult.accepted) {
+    return JSON.stringify({ status: "error", reason: execResult.reason })
+  }
+
+  // 完了を待つ
+  const exitPromise = waitForExit()
+  if (exitPromise) await exitPromise
+
+  // 結果を返す
+  const snapshot = getSnapshot()
+  const output = getCommandOutput()
+  return JSON.stringify({
+    status: "executed",
+    cmd,
+    exitCode: snapshot.lastExitCode ?? null,
+    cwd: snapshot.cwd,
+    output: output.lines,
+    truncated: output.truncated,
+  })
 }

@@ -172,7 +172,7 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 4. ~~Spaceペイン（旧File System）~~ ✅ — Avatar Spaceの可視化・操作（4 IPC + IDE UX）
 5. ~~レイアウト再構成~~ ✅ — 新配置適用（Avatar左上/Canvas中央上/Stream右上、比率15:42:43、X廃止）
 6. ~~Canvasペイン~~ ✅ — ファイル内容表示（行番号付き読み取り専用）+ 画像昇格表示 + focus stack
-7. Terminal — child_process.spawn + xterm.js（情報空間への能動的介入経路）
+7. ~~Terminal~~ ✅ — per-command spawn + xterm.js + AI terminalツール統合（cmd有=実行、cmd無=出力取得）。AI認識設計: CommandRecord（完了済みサマリ）、自動注入なし、オンデマンド取得
 
 ### 具体→抽象修正（議論合意 2026-02-25）
 

@@ -82,8 +82,9 @@ export function execCommand(args: TerminalExecArgs): { accepted: boolean; reason
   commandOutput = []
 
   // シェル実行: コマンド末尾にpwdマーカーを付与
+  // -c（非ログイン）: Electron親プロセスのPATHを継承。-lcだとzshrcのプロンプトテーマが初期化ゴミを出す
   const wrappedCmd = `${cmd}; __exit=$?; echo "${CWD_MARKER_PREFIX}$(pwd)"; exit $__exit`
-  const child = spawn("zsh", ["-lc", wrappedCmd], {
+  const child = spawn("zsh", ["-c", wrappedCmd], {
     cwd: currentCwd,
     env: { ...process.env, TERM: "dumb" },
     stdio: ["pipe", "pipe", "pipe"],
