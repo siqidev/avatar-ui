@@ -2,6 +2,7 @@ import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { registerIpcHandlers } from "./ipc-handlers.js"
+import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { stopRuntime } from "./field-runtime.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import * as log from "../logger.js"
@@ -42,6 +43,7 @@ app.whenReady().then(() => {
   }
 
   registerIpcHandlers(() => mainWindow)
+  registerFsIpcHandlers()
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
 })

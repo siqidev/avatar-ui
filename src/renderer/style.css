@@ -204,6 +204,147 @@ body {
   display: block;
 }
 
+/* === File Systemペイン === */
+#pane-filesystem .pane-body {
+  padding: 0;
+  overflow-y: auto;
+}
+
+.fs-path-display {
+  font-size: 11px;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.fs-tree {
+  padding: 4px 0;
+}
+
+.fs-entry {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.fs-entry-row {
+  display: flex;
+  align-items: center;
+  padding: 1px 10px;
+  cursor: pointer;
+  gap: 2px;
+}
+
+.fs-entry-row:hover {
+  background: var(--bg-pane-alt);
+}
+
+.fs-entry-row.selected {
+  background: var(--line-default);
+}
+
+.fs-icon {
+  color: var(--fg-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 16px;
+  white-space: pre;
+}
+
+.fs-name {
+  color: var(--fg-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-type="directory"] > .fs-entry-row .fs-name {
+  color: var(--state-info);
+}
+
+.fs-size {
+  color: var(--fg-dim);
+  font-size: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-children {
+  margin-left: 7px;
+  padding-left: 11px;
+  border-left: 1px solid var(--line-default);
+}
+
+.fs-error {
+  color: var(--state-critical);
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.fs-error:empty {
+  display: none;
+}
+
+/* インライン入力フィールド（prompt代替） */
+.fs-inline-input {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 2px 10px;
+  padding: 2px 6px;
+  background: var(--bg-app);
+  border: 1px solid var(--line-focus);
+  color: var(--fg-main);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+
+/* ヘッダーアクションボタン（SVGアイコン） */
+.fs-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.fs-action-btn:hover {
+  color: var(--fg-main);
+  background: var(--line-default);
+}
+
+.fs-action-btn svg {
+  display: block;
+}
+
+/* コンテキストメニュー */
+.fs-context-menu {
+  position: fixed;
+  background: var(--bg-pane-alt);
+  border: 1px solid var(--line-default);
+  z-index: 100;
+  min-width: 120px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.fs-context-item {
+  padding: 4px 12px;
+  cursor: pointer;
+  color: var(--fg-main);
+}
+
+.fs-context-item:hover {
+  background: var(--line-default);
+  color: var(--fg-main);
+}
+
 /* === Avatarペイン === */
 .avatar-display {
   display: flex;
@@ -435,4 +576,55 @@ body {
 .observation-text {
   color: var(--fg-main);
   word-break: break-word;
+}
+
+/* === File Systemペイン — キーボードフォーカス === */
+.fs-tree:focus {
+  outline: none;
+}
+
+.fs-entry-row.focused {
+  background: var(--line-default);
+  outline: 1px solid var(--line-focus);
+  outline-offset: -1px;
+}
+
+/* === File Systemペイン — 拡張子別カラー === */
+[data-ext=".ts"] > .fs-entry-row .fs-name,
+[data-ext=".tsx"] > .fs-entry-row .fs-name,
+[data-ext=".js"] > .fs-entry-row .fs-name,
+[data-ext=".jsx"] > .fs-entry-row .fs-name {
+  color: #f5d67b;
+}
+
+[data-ext=".json"] > .fs-entry-row .fs-name,
+[data-ext=".yaml"] > .fs-entry-row .fs-name,
+[data-ext=".yml"] > .fs-entry-row .fs-name,
+[data-ext=".toml"] > .fs-entry-row .fs-name {
+  color: var(--state-ok);
+}
+
+[data-ext=".md"] > .fs-entry-row .fs-name,
+[data-ext=".txt"] > .fs-entry-row .fs-name {
+  color: var(--fg-muted);
+}
+
+[data-ext=".png"] > .fs-entry-row .fs-name,
+[data-ext=".jpg"] > .fs-entry-row .fs-name,
+[data-ext=".gif"] > .fs-entry-row .fs-name,
+[data-ext=".svg"] > .fs-entry-row .fs-name {
+  color: #c792ea;
+}
+
+[data-ext=".luau"] > .fs-entry-row .fs-name,
+[data-ext=".lua"] > .fs-entry-row .fs-name {
+  color: #5d8aee;
+}
+
+[data-ext=".css"] > .fs-entry-row .fs-name {
+  color: #42a5f5;
+}
+
+[data-ext=".html"] > .fs-entry-row .fs-name {
+  color: #ef5350;
 }

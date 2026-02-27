@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "AUI reference implementation",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "dev:cli": "tsx --env-file=.env src/cli.ts",
     "build": "electron-vite build",
     "test": "vitest run",

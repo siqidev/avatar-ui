@@ -4,6 +4,18 @@ import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
 import type { GridSlot } from "./layout-manager.js"
 import { normalizeState } from "./state-normalizer.js"
 import type { PaneInput } from "./state-normalizer.js"
+import { initFilesystemPane } from "./filesystem-pane.js"
+
+import type {
+  FsListArgs,
+  FsReadArgs,
+  FsWriteArgs,
+  FsMutateArgs,
+  FsListResult,
+  FsReadResult,
+  FsWriteResult,
+  FsMutateResult,
+} from "../shared/fs-schema.js"
 
 declare global {
   interface Window {
@@ -12,6 +24,11 @@ declare global {
       detach: () => void
       postChat: (text: string, correlationId: string) => void
       terminate: () => void
+      fsRootName: () => Promise<string>
+      fsList: (args: FsListArgs) => Promise<FsListResult>
+      fsRead: (args: FsReadArgs) => Promise<FsReadResult>
+      fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
+      fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
       onFieldState: (cb: (data: unknown) => void) => void
       onChatReply: (cb: (data: unknown) => void) => void
       onIntegrityAlert: (cb: (data: unknown) => void) => void
@@ -471,6 +488,11 @@ window.fieldApi.onFieldState((data) => {
       appendMessage(m.actor, m.text, m.source, m.toolCalls)
     }
     enableStream = true
+  }
+
+  // File Systemペイン初期化（場がアクティブ時）
+  if (msg.state === "active") {
+    initFilesystemPane().catch(() => {})
   }
 })
 

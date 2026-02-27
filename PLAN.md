@@ -26,7 +26,7 @@
 - 設計の主語が変わる: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
 - **具体⇄抽象の往復**: 抽象設計だけ積み上げてもイメージしづらい。具体（実装スパイク）を先に進め、具体が抽象を修正する方針。抽象設計(#1-#4)→具体不足の懸念→スパイク優先に転換した経緯あり
 
-## 開発進捗（2026-02-25時点）
+## 開発進捗（2026-02-27時点）
 
 ### 完了済みスパイク
 1. **Console会話基盤** — Grok Responses API + readline、being.md人格定義、previous_response_id継続
@@ -39,6 +39,7 @@
 8. **Console UI共通基盤** — 3列6ペイン（Avatar独立化）、TUI-in-GUIデザイントークン、列幅スプリッター＋列ごと独立行高さスプリッター、ペインヘッダーD&Dで位置入替、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト26件（state-normalizer 16件 + layout-manager 10件）
 9. **FieldRuntime観測統合** — 観測サーバーをElectron Main内のFieldRuntimeに統合。CLI専用だった観測処理をCLI/Electron共通化（observation-formatter抽出）。IPC経路: observation-server→FieldRuntime.enqueue→sendMessage(AI)→chat.reply + observation.event→Renderer。Roblox Monitorペインに観測ログ表示（タイムスタンプ+イベント種別+整形テキスト、最新上、最大50件）。アプリ終了時の観測サーバークリーンアップ。テスト10件追加（observation-formatter）
 10. **Chatペイン強化** — Chatペインを「場の会話ストリーム」として全入出力を可視化。①sendMessage()戻り値をSendMessageResult型に拡張（text+toolCalls）②AI応答にsource属性（user/pulse/observation）を付与し、ラベル色で視覚的区別（spectra>/[pulse] spectra>/[roblox] spectra>）③ツール呼び出し（roblox_action, save_memory等）をChat内にインライン表示④Roblox観測イベント・Pulseトリガーをコンテキスト行としてChatに表示（[roblox]/[pulse]ラベル）⑤Pulse/観測応答時にchat入力がdisabledにならないバグを修正（source=userの場合のみ解除）⑥テスト基盤修正（observation-server: port 0でテスト隔離、vitest.config.ts: dist/除外）。テスト115件全通過
+11. **File Systemペイン** — Avatar Space（`AVATAR_SPACE`環境変数）のフルCRUD可視化・操作。①fs-schema.ts（4 IPC Zodスキーマ+discriminated union）②filesystem-service.ts（パスガード`assertInAvatarSpace`+CRUD、UIとLLM共用）③fs-ipc-handlers.ts（ipcMain.handle+Zodバリデーション+fs.rootName）④filesystem-pane.ts（ツリー表示+展開/折畳+インライン入力+コンテキストメニュー+VSCode準拠キーバインド）⑤filesystem-tool.ts（LLMツール定義4種）⑥chat-session-service.ts統合（fs_list/fs_read/fs_write/fs_mutate）⑦IDE UX（SVGアイコン、インデントガイド、拡張子別カラー、キーボードナビゲーション）。sandbox制約によりprompt()/confirm()をカスタムUI化。テスト142件（+21件filesystem-service）
 
 ### Roblox接続設計（議論合意 2026-02-24）
 
@@ -161,7 +162,7 @@ B. 直接操作レーン（ターミナル/ファイル編集）:
 3. ~~Roblox Monitor~~ ✅ — 観測イベントログ表示（FieldRuntime観測統合で実装済み）
 4. X Monitor — Roblox Monitorの横展開
 5. Terminal — まずログビューア（node-ptyはスコープ確定後）
-6. File Systemペイン — Avatar Spaceの可視化（後述「File Systemペイン構想」参照）
+6. ~~File Systemペイン~~ ✅ — Avatar Spaceの可視化・操作（4 IPC + IDE UX）
 
 ### 具体→抽象修正（議論合意 2026-02-25）
 
@@ -328,7 +329,7 @@ cosmologyからの再導出と実用性の両立を議論し、以下で確定:
 - 棄却案: 全6ペインcosmology語彙化（Nexus/往復/在相等）→ 固有名詞ペインと浮く
 - 残リスク: 将来の配信機能との名前衝突（実装時に「Live」「Broadcast」等で回避可能）
 
-### File Systemペイン構想（2026-02-26）
+### File Systemペイン実装設計（2026-02-26）
 
 **概念**: 単なるファイルエクスプローラではなく、AIの生命活動空間（Avatar Space）の可視化と操作の窓。
 
@@ -339,9 +340,58 @@ cosmologyからの再導出と実用性の両立を議論し、以下で確定:
 2. **自己進化の作業台** — Being・Pulse・ツール定義などをAI自身が読み書きし、自己を改変する手段の可視化（OpenClawのWorkspace概念に相当）
 3. **実世界への出力経路** — ファイル操作を介してRoblox・X・自身の振る舞いに影響を及ぼす経路
 
-**セキュリティ**: Avatar Space外へのファイルアクセスはサンドボックスで拒否（v0.2の `is_path_in_space()` パターンを踏襲）。
+**v0.3スコープ**: 読み取り＋書き込み（作成・編集・削除・リネーム・mkdir）。フル機能。
 
-**v0.3スコープ**: 構想の記録のみ。実装はv0.4以降。
+#### 実行方式: Main fs直接
+
+ファイル操作はElectron MainプロセスのNode.js `fs`モジュールで実行する（shell経由ではない）。
+
+- **根拠**: セキュリティ（シェルインジェクション不可）、信頼性（構造化エラー）、LLM互換性（引数がシンプル）
+- **業界検証**: OpenClaw / Claude Code / Codex CLI いずれもファイルCRUDはネイティブAPI、シェルは任意コマンド用。ハイブリッドパターンが業界標準
+- **avatar-uiでの適用**: File Systemペイン = fs直接、Terminalペイン = シェル実行（既存）
+
+#### セキュリティ: Avatar Spaceサンドボックス
+
+Avatar Space外へのファイルアクセスは拒否（v0.2の `is_path_in_space()` パターンを踏襲）。パスガードはfilesystem-service.ts内に実装（専用ファイル不要、現時点では1関数）。
+
+#### IPC設計（4チャンネル）
+
+invoke/handleパターン（リクエスト-レスポンス）を使用。actor + correlationIdはpreloadで自動付与。
+
+| IPC | 引数 | 戻り値 |
+|-----|------|--------|
+| `fs.list` | `{ path, depth? }` | `{ path, entries: { name, type, size, mtimeMs }[] }` |
+| `fs.read` | `{ path, offset?, limit? }` | `{ path, content, mtimeMs }` |
+| `fs.write` | `{ path, content }` | `{ path, bytes, mtimeMs }` （親ディレクトリ自動作成） |
+| `fs.mutate` | `{ op: "delete"\|"rename"\|"mkdir", path, newPath? }` | `{ message }` |
+
+**設計根拠**:
+- 6 IPC → 4 IPC: delete/rename/mkdirは「構造変更」操作として統合（discriminated union）。保守対象2/3に削減
+- ifMatchMtimeMs（楽観的排他制御）は不採用: 書き手がAI 1体+人間1人で競合確率ほぼゼロ。業界3製品も未実装
+- preload自動付与: Rendererが認証情報を意識しない。書き忘れバグを構造的に防止
+
+#### 新規ファイル（4ファイル）
+
+| ファイル | 層 | 責務 |
+|---------|-----|------|
+| `src/shared/fs-schema.ts` | shared | IPC 4チャンネルのZodスキーマ + 型定義 |
+| `src/main/filesystem-service.ts` | main | パスガード + fs CRUD実装（UIとLLMの共用） |
+| `src/main/fs-ipc-handlers.ts` | main | IPC handle → filesystem-service呼び出し |
+| `src/renderer/filesystem-pane.ts` | renderer | ファイルツリー表示 + 操作UI |
+
+**設計根拠**:
+- 7ファイル → 4ファイル: パスガードはservice内に（SSOT）、エラー型はスキーマに同居、repository抽象は不要（直接fsで十分）
+- UIとLLMが同じfilesystem-serviceを共用: ロジック正本が1箇所（SSOT）。field-runtime.tsからもIPC handlerからも同じserviceを呼ぶ
+
+#### 実装順序
+
+1. fs-schema.ts — Zodスキーマ + 型定義
+2. filesystem-service.ts — パスガード + CRUD実装
+3. fs-ipc-handlers.ts — IPC登録
+4. preload拡張 — invoke API + actor/correlationId自動付与
+5. filesystem-pane.ts — ツリー表示 + 操作UI
+6. field-runtime.ts統合 — LLMツールからfilesystem-serviceを呼ぶ
+7. テスト — service単体 + IPC結合
 
 ### 次の計画（方針: 具体→抽象の往復を継続）
 
@@ -459,6 +509,7 @@ cosmologyからの再導出と実用性の両立を議論し、以下で確定:
 - セッション断を休止として再開可能にする
 - ~~AI起点の常駐トリガ（Heartbeat）~~ → Pulse実装済み
 - 場のライフサイクル（生成・維持・休止/再開・終端）
+- File Systemペイン（Avatar Spaceの可視化・操作、フル読み書き）
 
 ## OUT（v0.4以降に延期）
 
@@ -468,5 +519,4 @@ cosmologyからの再導出と実用性の両立を議論し、以下で確定:
 - 配信拡張（Live2D/3D、音声）
 - **建築品質の根本改善** — プリファブ方式導入、機能的建築物（ドア開閉等）。詳細は「建築品質の問題提起」参照
 - **Console用3Dマップ** — Roblox空間のリアルタイム可視化
-- **File Systemペイン実装** — Avatar Spaceの可視化・操作。詳細は「File Systemペイン構想」参照
 - **残り場モデル要素（①②④）の網羅的検証** — v0.3で帰納的に進めた結果の仕上げ

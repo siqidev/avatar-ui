@@ -11,6 +11,7 @@ const envSchema = z.object({
   ROBLOX_OBSERVATION_SECRET: z.string().min(1).optional(),
   ROBLOX_OWNER_DISPLAY_NAME: z.string().min(1).optional(),
   CLOUDFLARED_TOKEN: z.string().min(1).optional(),
+  AVATAR_SPACE: z.string().min(1).optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -43,6 +44,8 @@ export const APP_CONFIG = {
   intentLogFile: "data/roblox-intents.jsonl",
   // 観測受信（Roblox→場の入力経路）
   observationPort: Number(process.env.ROBLOX_OBSERVATION_PORT) || 3000,
+  // Avatar Space（AIの生命活動空間）
+  avatarSpace: process.env.AVATAR_SPACE || `${process.env.HOME}/Avatar/space`,
 } as const
 
 // 環境変数を検証して返す

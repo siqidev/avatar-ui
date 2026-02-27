@@ -13,6 +13,19 @@ import {
   robloxActionArgsSchema,
 } from "../tools/roblox-action-tool.js"
 import {
+  fsListToolDef,
+  fsReadToolDef,
+  fsWriteToolDef,
+  fsMutateToolDef,
+} from "../tools/filesystem-tool.js"
+import {
+  fsListArgsSchema,
+  fsReadArgsSchema,
+  fsWriteArgsSchema,
+  fsMutateArgsSchema,
+} from "../shared/fs-schema.js"
+import { fsList, fsRead, fsWrite, fsMutate } from "../main/filesystem-service.js"
+import {
   saveMemoryArgsSchema,
   createMemoryRecord,
 } from "../memory/memory-record.js"
@@ -111,7 +124,13 @@ export async function sendMessage(
 
 // ツール定義を組み立てる
 function buildTools(env: Env): Tool[] {
-  const tools: Tool[] = [saveMemoryToolDef]
+  const tools: Tool[] = [
+    saveMemoryToolDef,
+    fsListToolDef,
+    fsReadToolDef,
+    fsWriteToolDef,
+    fsMutateToolDef,
+  ]
   if (isCollectionsEnabled(env) && env.XAI_COLLECTION_ID) {
     tools.push({
       type: "file_search",
@@ -153,6 +172,18 @@ async function handleToolCall(
   }
   if (call.name === "roblox_action") {
     return handleRobloxAction(call.args, env)
+  }
+  if (call.name === "fs_list") {
+    return handleFsList(call.args)
+  }
+  if (call.name === "fs_read") {
+    return handleFsRead(call.args)
+  }
+  if (call.name === "fs_write") {
+    return handleFsWrite(call.args)
+  }
+  if (call.name === "fs_mutate") {
+    return handleFsMutate(call.args)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -243,4 +274,48 @@ async function handleRobloxAction(
   }
 
   return JSON.stringify({ status: "記録・投影完了", id: intent.id, category, ops_count: ops.length })
+}
+
+// fs_listツールの実行
+async function handleFsList(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = fsListArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`fs_list引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+  const result = await fsList(validation.data)
+  return JSON.stringify(result)
+}
+
+// fs_readツールの実行
+async function handleFsRead(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = fsReadArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`fs_read引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+  const result = await fsRead(validation.data)
+  return JSON.stringify(result)
+}
+
+// fs_writeツールの実行
+async function handleFsWrite(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = fsWriteArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`fs_write引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+  const result = await fsWrite(validation.data)
+  return JSON.stringify(result)
+}
+
+// fs_mutateツールの実行
+async function handleFsMutate(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = fsMutateArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`fs_mutate引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+  const result = await fsMutate(validation.data)
+  return JSON.stringify(result)
 }

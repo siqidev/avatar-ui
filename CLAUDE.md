@@ -10,7 +10,7 @@
 3. docs/architecture.md — 現行アーキテクチャの正本（v0.3で刷新予定）
 4. docs/api.md — 現行API仕様の正本（v0.3で刷新予定）
 
-## 現在の状況（2026-02-26）
+## 現在の状況（2026-02-27）
 
 ### ブランチ戦略
 - **main** = v0.2系の公開最新（v0.2コード + v0.3設計ドキュメント）
@@ -24,11 +24,11 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Streamペイン（旧Chat、擬似ストリーム+テキストSE+リップシンク）+Roblox Monitorの統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト121件。詳細はPLAN.mdの開発進捗を参照。
+スパイク10本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + File Systemペイン完了。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン+Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+File System（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証はv0.4に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト142件。詳細はPLAN.mdの開発進捗を参照。
 
 ### v0.3 Robloxスコープ
 - **IN**: 空間認識（SpatialService）、移動・追従（NpcMotionOps）、対話（NpcOps say/emote）
-- **OUT（v0.4）**: 建築品質改善（プリファブ方式）、File Systemペイン実装、Console用3Dマップ、TypeScript側整理
+- **OUT（v0.4）**: 建築品質改善（プリファブ方式）、Console用3Dマップ、TypeScript側整理
 
 ### 次のアクション
 1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
@@ -156,6 +156,11 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/field-fsm.ts | 場FSM（純関数transition） |
 | src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
+| src/main/filesystem-service.ts | Avatar Space パスガード+CRUD（UIとLLM共用） |
+| src/main/fs-ipc-handlers.ts | FS系IPC handle登録（5チャンネル: rootName/list/read/write/mutate） |
+| src/shared/fs-schema.ts | FS IPC Zodスキーマ+型定義（discriminated union含む） |
+| src/tools/filesystem-tool.ts | LLMツール定義（fs_list/fs_read/fs_write/fs_mutate） |
+| src/renderer/filesystem-pane.ts | File Systemペイン（ツリー表示+IDE UX+キーボードナビ） |
 | src/preload/index.ts | contextBridge最小API |
 | src/renderer/index.html | 3列6ペインレイアウト構造（2行×3列） |
 | src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+Stream+状態管理） |
