@@ -108,7 +108,7 @@ describe("normalizeState", () => {
   describe("integrity.alert → CRITICAL", () => {
     it("integrity.alert → CRITICAL（critical色、アラートバー、[ALERT]バッジ）", () => {
       const result = normalizeState({
-        ipcEvents: [{ type: "integrity.alert", code: "STREAM_ERROR", message: "エラー" }],
+        ipcEvents: [{ type: "integrity.alert", code: "RECIPROCITY_STREAM_ERROR", message: "エラー" }],
         hasFocus: false,
       })
       expect(result).toEqual<VisualState>({
@@ -126,7 +126,7 @@ describe("normalizeState", () => {
       const result = normalizeState({
         ipcEvents: [
           { type: "field.state", state: "active" },
-          { type: "integrity.alert", code: "ERR", message: "異常" },
+          { type: "integrity.alert", code: "FIELD_CONTRACT_VIOLATION", message: "異常" },
         ],
         hasFocus: false,
       })
@@ -159,7 +159,7 @@ describe("normalizeState", () => {
       const result = normalizeState({
         ipcEvents: [
           { type: "stream.reply" },
-          { type: "integrity.alert", code: "ERR", message: "致命的" },
+          { type: "integrity.alert", code: "RECIPROCITY_STREAM_ERROR", message: "致命的" },
         ],
         hasFocus: true,
       })

@@ -569,8 +569,9 @@ window.fieldApi.onIntegrityAlert((data) => {
   streamPaneInput.ipcEvents = [{ type: "integrity.alert", code: alert.code, message: alert.message }]
   updateStreamPaneVisual()
 
-  inputEl.disabled = false
-  formEl.querySelector("button")!.disabled = false
+  // 凍結: 入力を無効化（復帰は再起動）
+  inputEl.disabled = true
+  formEl.querySelector("button")!.disabled = true
 })
 
 // === Roblox Monitorペイン ===

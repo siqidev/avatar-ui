@@ -235,6 +235,44 @@ AIは「意図+参照+制約」を出し、Robloxが「座標解決+実行+物�
 
 field-fsm.tsで純関数transitionとして実装。
 
+## 健全性管理（⑥ IntegrityManager）
+
+### 目的
+
+場の連続運転の保全。共存故障を検知し、通知し、壊れた操作を凍結する。
+
+### v0.3の機構
+
+検知+通知+凍結（修復委譲の最小実現）。自動復旧・RuntimeCoordinatorはスコープ外。
+
+### 統一パターン
+
+```
+検知 → alertBar表示（「{code}: {message}。再起動してください」）→ 壊れた操作を凍結 → 復帰は再起動
+```
+
+### AlertCode一覧
+
+| AlertCode | 不変条件 | 検知箇所 | 凍結動作 |
+|---|---|---|---|
+| FIELD_CONTRACT_VIOLATION | 場契約整合性 | ipc-handlers.ts FSM catch | stream.post等のIPC処理をスキップ（terminate除く） |
+| RECIPROCITY_STREAM_ERROR | 往復連接性 | ipc-handlers.ts stream catch | Main: stream.post拒否 / Renderer: 入力disabled |
+| RECIPROCITY_PULSE_ERROR | 往復連接性 | field-runtime.ts Pulse catch | cronジョブ停止 |
+| RECIPROCITY_OBSERVATION_ERROR | 往復連接性 | field-runtime.ts 観測 catch | 観測→AI転送を停止 |
+| COEXISTENCE_STATE_LOAD_CORRUPTED | 共存連続性 | state-repository.ts loadState | initRuntime()でcatch → defaultState()で続行 |
+| COEXISTENCE_STATE_SAVE_FAILED | 共存連続性 | state-repository.ts saveState | 同上パターンでreport |
+
+### 凍結ラッチ
+
+`integrity-manager.ts`の`frozen`フラグ。一度`report()`が呼ばれるとtrueになり、以下を遮断:
+- `ipc-handlers.ts`: stream.post受信時に`isFrozen()`チェック → 拒否
+- `field-runtime.ts`: `enqueue()`実行前に`isFrozen()`チェック → スキップ
+- Renderer: alertBar表示 + 入力disabled
+
+### 縮退運用
+
+凍結後は入力が無効化され、再起動以外の復帰手段はない。v0.3では選択肢UI（バックアップ復元等）は提供しない。ユーザーはアプリを再起動して復帰する。
+
 ## SSOT一覧
 
 | 情報 | 正本の場所 |

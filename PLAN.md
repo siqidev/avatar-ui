@@ -36,6 +36,7 @@
 - ③参与文脈の最小実装（ParticipationInput型 + 場状態ゲート + correlationId貫通）
 - 設定管理一元化（.env + getConfig()遅延singleton + ensureDirectories）
 - ⑤共存記録: v0.3充足（previous_response_id + save_memory + intents.jsonl）
+- ⑥健全性管理（検知+通知+凍結: AlertCode enum + IntegrityManager + 凍結ラッチ）
 
 ## 実装バックログ
 
@@ -43,7 +44,7 @@
 
 ### 必須（v0.3到達状態に必要）
 
-- **⑥健全性管理の実装** — 最大ギャップ。共存故障を検知できる状態にする
+- ~~⑥健全性管理の実装~~ — 完了（検知+通知+凍結。docs/architecture.md参照）
 - **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
 - **受入シナリオのテスト実装** — S1-S5をコードで検証
 - **不変条件の検知＋修復フロー** — 4条件+横断制約
@@ -75,7 +76,7 @@
 | 3 | 参与文脈（ParticipationContext） | 実装 | ❸❹❺ |
 | 4 | 往復回路（ReciprocityLoop） | 実装 | ❹❻ |
 | 5 | 共存記録（CoexistenceStore） | v0.3充足（previous_response_id + save_memory + intents.jsonl） | ❶❻ |
-| 6 | 健全性管理（IntegrityManager） | 未実装 | ❷ |
+| 6 | 健全性管理（IntegrityManager） | 実装（検知+通知+凍結） | ❷ |
 
 ## 不変条件のv0.3検証
 

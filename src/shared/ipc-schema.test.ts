@@ -116,13 +116,22 @@ describe("ipc-schema", () => {
       expect(result.success).toBe(false)
     })
 
-    it("integrity.alert を受理", () => {
+    it("integrity.alert を受理（有効なAlertCode）", () => {
       const result = toRendererSchema.safeParse({
         type: "integrity.alert",
-        code: "FSM_VIOLATION",
+        code: "FIELD_CONTRACT_VIOLATION",
         message: "不正な状態遷移",
       })
       expect(result.success).toBe(true)
+    })
+
+    it("integrity.alert: 未知のcodeを拒否", () => {
+      const result = toRendererSchema.safeParse({
+        type: "integrity.alert",
+        code: "UNKNOWN_CODE",
+        message: "不明",
+      })
+      expect(result.success).toBe(false)
     })
   })
 })

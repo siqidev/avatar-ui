@@ -44,9 +44,8 @@ describe("state-repository", () => {
     expect(state.lastResponseId).toBe("resp_old_456")
   })
 
-  it("不正なJSONはデフォルト状態を返す", () => {
+  it("不正なJSONはthrowする（fail-fast）", () => {
     fs.writeFileSync(TEST_STATE_FILE, "invalid json")
-    const state = loadState()
-    expect(state).toEqual(defaultState())
+    expect(() => loadState()).toThrow(SyntaxError)
   })
 })

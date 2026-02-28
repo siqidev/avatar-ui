@@ -12,6 +12,8 @@ export function defaultState(): State {
 }
 
 // state.jsonを読み込む
+// ENOENT（ファイルなし = 初回起動）はdefaultState()を返す
+// それ以外のエラー（JSON破損等）はthrow（fail-fast: 呼び出し側で検知）
 export function loadState(): State {
   try {
     const raw = fs.readFileSync(getConfig().stateFile, "utf-8")
@@ -20,8 +22,11 @@ export function loadState(): State {
       lastResponseId:
         typeof obj?.lastResponseId === "string" ? obj.lastResponseId : null,
     }
-  } catch {
-    return defaultState()
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      return defaultState()
+    }
+    throw err
   }
 }
 

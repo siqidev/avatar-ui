@@ -5,6 +5,7 @@ import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { transition, initialState, isActive } from "./field-fsm.js"
 import { initRuntime, processStream, startPulse, startObservation } from "./field-runtime.js"
+import { setAlertSink, isFrozen, report } from "./integrity-manager.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -46,6 +47,16 @@ export function getFieldState(): FieldState {
 
 // IPCハンドラを登録する
 export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): void {
+
+  // IntegrityManager: alertSink登録（検知→Renderer通知）
+  setAlertSink((code, message) => {
+    const win = getMainWindow()
+    sendToRenderer(win, {
+      type: "integrity.alert",
+      code,
+      message: `${message}。再起動してください`,
+    })
+  })
 
   // FieldRuntime初期化
   let runtimeReady = false
@@ -135,7 +146,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         log.info(`[FSM] ${fieldState} (resumed→active)`)
       }
     } catch (err) {
-      log.error(`[FSM] attach失敗: ${err instanceof Error ? err.message : err}`)
+      report("FIELD_CONTRACT_VIOLATION",
+        `attach失敗: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
     // 場の状態 + 直近メッセージ履歴をRendererに送信
@@ -156,7 +168,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       fieldState = transition(fieldState, "detach")
       log.info(`[FSM] ${fieldState} (detach)`)
     } catch (err) {
-      log.error(`[FSM] detach失敗: ${err instanceof Error ? err.message : err}`)
+      report("FIELD_CONTRACT_VIOLATION",
+        `detach失敗: ${err instanceof Error ? err.message : String(err)}`)
     }
   })
 
@@ -165,6 +178,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     const result = streamPostSchema.safeParse(raw)
     if (!result.success) {
       log.error(`[IPC] stream.post バリデーション失敗: ${JSON.stringify(result.error.issues)}`)
+      return
+    }
+
+    if (isFrozen()) {
+      log.error("[IPC] stream.post拒否: 凍結中")
       return
     }
 
@@ -192,13 +210,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         toolCalls: streamResult.toolCalls,
       })
     } catch (err) {
-      log.error(`[STREAM] エラー: ${err instanceof Error ? err.message : err}`)
-      const win = getMainWindow()
-      sendToRenderer(win, {
-        type: "integrity.alert",
-        code: "STREAM_ERROR",
-        message: err instanceof Error ? err.message : "不明なエラー",
-      })
+      report("RECIPROCITY_STREAM_ERROR",
+        `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
     }
   })
 
@@ -208,7 +221,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       fieldState = transition(fieldState, "terminate")
       log.info(`[FSM] ${fieldState} (terminate)`)
     } catch (err) {
-      log.error(`[FSM] terminate失敗: ${err instanceof Error ? err.message : err}`)
+      report("FIELD_CONTRACT_VIOLATION",
+        `terminate失敗: ${err instanceof Error ? err.message : String(err)}`)
     }
   })
 }

@@ -4,7 +4,7 @@ import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled } from "../config.js"
 import type { AppConfig } from "../config.js"
-import { loadState, saveState } from "../state/state-repository.js"
+import { loadState, saveState, defaultState } from "../state/state-repository.js"
 import type { State } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
 import type { SendMessageResult } from "../services/chat-session-service.js"
@@ -12,6 +12,7 @@ import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
+import { report, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
 
 // FieldRuntime: 場のロジックを統合する
@@ -24,9 +25,22 @@ let beingPrompt: string
 let initialized = false
 
 // 直列キュー（同時にsendMessageを呼ばないようにする）
+// 凍結中はジョブをスキップ（検知後の安全側停止）
 let queue: Promise<void> = Promise.resolve()
 function enqueue(fn: () => Promise<void>): Promise<void> {
-  queue = queue.then(fn, fn)
+  queue = queue.then(() => {
+    if (isFrozen()) {
+      log.info("[RUNTIME] 凍結中 — ジョブスキップ")
+      return
+    }
+    return fn()
+  }, () => {
+    if (isFrozen()) {
+      log.info("[RUNTIME] 凍結中 — ジョブスキップ")
+      return
+    }
+    return fn()
+  })
   return queue
 }
 
@@ -62,9 +76,17 @@ export function initRuntime(): void {
     baseURL: config.apiBaseUrl,
   })
   beingPrompt = loadBeing()
-  state = loadState()
-  initialized = true
 
+  // state.json読み込み（破損検知: ENOENT以外はthrow）
+  try {
+    state = loadState()
+  } catch (err) {
+    report("COEXISTENCE_STATE_LOAD_CORRUPTED",
+      `state.json破損: ${err instanceof Error ? err.message : String(err)}`)
+    state = defaultState()
+  }
+
+  initialized = true
   log.info(`[RUNTIME] 初期化完了 (lastResponseId: ${state.lastResponseId ?? "なし"})`)
 }
 
@@ -121,7 +143,8 @@ export function startPulse(
           log.info("[PULSE] 対応不要")
         }
       } catch (err) {
-        log.error(`[PULSE] エラー: ${err instanceof Error ? err.message : err}`)
+        report("RECIPROCITY_PULSE_ERROR",
+          `Pulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
       }
     })
   })
@@ -175,7 +198,8 @@ export function startObservation(
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
         } catch (err) {
-          log.error(`[OBSERVATION] AI応答エラー: ${err instanceof Error ? err.message : err}`)
+          report("RECIPROCITY_OBSERVATION_ERROR",
+            `観測AI応答エラー: ${err instanceof Error ? err.message : String(err)}`)
         }
       })
     },
