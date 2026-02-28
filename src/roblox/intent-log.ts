@@ -1,7 +1,7 @@
 import * as fs from "node:fs"
 import * as crypto from "node:crypto"
 import { z } from "zod/v4"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 import { type AppResult, ok, fail } from "../types/result.js"
 
 // Intent記録スキーマ（場が正本として保持する意図の記録）
@@ -28,7 +28,7 @@ export interface IntentInput {
 // 意図をpendingとして記録する
 export function appendIntent(input: IntentInput): AppResult<IntentRecord> {
   try {
-    fs.mkdirSync(APP_CONFIG.dataDir, { recursive: true })
+    fs.mkdirSync(getConfig().dataDir, { recursive: true })
 
     const record: IntentRecord = {
       id: crypto.randomUUID(),
@@ -40,7 +40,7 @@ export function appendIntent(input: IntentInput): AppResult<IntentRecord> {
     }
 
     fs.appendFileSync(
-      APP_CONFIG.intentLogFile,
+      getConfig().intentLogFile,
       JSON.stringify(record) + "\n",
       "utf-8",
     )
@@ -56,10 +56,10 @@ export function readIntentsByStatus(
   status: IntentRecord["status"],
 ): AppResult<IntentRecord[]> {
   try {
-    if (!fs.existsSync(APP_CONFIG.intentLogFile)) {
+    if (!fs.existsSync(getConfig().intentLogFile)) {
       return ok([])
     }
-    const content = fs.readFileSync(APP_CONFIG.intentLogFile, "utf-8")
+    const content = fs.readFileSync(getConfig().intentLogFile, "utf-8")
     const lines = content.trim().split("\n").filter(Boolean)
 
     const records: IntentRecord[] = []
@@ -83,11 +83,11 @@ export function updateIntentStatus(
   error?: string,
 ): AppResult<void> {
   try {
-    if (!fs.existsSync(APP_CONFIG.intentLogFile)) {
+    if (!fs.existsSync(getConfig().intentLogFile)) {
       return fail("INTENT_NOT_FOUND", `IntentLogが存在しません`)
     }
 
-    const content = fs.readFileSync(APP_CONFIG.intentLogFile, "utf-8")
+    const content = fs.readFileSync(getConfig().intentLogFile, "utf-8")
     const lines = content.trim().split("\n").filter(Boolean)
 
     const updated = lines.map((line) => {
@@ -101,7 +101,7 @@ export function updateIntentStatus(
     })
 
     fs.writeFileSync(
-      APP_CONFIG.intentLogFile,
+      getConfig().intentLogFile,
       updated.join("\n") + "\n",
       "utf-8",
     )

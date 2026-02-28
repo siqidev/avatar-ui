@@ -2,7 +2,8 @@ import OpenAI from "openai"
 import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { loadEnv, isRobloxEnabled, APP_CONFIG } from "../config.js"
+import { getConfig, isRobloxEnabled } from "../config.js"
+import type { AppConfig } from "../config.js"
 import { loadState, saveState } from "../state/state-repository.js"
 import type { State } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
@@ -12,13 +13,12 @@ import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import * as log from "../logger.js"
-import type { Env } from "../config.js"
 
 // FieldRuntime: 場のロジックを統合する
 // CLIのmain()と同等の機能をElectron Main向けに提供
 
 let client: OpenAI
-let env: Env
+let config: AppConfig
 let state: State
 let beingPrompt: string
 let initialized = false
@@ -33,7 +33,7 @@ function enqueue(fn: () => Promise<void>): Promise<void> {
 // being.mdを読み込む
 function loadBeing(): string {
   try {
-    return fs.readFileSync(APP_CONFIG.beingFile, "utf-8").trim()
+    return fs.readFileSync(getConfig().beingFile, "utf-8").trim()
   } catch {
     throw new Error("BEING.md が見つかりません")
   }
@@ -42,7 +42,7 @@ function loadBeing(): string {
 // pulse.mdを読み込む
 function loadPulse(): string | null {
   try {
-    const content = fs.readFileSync(APP_CONFIG.pulseFile, "utf-8").trim()
+    const content = fs.readFileSync(getConfig().pulseFile, "utf-8").trim()
     return content || null
   } catch (err: unknown) {
     if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
@@ -56,10 +56,10 @@ function loadPulse(): string | null {
 export function initRuntime(): void {
   if (initialized) return
 
-  env = loadEnv()
+  config = getConfig()
   client = new OpenAI({
-    apiKey: env.XAI_API_KEY,
-    baseURL: APP_CONFIG.apiBaseUrl,
+    apiKey: config.xaiApiKey,
+    baseURL: config.apiBaseUrl,
   })
   beingPrompt = loadBeing()
   state = loadState()
@@ -75,7 +75,7 @@ export function processChat(text: string): Promise<SendMessageResult> {
   return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const result = await sendMessage(client, env, state, beingPrompt, text)
+        const result = await sendMessage(client, state, beingPrompt, text)
         saveState(state)
         resolve(result)
       } catch (err) {
@@ -93,7 +93,7 @@ export function startPulse(
 ): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
-  cron.schedule(APP_CONFIG.pulseCron, () => {
+  cron.schedule(config.pulseCron, () => {
     if (!isFieldActive()) {
       log.info("[PULSE] 場が非アクティブ — スキップ")
       return
@@ -108,14 +108,13 @@ export function startPulse(
       try {
         const result = await sendMessage(
           client,
-          env,
           state,
           beingPrompt,
-          APP_CONFIG.pulsePrompt,
+          config.pulsePrompt,
           true, // forceSystemPrompt
         )
         saveState(state)
-        if (!result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
+        if (!result.text.startsWith(config.pulseOkPrefix)) {
           log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
         } else {
@@ -127,7 +126,7 @@ export function startPulse(
     })
   })
 
-  log.info(`[PULSE] cron開始: ${APP_CONFIG.pulseCron}`)
+  log.info(`[PULSE] cron開始: ${config.pulseCron}`)
 }
 
 // 観測サーバーを起動する（Roblox連携有効時のみ）
@@ -142,7 +141,7 @@ export function startObservation(
   isFieldActive: () => boolean,
 ): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
-  if (!isRobloxEnabled(env)) {
+  if (!isRobloxEnabled(config)) {
     log.info("[OBSERVATION] Roblox連携無効 — 観測サーバー起動スキップ")
     return
   }
@@ -151,7 +150,7 @@ export function startObservation(
     (event: ObservationEvent) => {
       // roblox_log: 表示+ログのみ、AIには送らない
       if (event.type === "roblox_log") {
-        const formatted = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
+        const formatted = formatObservation(event, config.robloxOwnerDisplayName)
         log.info(`[ROBLOX] ${formatted}`)
         const correlationId = generateCorrelationId("observation")
         onEvent(event, formatted, correlationId)
@@ -165,13 +164,13 @@ export function startObservation(
 
       // correlationIdを1回だけ生成し、onEventとonReplyで同一IDを使う
       const correlationId = generateCorrelationId("observation")
-      const formatted = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
+      const formatted = formatObservation(event, config.robloxOwnerDisplayName)
       onEvent(event, formatted, correlationId)
 
       enqueue(async () => {
         try {
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, env, state, beingPrompt, formatted)
+          const result = await sendMessage(client, state, beingPrompt, formatted)
           saveState(state)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
@@ -180,7 +179,7 @@ export function startObservation(
         }
       })
     },
-    env.ROBLOX_OBSERVATION_SECRET,
+    config.robloxObservationSecret,
   )
 
   log.info("[OBSERVATION] 観測サーバー起動")

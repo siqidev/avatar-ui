@@ -86,6 +86,8 @@ describe("ipc-schema", () => {
       const result = fieldStateSchema.safeParse({
         type: "field.state",
         state: "active",
+        avatarName: "Spectra",
+        userName: "User",
       })
       expect(result.success).toBe(true)
     })
@@ -94,6 +96,8 @@ describe("ipc-schema", () => {
       const result = fieldStateSchema.safeParse({
         type: "field.state",
         state: "resumed",
+        avatarName: "Spectra",
+        userName: "User",
         lastMessages: [
           { actor: "human", text: "こんにちは" },
           { actor: "ai", text: "やっほー" },
@@ -106,6 +110,8 @@ describe("ipc-schema", () => {
       const result = fieldStateSchema.safeParse({
         type: "field.state",
         state: "unknown",
+        avatarName: "Spectra",
+        userName: "User",
       })
       expect(result.success).toBe(false)
     })

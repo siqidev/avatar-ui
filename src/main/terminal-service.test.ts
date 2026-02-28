@@ -12,11 +12,13 @@ import {
   dispose,
 } from "./terminal-service.js"
 import type { TerminalToRendererEvent } from "../shared/terminal-schema.js"
+import { _resetConfigForTest } from "../config.js"
 
 // テスト用にイベント収集
 let events: TerminalToRendererEvent[] = []
 
 beforeEach(() => {
+  _resetConfigForTest({ XAI_API_KEY: "test-key" })
   events = []
   setEventSink((e) => events.push(e))
 })

@@ -5,6 +5,7 @@ import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { transition, initialState, isActive } from "./field-fsm.js"
 import { initRuntime, processChat, startPulse, startObservation } from "./field-runtime.js"
+import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
 // 場の状態（モジュールスコープで保持）
@@ -139,9 +140,12 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     }
     // 場の状態 + 直近メッセージ履歴をRendererに送信
     const win = getMainWindow()
+    const config = getConfig()
     sendToRenderer(win, {
       type: "field.state",
       state: fieldState,
+      avatarName: config.avatarName,
+      userName: config.userName,
       ...(messageHistory.length > 0 ? { lastMessages: [...messageHistory] } : {}),
     })
   })

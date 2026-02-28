@@ -1,5 +1,5 @@
 import { type AppResult, ok, fail } from "../types/result.js"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 
 // Roblox Open Cloud Messaging API V2 でゲームサーバーにメッセージを送信する
 export async function publishMessage(
@@ -13,7 +13,7 @@ export async function publishMessage(
     return fail("MESSAGE_TOO_LARGE", "メッセージが1KBを超えています")
   }
 
-  const url = `${APP_CONFIG.robloxOpenCloudBaseUrl}/universes/${universeId}:publishMessage`
+  const url = `${getConfig().robloxOpenCloudBaseUrl}/universes/${universeId}:publishMessage`
 
   try {
     const resp = await fetch(url, {

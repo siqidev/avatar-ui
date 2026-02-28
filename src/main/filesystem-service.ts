@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 import type {
   FsListArgs,
   FsListResult,
@@ -17,7 +17,7 @@ import type {
 
 /** Avatar Space のルートパス（正規化済み、環境変数を動的に参照） */
 function getAvatarSpaceRoot(): string {
-  return path.resolve(process.env.AVATAR_SPACE || APP_CONFIG.avatarSpace)
+  return path.resolve(getConfig().avatarSpace)
 }
 
 /** パスがAvatar Space内であることを検証。違反時はthrow */

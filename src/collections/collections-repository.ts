@@ -1,6 +1,6 @@
 import type OpenAI from "openai"
 import { type AppResult, ok, fail } from "../types/result.js"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 
 // Collectionsにメモリをアップロードする（2段階: files → documents attach）
 // JS/TSではxAI SDKが存在しないため、OpenAI SDK + fetch直叩きが必要
@@ -42,7 +42,7 @@ export async function uploadMemoryToCollection(
 
   // Step 2: コレクションにドキュメント追加（management-api.x.ai/v1、管理キー）
   try {
-    const url = `${APP_CONFIG.managementApiBaseUrl}/collections/${collectionId}/documents/${fileId}`
+    const url = `${getConfig().managementApiBaseUrl}/collections/${collectionId}/documents/${fileId}`
     const resp = await fetch(url, {
       method: "POST",
       headers: {

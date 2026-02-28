@@ -1,6 +1,6 @@
 import * as http from "node:http"
 import { z } from "zod/v4"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
 // 観測イベントスキーマ（Roblox→場の入力）
@@ -86,7 +86,7 @@ export function startObservationServer(
     })
   })
 
-  const listenPort = port ?? APP_CONFIG.observationPort
+  const listenPort = port ?? getConfig().observationPort
   server.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       log.error(`[OBSERVATION] ポート${listenPort}が使用中。前回のプロセスが残っている可能性あり`)

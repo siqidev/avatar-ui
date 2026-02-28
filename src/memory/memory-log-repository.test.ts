@@ -7,7 +7,7 @@ import {
   backupMemoryLog,
 } from "./memory-log-repository.js"
 import { createMemoryRecord, type SaveMemoryArgs } from "./memory-record.js"
-import { APP_CONFIG } from "../config.js"
+import { _resetConfigForTest } from "../config.js"
 
 const TEST_DATA_DIR = "data-test-memory"
 const TEST_MEMORY_FILE = `${TEST_DATA_DIR}/memory.jsonl`
@@ -30,15 +30,14 @@ function testRecord(text: string, id?: string) {
 
 describe("memory-log-repository", () => {
   beforeEach(() => {
-    Object.defineProperty(APP_CONFIG, "dataDir", { value: TEST_DATA_DIR, writable: true })
-    Object.defineProperty(APP_CONFIG, "memoryFile", { value: TEST_MEMORY_FILE, writable: true })
+    const config = _resetConfigForTest({ XAI_API_KEY: "test-key" })
+    Object.assign(config, { dataDir: TEST_DATA_DIR, memoryFile: TEST_MEMORY_FILE })
     fs.mkdirSync(TEST_DATA_DIR, { recursive: true })
   })
 
   afterEach(() => {
     fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true })
-    Object.defineProperty(APP_CONFIG, "dataDir", { value: "data", writable: true })
-    Object.defineProperty(APP_CONFIG, "memoryFile", { value: "data/memory.jsonl", writable: true })
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
   })
 
   it("メモリをappendして読み込める", () => {

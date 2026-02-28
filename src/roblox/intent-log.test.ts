@@ -1,26 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import * as fs from "node:fs"
-import { APP_CONFIG } from "../config.js"
+import { _resetConfigForTest, getConfig } from "../config.js"
 import {
   appendIntent,
   readIntentsByStatus,
   updateIntentStatus,
 } from "./intent-log.js"
 
-describe("intent-log", () => {
-  const testFile = APP_CONFIG.intentLogFile
+const TEST_DATA_DIR = "data-test-intent"
+const TEST_INTENT_FILE = `${TEST_DATA_DIR}/roblox-intents.jsonl`
 
+describe("intent-log", () => {
   beforeEach(() => {
+    const config = _resetConfigForTest({ XAI_API_KEY: "test-key" })
+    Object.assign(config, { dataDir: TEST_DATA_DIR, intentLogFile: TEST_INTENT_FILE })
+    fs.mkdirSync(TEST_DATA_DIR, { recursive: true })
     // テスト前にファイルを削除
-    if (fs.existsSync(testFile)) {
-      fs.unlinkSync(testFile)
+    if (fs.existsSync(TEST_INTENT_FILE)) {
+      fs.unlinkSync(TEST_INTENT_FILE)
     }
   })
 
   afterEach(() => {
-    if (fs.existsSync(testFile)) {
-      fs.unlinkSync(testFile)
-    }
+    fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true })
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
   })
 
   it("意図をpendingとして記録できる", () => {
@@ -39,7 +42,7 @@ describe("intent-log", () => {
     expect(result.data.ops).toHaveLength(1)
 
     // ファイルに書き込まれていることを確認
-    const content = fs.readFileSync(testFile, "utf-8")
+    const content = fs.readFileSync(TEST_INTENT_FILE, "utf-8")
     const parsed = JSON.parse(content.trim())
     expect(parsed.id).toBe(result.data.id)
   })

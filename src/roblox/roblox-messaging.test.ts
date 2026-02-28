@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { publishMessage } from "./roblox-messaging.js"
+import { _resetConfigForTest } from "../config.js"
 
 describe("roblox-messaging", () => {
   beforeEach(() => {
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
     vi.restoreAllMocks()
   })
 

@@ -24,7 +24,7 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Console UI実装進行中。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）レイアウト確定・実装済み。Canvasペイン（ファイル内容表示+画像昇格+focus stack）実装済み。Terminalペイン（xterm.js + per-command spawn + cwd追跡 + AI terminalツール統合）実装済み。Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証は将来に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。テスト177件。詳細はPLAN.mdの開発進捗を参照。
+スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Console UI実装進行中。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）レイアウト確定・実装済み。Canvasペイン（ファイル内容表示+画像昇格+focus stack）実装済み。Terminalペイン（xterm.js + per-command spawn + cwd追跡 + AI terminalツール統合）実装済み。Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証は将来に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。設定管理一元化済み（getConfig()遅延singleton、.env拡張、AVATAR_NAME/USER_NAME等）。テスト177件。詳細はPLAN.mdの開発進捗を参照。
 
 ### 次のアクション
 1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
@@ -140,7 +140,7 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | パス | 内容 |
 |------|------|
 | src/cli.ts | CLIエントリーポイント（会話+Pulse+観測の直列キュー） |
-| src/config.ts | 環境変数Zodスキーマ + APP_CONFIG定数 |
+| src/config.ts | 環境変数Zodスキーマ + getConfig()遅延singleton（唯一のprocess.env入口） |
 | src/logger.ts | ロギング（data/app.logに出力） |
 | src/services/chat-session-service.ts | sendMessage()（Grok Responses API呼出+ツール実行ループ） |
 | src/state/state-repository.ts | loadState()/saveState()（data/state.json） |

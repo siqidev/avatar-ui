@@ -1,12 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import * as fs from "node:fs"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
 // cloudflaredトンネルをElectronから管理する
 // CLOUDFLARED_TOKEN設定時のみ起動。ログはdata/cloudflared.logに保存
-
-const TUNNEL_LOG_FILE = `${APP_CONFIG.dataDir}/cloudflared.log`
 
 let tunnelProcess: ChildProcess | null = null
 let logStream: fs.WriteStream | null = null
@@ -19,7 +17,8 @@ export function startTunnel(token: string): void {
   }
 
   // ログファイルを追記モードで開く
-  logStream = fs.createWriteStream(TUNNEL_LOG_FILE, { flags: "a" })
+  const tunnelLogFile = `${getConfig().dataDir}/cloudflared.log`
+  logStream = fs.createWriteStream(tunnelLogFile, { flags: "a" })
 
   // --protocol http2: QUICのUDP 7844がブロックされる環境でも即座に接続できる
   // QUICはUDP 7844必須だが、公共WiFi等でブロックされフォールバックに数分かかる

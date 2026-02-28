@@ -1,22 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import * as fs from "node:fs"
 import { loadState, saveState, defaultState } from "./state-repository.js"
-import { APP_CONFIG } from "../config.js"
+import { _resetConfigForTest } from "../config.js"
 
 const TEST_DATA_DIR = "data-test-state"
 const TEST_STATE_FILE = `${TEST_DATA_DIR}/state.json`
 
 describe("state-repository", () => {
   beforeEach(() => {
-    Object.defineProperty(APP_CONFIG, "dataDir", { value: TEST_DATA_DIR, writable: true })
-    Object.defineProperty(APP_CONFIG, "stateFile", { value: TEST_STATE_FILE, writable: true })
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
+    // dataDir/stateFileを上書き（_resetConfigForTestで生成した後にパッチ）
+    const config = _resetConfigForTest({ XAI_API_KEY: "test-key" })
+    Object.assign(config, { dataDir: TEST_DATA_DIR, stateFile: TEST_STATE_FILE })
     fs.mkdirSync(TEST_DATA_DIR, { recursive: true })
   })
 
   afterEach(() => {
     fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true })
-    Object.defineProperty(APP_CONFIG, "dataDir", { value: "data", writable: true })
-    Object.defineProperty(APP_CONFIG, "stateFile", { value: "data/state.json", writable: true })
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
   })
 
   it("ファイルが存在しない場合、デフォルト状態を返す", () => {

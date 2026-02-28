@@ -1,4 +1,4 @@
-import type { Env } from "../config.js"
+import { getConfig } from "../config.js"
 
 // MessagingServiceトピック名（プロトコル定数、Roblox側CommandReceiverと一致）
 const MESSAGE_TOPIC = "AICommands"
@@ -39,8 +39,8 @@ function validateNpcMotionOps(ops: unknown[]): void {
 // v3: schema_version + intent_idを付与してACK閉ループを可能にする
 export async function projectIntent(
   intent: IntentRecord,
-  env: Env,
 ): Promise<boolean> {
+  const config = getConfig()
   // npc_motion の user_id を送信前に検証
   if (intent.category === "npc_motion") {
     validateNpcMotionOps(intent.ops)
@@ -58,8 +58,8 @@ export async function projectIntent(
   )
 
   const result = await publishMessage(
-    env.ROBLOX_API_KEY!,
-    env.ROBLOX_UNIVERSE_ID!,
+    config.robloxApiKey!,
+    config.robloxUniverseId!,
     MESSAGE_TOPIC,
     message,
   )
@@ -77,7 +77,7 @@ export async function projectIntent(
 }
 
 // 未送信（pending）の意図を全て投影する（起動時のリトライ用）
-export async function projectPendingIntents(env: Env): Promise<number> {
+export async function projectPendingIntents(): Promise<number> {
   const result = readIntentsByStatus("pending")
   if (!result.success) {
     log.error(
@@ -93,7 +93,7 @@ export async function projectPendingIntents(env: Env): Promise<number> {
 
   let sent = 0
   for (const intent of pending) {
-    const success = await projectIntent(intent, env)
+    const success = await projectIntent(intent)
     if (success) sent++
   }
 

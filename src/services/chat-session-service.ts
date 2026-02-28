@@ -5,8 +5,7 @@ import type {
   Tool,
 } from "openai/resources/responses/responses"
 import type { State } from "../state/state-repository.js"
-import type { Env } from "../config.js"
-import { APP_CONFIG, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
+import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
   robloxActionToolDef,
@@ -60,12 +59,12 @@ export type SendMessageResult = {
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
   client: OpenAI,
-  env: Env,
   state: State,
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
 ): Promise<SendMessageResult> {
+  const config = getConfig()
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput =
     state.lastResponseId && !forceSystemPrompt
@@ -75,10 +74,10 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(env)
+  const tools = buildTools(config)
 
   let response = await client.responses.create({
-    model: APP_CONFIG.model,
+    model: config.model,
     input,
     tools,
     store: true,
@@ -99,7 +98,7 @@ export async function sendMessage(
     const toolResults: ResponseInput = []
     for (const call of toolCalls) {
       log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
-      const result = await handleToolCall(call, client, env, response.id)
+      const result = await handleToolCall(call, client, response.id)
       log.info(`[TOOL_RESULT] ${call.name}: ${result}`)
 
       allToolCalls.push({
@@ -116,7 +115,7 @@ export async function sendMessage(
     }
 
     response = await client.responses.create({
-      model: APP_CONFIG.model,
+      model: config.model,
       input: toolResults,
       tools,
       store: true,
@@ -132,7 +131,7 @@ export async function sendMessage(
 }
 
 // ツール定義を組み立てる
-function buildTools(env: Env): Tool[] {
+function buildTools(config: import("../config.js").AppConfig): Tool[] {
   const tools: Tool[] = [
     saveMemoryToolDef,
     fsListToolDef,
@@ -141,13 +140,13 @@ function buildTools(env: Env): Tool[] {
     fsMutateToolDef,
     terminalToolDef,
   ]
-  if (isCollectionsEnabled(env) && env.XAI_COLLECTION_ID) {
+  if (isCollectionsEnabled(config) && config.xaiCollectionId) {
     tools.push({
       type: "file_search",
-      vector_store_ids: [env.XAI_COLLECTION_ID],
+      vector_store_ids: [config.xaiCollectionId],
     } as Tool)
   }
-  if (isRobloxEnabled(env)) {
+  if (isRobloxEnabled(config)) {
     tools.push(robloxActionToolDef)
   }
   return tools
@@ -174,14 +173,13 @@ function extractFunctionCalls(
 async function handleToolCall(
   call: { callId: string; name: string; args: string },
   client: OpenAI,
-  env: Env,
   responseId: string,
 ): Promise<string> {
   if (call.name === "save_memory") {
-    return handleSaveMemory(call.args, call.callId, responseId, client, env)
+    return handleSaveMemory(call.args, call.callId, responseId, client)
   }
   if (call.name === "roblox_action") {
-    return handleRobloxAction(call.args, env)
+    return handleRobloxAction(call.args)
   }
   if (call.name === "fs_list") {
     return handleFsList(call.args)
@@ -207,8 +205,8 @@ async function handleSaveMemory(
   callId: string,
   responseId: string,
   client: OpenAI,
-  env: Env,
 ): Promise<string> {
+  const config = getConfig()
   const parsed = JSON.parse(argsJson)
   const validation = saveMemoryArgsSchema.safeParse(parsed)
   if (!validation.success) {
@@ -231,14 +229,14 @@ async function handleSaveMemory(
 
   // ② Collectionsにアップロード（fire-and-forget: 失敗時はthrowでプロセス停止）
   if (
-    isCollectionsEnabled(env) &&
-    env.XAI_COLLECTION_ID &&
-    env.XAI_MANAGEMENT_API_KEY
+    isCollectionsEnabled(config) &&
+    config.xaiCollectionId &&
+    config.xaiManagementApiKey
   ) {
     void uploadMemoryToCollection(
       client,
-      env.XAI_COLLECTION_ID,
-      env.XAI_MANAGEMENT_API_KEY,
+      config.xaiCollectionId,
+      config.xaiManagementApiKey,
       record.id,
       record.text,
       record.tags,
@@ -255,7 +253,6 @@ async function handleSaveMemory(
 // roblox_actionツール v2 の実行（IntentLog記録 → Projector投影）
 async function handleRobloxAction(
   argsJson: string,
-  env: Env,
 ): Promise<string> {
   const parsed = JSON.parse(argsJson)
   const validation = robloxActionArgsSchema.safeParse(parsed)
@@ -279,7 +276,7 @@ async function handleRobloxAction(
   log.info(`[INTENT] ${intent.id} category=${category} ops=${ops.length}件 reason=${reason}`)
 
   // ② Projectorで投影（Robloxへ送信 + ステータス更新）
-  const sent = await projectIntent(intent, env)
+  const sent = await projectIntent(intent)
   if (!sent) {
     throw new Error(
       `Roblox投影失敗（意図は記録済み: ${intent.id}）`,

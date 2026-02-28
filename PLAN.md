@@ -443,6 +443,71 @@ Terminalは上記の中で「環境に直接介入できる窓」。npm install�
 2. **残り要素（①②④）の帰納的検証** — 実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
 3. **テスト計画（#7）** — 受入シナリオのテスト実装
 
+### 設定管理の一元化（完了 2026-02-27）
+
+**方針**: `.env`をシークレット以外にも拡張し、`config.ts`を唯一の`process.env`入口にする。
+
+**解決した問題（Codex指摘）**:
+1. ~~`APP_CONFIG`が`process.env`を直接読む~~ → `getConfig()` 遅延singletonに統一
+2. ~~`Number(...) || 3000`はfail-fast違反~~ → Zodスキーマで`regex(/^\d+$/)`バリデーション
+3. ~~`AVATAR_SPACE`の正本散在~~ → `getConfig().avatarSpace` 一元化
+4. ~~`LOG_VERBOSE`直接参照~~ → `getConfig().logVerbose` 経由
+5. ~~`.env.example`不備~~ → 全項目をコメント付きで記載
+
+**実装**:
+- `config.ts`: `envSchema`拡張（AVATAR_NAME, USER_NAME, GROK_MODEL, PULSE_CRON, TERMINAL_SHELL, LOG_VERBOSE）+ `buildConfig(rawEnv)` 純粋関数 + `getConfig()` 遅延singleton + `_resetConfigForTest()` テスト用リセット
+- `sendMessage()`: `env: Env`パラメータ削除（内部で`getConfig()`使用）
+- `projectIntent()`/`projectPendingIntents()`: 同上
+- Renderer: `field.state` IPCメッセージに`avatarName`/`userName`を含め、ラベルを動的表示
+- テスト: `_resetConfigForTest()`パターンに統一、177件全通過
+
+**具体値の棚卸し結果**:
+
+| カテゴリ | 現在の値 | 現在の場所 | .env化候補 |
+|---------|---------|-----------|-----------|
+| **シークレット（既存）** | | | |
+| XAI_API_KEY | — | envSchema | 維持 |
+| XAI_MANAGEMENT_API_KEY | — | envSchema | 維持 |
+| ROBLOX_API_KEY | — | envSchema | 維持 |
+| ROBLOX_OBSERVATION_SECRET | — | envSchema | 維持 |
+| CLOUDFLARED_TOKEN | — | envSchema | 維持 |
+| **外部ID（既存）** | | | |
+| XAI_COLLECTION_ID | — | envSchema | 維持 |
+| ROBLOX_UNIVERSE_ID | — | envSchema | 維持 |
+| **アイデンティティ（新規）** | | | |
+| AI名 | "Avatar" | AVATAR_NAME envデフォルト | 完了 |
+| 人間ラベル | "you>" | ハードコード(cli.ts/main.ts) | 検討 |
+| Avatar画像(idle) | "./idle.png" | ハードコード(index.html/main.ts) | 検討 |
+| Avatar画像(talk) | "./talk.png" | ハードコード(main.ts) | 検討 |
+| **モデル・API** | | | |
+| Grokモデル名 | "grok-4-1-fast-non-reasoning" | APP_CONFIG.model | Yes: GROK_MODEL |
+| API base URL | "https://api.x.ai/v1" | APP_CONFIG.apiBaseUrl | 検討 |
+| Management API URL | "https://management-api.x.ai/v1" | APP_CONFIG.managementApiBaseUrl | 検討 |
+| **ファイルパス** | | | |
+| beingFile | "BEING.md" | APP_CONFIG | 検討 |
+| pulseFile | "PULSE.md" | APP_CONFIG | 検討 |
+| dataDir | "data" | APP_CONFIG | 低優先 |
+| stateFile等 | "data/*.json" | APP_CONFIG | 低優先（dataDirから派生） |
+| avatarSpace | ~/Avatar/space | APP_CONFIG+process.env | 既存（整理のみ） |
+| **Pulse** | | | |
+| pulseCron | "*/30 * * * *" | APP_CONFIG | Yes: PULSE_CRON |
+| pulsePrompt | 固定文 | APP_CONFIG | 低優先（実装結合） |
+| pulseOkPrefix | "PULSE_OK" | APP_CONFIG | 低優先（実装結合） |
+| **ネットワーク** | | | |
+| observationPort | 3000 | APP_CONFIG+process.env | 既存（整理のみ） |
+| **Roblox** | | | |
+| OpenCloud URL | "https://apis.roblox.com/cloud/v2" | APP_CONFIG | 低優先（安定） |
+| ownerDisplayName | — | envSchema | 維持 |
+| **ウィンドウ** | | | |
+| width/height | 1280x800 | ハードコード(main/index.ts) | 検討 |
+| **Terminal** | | | |
+| shell | "zsh" | ハードコード(terminal-service.ts) | 検討: SHELL |
+| defaultTimeoutMs | 30000 | ハードコード(terminal-service.ts) | 低優先 |
+| **ログ** | | | |
+| LOG_VERBOSE | false | process.env直参照(logger.ts) | 既存（整理のみ） |
+
+**判断基準**: (1)環境依存かつ(2)コード変更なしで実際に変わる値のみ`.env`化。両条件を満たさない項目はコード管理を維持
+
 **⑤共存記録について**: v0.3では追加実装不要と判断（2026-02-26）。previous_response_id（Grok API会話継続）+ save_memory（ローカルJSONL + Collections API）+ roblox-intents.jsonl（未送信リトライ）で「再起動をまたいで関係が継続」を実質的に充足。唯一のリスクはGrok APIの会話履歴パージだが、現時点で発生していないため、対策は挙動が判明してから検討する
 
 ## 場モデル6要素のv0.3実装度

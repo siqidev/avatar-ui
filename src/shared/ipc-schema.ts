@@ -59,6 +59,8 @@ export const chatReplySchema = z.object({
 export const fieldStateSchema = z.object({
   type: z.literal("field.state"),
   state: z.enum(["generated", "active", "paused", "resumed", "terminated"]),
+  avatarName: z.string(),
+  userName: z.string(),
   lastMessages: z.array(z.object({
     actor: actorSchema,
     text: z.string(),

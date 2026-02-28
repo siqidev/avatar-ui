@@ -1,4 +1,4 @@
-// 観測イベントをSpectraへの入力テキストに変換する
+// 観測イベントをAIへの入力テキストに変換する
 // cli.tsから抽出した共通モジュール（CLI/Electron両方で使用）
 // v3: command_ack, npc_follow_eventを追加
 
@@ -52,7 +52,7 @@ function formatFollowEvent(p: Record<string, unknown>): string {
   }
 }
 
-// 観測イベントをSpectraに渡すプロンプトテキストに変換
+// 観測イベントをAIに渡すプロンプトテキストに変換
 export function formatObservation(
   event: ObservationEvent,
   ownerDisplayName?: string,

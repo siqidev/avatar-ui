@@ -1,8 +1,9 @@
-import { describe, it, expect, afterEach } from "vitest"
+import { describe, it, expect, afterEach, beforeEach } from "vitest"
 import type { Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { startObservationServer } from "./observation-server.js"
 import type { ObservationEvent } from "./observation-server.js"
+import { _resetConfigForTest } from "../config.js"
 
 // テスト用: port 0でOS自動割り当て、実際のURLを返すヘルパー
 async function startTestServer(
@@ -17,6 +18,10 @@ async function startTestServer(
 
 describe("observation-server", () => {
   let server: Server | null = null
+
+  beforeEach(() => {
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
+  })
 
   afterEach(async () => {
     if (server) {

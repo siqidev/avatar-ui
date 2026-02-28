@@ -1,6 +1,7 @@
 import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
+import { getConfig } from "../config.js"
 import { registerIpcHandlers } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
@@ -38,10 +39,12 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // fail-fast: config初期化（.envのZodバリデーション）
+  const config = getConfig()
+
   // cloudflaredトンネル起動（トークン設定時のみ）
-  const tunnelToken = process.env.CLOUDFLARED_TOKEN
-  if (tunnelToken) {
-    startTunnel(tunnelToken)
+  if (config.cloudflaredToken) {
+    startTunnel(config.cloudflaredToken)
   }
 
   registerIpcHandlers(() => mainWindow)

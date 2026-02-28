@@ -3,6 +3,7 @@
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
 import { homedir } from "node:os"
+import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 import type {
   TerminalExecArgs,
@@ -84,7 +85,7 @@ export function execCommand(args: TerminalExecArgs): { accepted: boolean; reason
   // シェル実行: コマンド末尾にpwdマーカーを付与
   // -c（非ログイン）: Electron親プロセスのPATHを継承。-lcだとzshrcのプロンプトテーマが初期化ゴミを出す
   const wrappedCmd = `${cmd}; __exit=$?; echo "${CWD_MARKER_PREFIX}$(pwd)"; exit $__exit`
-  const child = spawn("zsh", ["-c", wrappedCmd], {
+  const child = spawn(getConfig().terminalShell, ["-c", wrappedCmd], {
     cwd: currentCwd,
     env: { ...process.env, TERM: "dumb" },
     stdio: ["pipe", "pipe", "pipe"],

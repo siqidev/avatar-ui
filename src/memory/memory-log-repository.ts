@@ -1,14 +1,15 @@
 import * as fs from "node:fs"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 import { type MemoryRecord, memoryRecordSchema } from "./memory-record.js"
 import { type AppResult, ok, fail } from "../types/result.js"
 
 // memory.jsonlに1件追記する
 export function appendMemory(record: MemoryRecord): AppResult<void> {
   try {
-    fs.mkdirSync(APP_CONFIG.dataDir, { recursive: true })
+    const config = getConfig()
+    fs.mkdirSync(config.dataDir, { recursive: true })
     const line = JSON.stringify(record) + "\n"
-    fs.appendFileSync(APP_CONFIG.memoryFile, line, "utf-8")
+    fs.appendFileSync(config.memoryFile, line, "utf-8")
     return ok(undefined)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -19,10 +20,11 @@ export function appendMemory(record: MemoryRecord): AppResult<void> {
 // memory.jsonlから直近N件を読み込む（障害時fallback用）
 export function readRecentMemories(n: number): AppResult<MemoryRecord[]> {
   try {
-    if (!fs.existsSync(APP_CONFIG.memoryFile)) {
+    const { memoryFile } = getConfig()
+    if (!fs.existsSync(memoryFile)) {
       return ok([])
     }
-    const content = fs.readFileSync(APP_CONFIG.memoryFile, "utf-8")
+    const content = fs.readFileSync(memoryFile, "utf-8")
     const lines = content.trim().split("\n").filter(Boolean)
 
     const records: MemoryRecord[] = []
@@ -46,10 +48,11 @@ export function readMemoriesAfter(
   cursorId: string | null,
 ): AppResult<MemoryRecord[]> {
   try {
-    if (!fs.existsSync(APP_CONFIG.memoryFile)) {
+    const { memoryFile } = getConfig()
+    if (!fs.existsSync(memoryFile)) {
       return ok([])
     }
-    const content = fs.readFileSync(APP_CONFIG.memoryFile, "utf-8")
+    const content = fs.readFileSync(memoryFile, "utf-8")
     const lines = content.trim().split("\n").filter(Boolean)
 
     const records: MemoryRecord[] = []
@@ -73,10 +76,11 @@ export function readMemoriesAfter(
 // memory.jsonlのバックアップを作成する
 export function backupMemoryLog(): AppResult<void> {
   try {
-    if (!fs.existsSync(APP_CONFIG.memoryFile)) {
+    const { memoryFile } = getConfig()
+    if (!fs.existsSync(memoryFile)) {
       return ok(undefined)
     }
-    fs.copyFileSync(APP_CONFIG.memoryFile, `${APP_CONFIG.memoryFile}.bak`)
+    fs.copyFileSync(memoryFile, `${memoryFile}.bak`)
     return ok(undefined)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

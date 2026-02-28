@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import * as readline from "node:readline"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { loadEnv, isCollectionsEnabled, isRobloxEnabled, APP_CONFIG } from "./config.js"
+import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
 import { projectPendingIntents } from "./roblox/projector.js"
@@ -15,7 +15,7 @@ import * as log from "./logger.js"
 // being.mdから人格定義を読み込む
 function loadBeing(): string {
   try {
-    return fs.readFileSync(APP_CONFIG.beingFile, "utf-8").trim()
+    return fs.readFileSync(getConfig().beingFile, "utf-8").trim()
   } catch {
     log.fatal("being.md が見つかりません")
   }
@@ -24,7 +24,7 @@ function loadBeing(): string {
 // pulse.mdを読み込む（層A: 不存在/空→null、他IOエラー→throw）
 function loadPulse(): string | null {
   try {
-    const content = fs.readFileSync(APP_CONFIG.pulseFile, "utf-8").trim()
+    const content = fs.readFileSync(getConfig().pulseFile, "utf-8").trim()
     return content || null
   } catch (err: unknown) {
     if (err instanceof Error && "code" in err && err.code === "ENOENT") {
@@ -36,16 +36,16 @@ function loadPulse(): string | null {
 
 
 async function main(): Promise<void> {
-  const env = loadEnv()
+  const config = getConfig()
 
   // cron式バリデーション（fail-fast）
-  if (!cron.validate(APP_CONFIG.pulseCron)) {
-    log.fatal(`不正なcron式: ${APP_CONFIG.pulseCron}`)
+  if (!cron.validate(config.pulseCron)) {
+    log.fatal(`不正なcron式: ${config.pulseCron}`)
   }
 
   const client = new OpenAI({
-    apiKey: env.XAI_API_KEY,
-    baseURL: APP_CONFIG.apiBaseUrl,
+    apiKey: config.xaiApiKey,
+    baseURL: config.apiBaseUrl,
   })
 
   const beingPrompt = loadBeing()
@@ -57,16 +57,16 @@ async function main(): Promise<void> {
   } else {
     process.stdout.write("新しい会話を開始します\n")
   }
-  if (isCollectionsEnabled(env)) {
+  if (isCollectionsEnabled(config)) {
     process.stdout.write("長期記憶: Collections API 有効\n")
   } else {
     process.stdout.write(
       "長期記憶: ローカルのみ（XAI_COLLECTION_ID / XAI_MANAGEMENT_API_KEY を設定するとCollections有効）\n",
     )
   }
-  if (isRobloxEnabled(env)) {
+  if (isRobloxEnabled(config)) {
     // Roblox連携有効時はobservationSecret必須（偽イベント注入防止）
-    if (!env.ROBLOX_OBSERVATION_SECRET) {
+    if (!config.robloxObservationSecret) {
       log.fatal(
         "ROBLOX_OBSERVATION_SECRET が未設定です（Roblox連携有効時は必須）",
       )
@@ -74,12 +74,12 @@ async function main(): Promise<void> {
     process.stdout.write("Roblox連携: 有効\n")
 
     // 起動時: 未送信の意図をリトライ
-    const retried = await projectPendingIntents(env)
+    const retried = await projectPendingIntents()
     if (retried > 0) {
       process.stdout.write(`  未送信の意図を${retried}件送信しました\n`)
     }
   }
-  process.stdout.write("Spectra と会話する（Ctrl+C で終了）\n\n")
+  process.stdout.write(`${config.avatarName} と会話する（Ctrl+C で終了）\n\n`)
 
   // 直列キュー: ユーザー入力・Pulse・観測を同じPromiseチェーンで直列実行
   let queue = Promise.resolve()
@@ -94,16 +94,17 @@ async function main(): Promise<void> {
     input: process.stdin,
     output: process.stdout,
   })
-  rl.setPrompt("you> ")
+  rl.setPrompt(`${config.userName.toLowerCase()}> `)
 
   // 観測受信サーバー起動（Roblox→場のPush入力経路）
-  if (isRobloxEnabled(env)) {
+  const avatarLabel = config.avatarName.toLowerCase()
+  if (isRobloxEnabled(config)) {
     startObservationServer(
       (event: ObservationEvent) => {
         enqueue(async () => {
-          const prompt = formatObservation(event, env.ROBLOX_OWNER_DISPLAY_NAME)
+          const prompt = formatObservation(event, config.robloxOwnerDisplayName)
           const input = createParticipationInput("human", "observation", prompt)
-          log.info(`[OBSERVATION→SPECTRA] (${input.correlationId}) ${prompt}`)
+          log.info(`[OBSERVATION→AI] (${input.correlationId}) ${prompt}`)
 
           readline.clearLine(process.stdout, 0)
           readline.cursorTo(process.stdout, 0)
@@ -111,18 +112,17 @@ async function main(): Promise<void> {
 
           const result = await sendMessage(
             client,
-            env,
             state,
             beingPrompt,
             input.text,
           )
-          log.info(`[SPECTRA] (${input.correlationId}) ${result.text}`)
-          process.stdout.write(`\nspectra> ${result.text}\n\n`)
+          log.info(`[AI] (${input.correlationId}) ${result.text}`)
+          process.stdout.write(`\n${avatarLabel}> ${result.text}\n\n`)
           saveState(state)
           rl.prompt()
         })
       },
-      env.ROBLOX_OBSERVATION_SECRET,
+      config.robloxObservationSecret,
     )
   }
 
@@ -137,20 +137,19 @@ async function main(): Promise<void> {
       log.info(`[USER] (${input.correlationId}) ${input.text}`)
       const result = await sendMessage(
         client,
-        env,
         state,
         beingPrompt,
         input.text,
       )
-      log.info(`[SPECTRA] (${input.correlationId}) ${result.text}`)
-      process.stdout.write(`\nspectra> ${result.text}\n\n`)
+      log.info(`[AI] (${input.correlationId}) ${result.text}`)
+      process.stdout.write(`\n${avatarLabel}> ${result.text}\n\n`)
       saveState(state)
       rl.prompt()
     })
   })
 
   // Pulseタイマー（層A→B→C）
-  const pulseTask = cron.schedule(APP_CONFIG.pulseCron, () => {
+  const pulseTask = cron.schedule(config.pulseCron, () => {
     enqueue(async () => {
       // 層A: pulse.md読み込み（不存在/空→スキップ）
       const pulseContent = loadPulse()
@@ -160,11 +159,10 @@ async function main(): Promise<void> {
       const systemPrompt = `${beingPrompt}\n\n${pulseContent}`
 
       // 層C: sendMessage（forceSystemPrompt=trueでsystem再送信）
-      const input = createParticipationInput("ai", "pulse", APP_CONFIG.pulsePrompt)
+      const input = createParticipationInput("ai", "pulse", config.pulsePrompt)
       log.info(`[PULSE] (${input.correlationId}) 発火`)
       const result = await sendMessage(
         client,
-        env,
         state,
         systemPrompt,
         input.text,
@@ -173,14 +171,14 @@ async function main(): Promise<void> {
       saveState(state)
 
       // PULSE_OK先頭→ログのみ、それ以外→readline割り込み表示
-      if (result.text.startsWith(APP_CONFIG.pulseOkPrefix)) {
+      if (result.text.startsWith(config.pulseOkPrefix)) {
         log.info(`[PULSE] (${input.correlationId}) 対応不要: ${result.text.slice(0, 80)}`)
       } else {
-        log.info(`[PULSE→SPECTRA] (${input.correlationId}) ${result.text}`)
+        log.info(`[PULSE→AI] (${input.correlationId}) ${result.text}`)
         // readlineの現在行をクリアして割り込み表示
         readline.clearLine(process.stdout, 0)
         readline.cursorTo(process.stdout, 0)
-        process.stdout.write(`\nspectra> ${result.text}\n\n`)
+        process.stdout.write(`\n${avatarLabel}> ${result.text}\n\n`)
         rl.prompt()
       }
     })

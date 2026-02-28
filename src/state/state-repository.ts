@@ -1,5 +1,5 @@
 import * as fs from "node:fs"
-import { APP_CONFIG } from "../config.js"
+import { getConfig } from "../config.js"
 
 // セッション状態（後方互換: 旧形式の自動マイグレーション付き）
 export type State = {
@@ -14,7 +14,7 @@ export function defaultState(): State {
 // state.jsonを読み込む
 export function loadState(): State {
   try {
-    const raw = fs.readFileSync(APP_CONFIG.stateFile, "utf-8")
+    const raw = fs.readFileSync(getConfig().stateFile, "utf-8")
     const obj = JSON.parse(raw)
     return {
       lastResponseId:
@@ -27,6 +27,7 @@ export function loadState(): State {
 
 // state.jsonに保存する
 export function saveState(state: State): void {
-  fs.mkdirSync(APP_CONFIG.dataDir, { recursive: true })
-  fs.writeFileSync(APP_CONFIG.stateFile, JSON.stringify(state, null, 2))
+  const config = getConfig()
+  fs.mkdirSync(config.dataDir, { recursive: true })
+  fs.writeFileSync(config.stateFile, JSON.stringify(state, null, 2))
 }

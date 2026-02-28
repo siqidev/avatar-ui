@@ -366,7 +366,7 @@ function showThinking(): void {
   thinkingEl.className = "message message-ai thinking"
   const label = document.createElement("span")
   label.className = "label"
-  label.textContent = "spectra>"
+  label.textContent = avatarLabel
   const dots = document.createElement("span")
   dots.className = "thinking-dots"
   dots.textContent = "..."
@@ -379,6 +379,10 @@ function showThinking(): void {
 function removeThinking(): void {
   if (thinkingEl) { thinkingEl.remove(); thinkingEl = null }
 }
+
+// === 設定（field.stateから受信） ===
+let avatarLabel = "spectra>"
+let userLabel = "you>"
 
 // === 状態管理 ===
 let streamPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }
@@ -462,13 +466,13 @@ function appendMessage(
   } else if (actor === "human" && source === "pulse") {
     label.textContent = "[pulse]"
   } else if (actor === "human") {
-    label.textContent = "you>"
+    label.textContent = userLabel
   } else if (source === "pulse") {
-    label.textContent = "[pulse] spectra>"
+    label.textContent = `[pulse] ${avatarLabel}`
   } else if (source === "observation") {
-    label.textContent = "[roblox] spectra>"
+    label.textContent = `[roblox] ${avatarLabel}`
   } else {
-    label.textContent = "spectra>"
+    label.textContent = avatarLabel
   }
   div.appendChild(label)
 
@@ -493,6 +497,8 @@ window.fieldApi.attach()
 window.fieldApi.onFieldState((data) => {
   const msg = data as {
     state: string
+    avatarName: string
+    userName: string
     lastMessages?: Array<{
       actor: string
       text: string
@@ -501,6 +507,13 @@ window.fieldApi.onFieldState((data) => {
     }>
   }
   statusEl.textContent = msg.state
+  avatarLabel = `${msg.avatarName.toLowerCase()}>`
+  userLabel = `${msg.userName.toLowerCase()}>`
+
+  // Avatarペインのヘッダーとalt属性を更新
+  const avatarPaneHeader = document.querySelector("#pane-avatar .pane-header span")
+  if (avatarPaneHeader) avatarPaneHeader.textContent = msg.avatarName
+  avatarImg.alt = msg.avatarName
 
   streamPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
   updateStreamPaneVisual()

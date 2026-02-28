@@ -3,19 +3,19 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import * as os from "node:os"
 import { fsList, fsRead, fsWrite, fsMutate } from "./filesystem-service.js"
+import { _resetConfigForTest } from "../config.js"
 
 // テスト用の一時Avatar Spaceを作成
 let tmpDir: string
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "avatar-space-test-"))
-  // APP_CONFIG.avatarSpaceを一時ディレクトリに上書き
-  process.env.AVATAR_SPACE = tmpDir
+  const config = _resetConfigForTest({ XAI_API_KEY: "test-key", AVATAR_SPACE: tmpDir })
 })
 
 afterEach(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true })
-  delete process.env.AVATAR_SPACE
+  _resetConfigForTest({ XAI_API_KEY: "test-key" })
 })
 
 describe("fsList", () => {
