@@ -1,6 +1,7 @@
 import { z } from "zod/v4"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { mkdirSync, existsSync } from "node:fs"
 
 // 環境変数スキーマ（Zodバリデーション + デフォルト値）
 const envSchema = z.object({
@@ -74,6 +75,7 @@ export type AppConfig = {
   logFile: string
   intentLogFile: string
   avatarSpace: string
+  avatarSpaceExplicit: boolean
 
   // Pulse
   pulseCron: string
@@ -99,6 +101,10 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
   for (const [k, v] of Object.entries(rawEnv)) {
     cleaned[k] = v === "" ? undefined : v
   }
+
+  // AVATAR_SPACEがユーザー明示か判定（safeParse前に確定）
+  const avatarSpaceExplicit =
+    typeof cleaned.AVATAR_SPACE === "string" && cleaned.AVATAR_SPACE.trim() !== ""
 
   const result = envSchema.safeParse(cleaned)
   if (!result.success) {
@@ -139,6 +145,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     logFile: `${dataDir}/app.log`,
     intentLogFile: `${dataDir}/roblox-intents.jsonl`,
     avatarSpace: env.AVATAR_SPACE,
+    avatarSpaceExplicit,
 
     // Pulse
     pulseCron: env.PULSE_CRON,
@@ -171,6 +178,24 @@ export function getConfig(): AppConfig {
 export function _resetConfigForTest(rawEnv: Record<string, string | undefined>): AppConfig {
   _config = buildConfig(rawEnv)
   return _config
+}
+
+/** 起動時ディレクトリ保証（CLI/Electron共通、getConfig()直後に1回呼ぶ） */
+export function ensureDirectories(config: AppConfig): void {
+  // data/ は内部運用データ → 常に暗黙作成
+  mkdirSync(config.dataDir, { recursive: true })
+
+  // AVATAR_SPACE: デフォルト値→暗黙作成、明示設定→存在チェック+fail-fast
+  if (config.avatarSpaceExplicit) {
+    if (!existsSync(config.avatarSpace)) {
+      process.stderr.write(
+        `[FATAL] AVATAR_SPACE が存在しません: ${config.avatarSpace}\n`,
+      )
+      process.exit(1)
+    }
+  } else {
+    mkdirSync(config.avatarSpace, { recursive: true })
+  }
 }
 
 // Collections APIが利用可能か判定

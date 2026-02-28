@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import * as readline from "node:readline"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "./config.js"
+import { getConfig, ensureDirectories, isCollectionsEnabled, isRobloxEnabled } from "./config.js"
 import { loadState, saveState } from "./state/state-repository.js"
 import { sendMessage } from "./services/chat-session-service.js"
 import { projectPendingIntents } from "./roblox/projector.js"
@@ -37,6 +37,7 @@ function loadPulse(): string | null {
 
 async function main(): Promise<void> {
   const config = getConfig()
+  ensureDirectories(config)
 
   // cron式バリデーション（fail-fast）
   if (!cron.validate(config.pulseCron)) {
