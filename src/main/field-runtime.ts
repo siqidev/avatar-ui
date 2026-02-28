@@ -68,8 +68,8 @@ export function initRuntime(): void {
   log.info(`[RUNTIME] 初期化完了 (lastResponseId: ${state.lastResponseId ?? "なし"})`)
 }
 
-// チャットメッセージを処理する（chat.post → sendMessage → chat.reply）
-export function processChat(text: string): Promise<SendMessageResult> {
+// ストリームメッセージを処理する（stream.post → sendMessage → stream.reply）
+export function processStream(text: string): Promise<SendMessageResult> {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   return new Promise<SendMessageResult>((resolve, reject) => {
@@ -131,7 +131,7 @@ export function startPulse(
 
 // 観測サーバーを起動する（Roblox連携有効時のみ）
 // onEvent: 生イベント通知（Renderer表示用）
-// onReply: AI応答通知（chat.reply用）
+// onReply: AI応答通知（stream.reply用）
 let observationServer: http.Server | null = null
 
 // isFieldActive: 場状態ゲート（非アクティブ時はスキップ）

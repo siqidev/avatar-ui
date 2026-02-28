@@ -1,5 +1,5 @@
 // 状態正規化器: IPC入力 → ペインの視覚状態を決定する純粋関数
-// 優先度: integrity.alert > field.state > chat.reply > focus > normal
+// 優先度: integrity.alert > field.state > stream.reply > focus > normal
 
 export type PaneInput = {
   ipcEvents: Array<{ type: string; [k: string]: unknown }>
@@ -77,7 +77,7 @@ export function normalizeState(input: PaneInput): VisualState {
     } else if (event.type === "field.state") {
       const state = event.state as string
       eventLevel = FIELD_STATE_MAP[state] ?? "normal"
-    } else if (event.type === "chat.reply") {
+    } else if (event.type === "stream.reply") {
       eventLevel = "reply"
     }
 

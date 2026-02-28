@@ -447,7 +447,7 @@ body {
   flex-direction: column;
 }
 
-.chat-messages {
+.stream-messages {
   flex: 1;
   overflow-y: auto;
   padding: 8px 10px;
@@ -534,14 +534,14 @@ body {
   display: block;
 }
 
-.chat-form {
+.stream-form {
   display: flex;
   gap: 0;
   border-top: var(--border-width) solid var(--line-default);
   flex-shrink: 0;
 }
 
-.chat-form input {
+.stream-form input {
   flex: 1;
   padding: 8px 10px;
   background: var(--bg-pane-alt);
@@ -552,11 +552,11 @@ body {
   outline: none;
 }
 
-.chat-form input::placeholder {
+.stream-form input::placeholder {
   color: var(--fg-dim);
 }
 
-.chat-form button {
+.stream-form button {
   padding: 8px 14px;
   background: var(--bg-pane-alt);
   border: none;
@@ -567,12 +567,12 @@ body {
   cursor: pointer;
 }
 
-.chat-form button:hover {
+.stream-form button:hover {
   color: var(--fg-main);
   background: var(--line-default);
 }
 
-.chat-form button:disabled {
+.stream-form button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }

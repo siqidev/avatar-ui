@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest"
 import {
   toMainSchema,
   toRendererSchema,
-  chatPostSchema,
-  chatReplySchema,
+  streamPostSchema,
+  streamReplySchema,
   fieldStateSchema,
 } from "./ipc-schema.js"
 
@@ -19,9 +19,9 @@ describe("ipc-schema", () => {
       expect(result.success).toBe(true)
     })
 
-    it("chat.post を受理（全フィールド）", () => {
-      const result = chatPostSchema.safeParse({
-        type: "chat.post",
+    it("stream.post を受理（全フィールド）", () => {
+      const result = streamPostSchema.safeParse({
+        type: "stream.post",
         actor: "human",
         correlationId: "abc-123",
         text: "こんにちは",
@@ -29,9 +29,9 @@ describe("ipc-schema", () => {
       expect(result.success).toBe(true)
     })
 
-    it("chat.post: textが空なら拒否", () => {
-      const result = chatPostSchema.safeParse({
-        type: "chat.post",
+    it("stream.post: textが空なら拒否", () => {
+      const result = streamPostSchema.safeParse({
+        type: "stream.post",
         actor: "human",
         correlationId: "abc-123",
         text: "",
@@ -39,9 +39,9 @@ describe("ipc-schema", () => {
       expect(result.success).toBe(false)
     })
 
-    it("chat.post: actorが不正なら拒否", () => {
-      const result = chatPostSchema.safeParse({
-        type: "chat.post",
+    it("stream.post: actorが不正なら拒否", () => {
+      const result = streamPostSchema.safeParse({
+        type: "stream.post",
         actor: "unknown",
         correlationId: "abc-123",
         text: "hello",
@@ -49,9 +49,9 @@ describe("ipc-schema", () => {
       expect(result.success).toBe(false)
     })
 
-    it("chat.post: correlationIdが空なら拒否", () => {
-      const result = chatPostSchema.safeParse({
-        type: "chat.post",
+    it("stream.post: correlationIdが空なら拒否", () => {
+      const result = streamPostSchema.safeParse({
+        type: "stream.post",
         actor: "human",
         correlationId: "",
         text: "hello",
@@ -71,9 +71,9 @@ describe("ipc-schema", () => {
   })
 
   describe("Main → Renderer", () => {
-    it("chat.reply を受理", () => {
-      const result = chatReplySchema.safeParse({
-        type: "chat.reply",
+    it("stream.reply を受理", () => {
+      const result = streamReplySchema.safeParse({
+        type: "stream.reply",
         actor: "ai",
         correlationId: "abc-123",
         text: "やっほー！",

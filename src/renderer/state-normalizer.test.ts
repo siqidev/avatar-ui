@@ -32,10 +32,10 @@ describe("normalizeState", () => {
     })
   })
 
-  describe("chat.reply → REPLY", () => {
-    it("chat.replyイベント → REPLY（info色、未読ドット）", () => {
+  describe("stream.reply → REPLY", () => {
+    it("stream.replyイベント → REPLY（info色、未読ドット）", () => {
       const result = normalizeState({
-        ipcEvents: [{ type: "chat.reply" }],
+        ipcEvents: [{ type: "stream.reply" }],
         hasFocus: false,
       })
       expect(result.level).toBe("reply")
@@ -45,9 +45,9 @@ describe("normalizeState", () => {
       expect(result.showAlertBar).toBe(false)
     })
 
-    it("chat.reply + focus → REPLY（info色がfocusに勝つ）", () => {
+    it("stream.reply + focus → REPLY（info色がfocusに勝つ）", () => {
       const result = normalizeState({
-        ipcEvents: [{ type: "chat.reply" }],
+        ipcEvents: [{ type: "stream.reply" }],
         hasFocus: true,
       })
       expect(result.borderColor).toBe("--state-info")
@@ -108,7 +108,7 @@ describe("normalizeState", () => {
   describe("integrity.alert → CRITICAL", () => {
     it("integrity.alert → CRITICAL（critical色、アラートバー、[ALERT]バッジ）", () => {
       const result = normalizeState({
-        ipcEvents: [{ type: "integrity.alert", code: "CHAT_ERROR", message: "エラー" }],
+        ipcEvents: [{ type: "integrity.alert", code: "STREAM_ERROR", message: "エラー" }],
         hasFocus: false,
       })
       expect(result).toEqual<VisualState>({
@@ -134,10 +134,10 @@ describe("normalizeState", () => {
       expect(result.badge).toBe("[ALERT]")
     })
 
-    it("field.state > chat.reply（activeが勝つ）", () => {
+    it("field.state > stream.reply（activeが勝つ）", () => {
       const result = normalizeState({
         ipcEvents: [
-          { type: "chat.reply" },
+          { type: "stream.reply" },
           { type: "field.state", state: "active" },
         ],
         hasFocus: false,
@@ -146,19 +146,19 @@ describe("normalizeState", () => {
       expect(result.badge).toBe("[RUN]")
     })
 
-    it("chat.reply > focus（replyが勝つ）", () => {
+    it("stream.reply > focus（replyが勝つ）", () => {
       const result = normalizeState({
-        ipcEvents: [{ type: "chat.reply" }],
+        ipcEvents: [{ type: "stream.reply" }],
         hasFocus: true,
       })
       expect(result.level).toBe("reply")
       expect(result.borderColor).toBe("--state-info")
     })
 
-    it("integrity.alert > chat.reply + focus（criticalが最優先）", () => {
+    it("integrity.alert > stream.reply + focus（criticalが最優先）", () => {
       const result = normalizeState({
         ipcEvents: [
-          { type: "chat.reply" },
+          { type: "stream.reply" },
           { type: "integrity.alert", code: "ERR", message: "致命的" },
         ],
         hasFocus: true,

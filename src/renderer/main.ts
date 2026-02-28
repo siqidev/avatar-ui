@@ -32,7 +32,7 @@ declare global {
     fieldApi: {
       attach: () => void
       detach: () => void
-      postChat: (text: string, correlationId: string) => void
+      postStream: (text: string, correlationId: string) => void
       terminate: () => void
       fsRootName: () => Promise<string>
       fsList: (args: FsListArgs) => Promise<FsListResult>
@@ -45,7 +45,7 @@ declare global {
       terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
       terminalSnapshot: () => Promise<TerminalSnapshot>
       onFieldState: (cb: (data: unknown) => void) => void
-      onChatReply: (cb: (data: unknown) => void) => void
+      onStreamReply: (cb: (data: unknown) => void) => void
       onIntegrityAlert: (cb: (data: unknown) => void) => void
       onObservation: (cb: (data: unknown) => void) => void
       onTerminalOutput: (cb: (data: unknown) => void) => void
@@ -59,9 +59,9 @@ declare global {
 const consoleEl = document.getElementById("console") as HTMLDivElement
 const statusEl = document.getElementById("field-status") as HTMLSpanElement
 const alertBar = document.getElementById("alert-bar") as HTMLDivElement
-const messagesEl = document.getElementById("chat-messages") as HTMLDivElement
-const formEl = document.getElementById("chat-form") as HTMLFormElement
-const inputEl = document.getElementById("chat-input") as HTMLInputElement
+const messagesEl = document.getElementById("stream-messages") as HTMLDivElement
+const formEl = document.getElementById("stream-form") as HTMLFormElement
+const inputEl = document.getElementById("stream-input") as HTMLInputElement
 const streamPane = document.getElementById("pane-stream") as HTMLDivElement
 const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
 const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
@@ -412,7 +412,7 @@ streamPane.addEventListener("focusout", () => {
   updateStreamPaneVisual()
 })
 
-// === チャットUI ===
+// === ストリームUI ===
 type ToolCallDisplay = { name: string; args: Record<string, unknown>; result: string }
 let enableStream = true // 履歴復元中はfalse
 
@@ -539,7 +539,7 @@ window.fieldApi.onFieldState((data) => {
   }
 })
 
-window.fieldApi.onChatReply((data) => {
+window.fieldApi.onStreamReply((data) => {
   const reply = data as {
     actor: string
     text: string
@@ -556,8 +556,8 @@ window.fieldApi.onChatReply((data) => {
 
   if (!streamPaneInput.hasFocus) {
     streamPaneInput.ipcEvents = [
-      ...streamPaneInput.ipcEvents.filter((e) => e.type !== "chat.reply"),
-      { type: "chat.reply" },
+      ...streamPaneInput.ipcEvents.filter((e) => e.type !== "stream.reply"),
+      { type: "stream.reply" },
     ]
     updateStreamPaneVisual()
   }
@@ -630,11 +630,11 @@ formEl.addEventListener("submit", (e) => {
   inputEl.disabled = true
   formEl.querySelector("button")!.disabled = true
 
-  streamPaneInput.ipcEvents = streamPaneInput.ipcEvents.filter((ev) => ev.type !== "chat.reply")
+  streamPaneInput.ipcEvents = streamPaneInput.ipcEvents.filter((ev) => ev.type !== "stream.reply")
   updateStreamPaneVisual()
 
   showThinking()
-  window.fieldApi.postChat(text, correlationId)
+  window.fieldApi.postStream(text, correlationId)
 })
 
 window.addEventListener("beforeunload", () => {

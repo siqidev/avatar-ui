@@ -15,8 +15,8 @@ export const channelDetachSchema = z.object({
   type: z.literal("channel.detach"),
 })
 
-export const chatPostSchema = z.object({
-  type: z.literal("chat.post"),
+export const streamPostSchema = z.object({
+  type: z.literal("stream.post"),
   actor: actorSchema,
   correlationId: z.string().min(1),
   text: z.string().min(1),
@@ -30,7 +30,7 @@ export const fieldTerminateSchema = z.object({
 export const toMainSchema = z.discriminatedUnion("type", [
   channelAttachSchema,
   channelDetachSchema,
-  chatPostSchema,
+  streamPostSchema,
   fieldTerminateSchema,
 ])
 
@@ -47,8 +47,8 @@ export const toolCallIpcSchema = z.object({
   result: z.string(),
 })
 
-export const chatReplySchema = z.object({
-  type: z.literal("chat.reply"),
+export const streamReplySchema = z.object({
+  type: z.literal("stream.reply"),
   actor: actorSchema,
   correlationId: z.string().min(1),
   text: z.string(),
@@ -85,7 +85,7 @@ export const observationEventIpcSchema = z.object({
 
 // Main → Renderer の全メッセージ
 export const toRendererSchema = z.discriminatedUnion("type", [
-  chatReplySchema,
+  streamReplySchema,
   fieldStateSchema,
   integrityAlertSchema,
   observationEventIpcSchema,

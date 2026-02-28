@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
   // Renderer → Main（送信: fire-and-forget）
   attach: () => ipcRenderer.send("channel.attach"),
   detach: () => ipcRenderer.send("channel.detach"),
-  postChat: (text: string, correlationId: string) =>
-    ipcRenderer.send("chat.post", { type: "chat.post", actor: "human", correlationId, text }),
+  postStream: (text: string, correlationId: string) =>
+    ipcRenderer.send("stream.post", { type: "stream.post", actor: "human", correlationId, text }),
   terminate: () => ipcRenderer.send("field.terminate"),
 
   // Renderer → Main（ファイル操作: request-response）
@@ -53,8 +53,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
   // Main → Renderer（イベント購読）
   onFieldState: (cb: (data: unknown) => void) =>
     ipcRenderer.on("field.state", (_e, data) => cb(data)),
-  onChatReply: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("chat.reply", (_e, data) => cb(data)),
+  onStreamReply: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("stream.reply", (_e, data) => cb(data)),
   onIntegrityAlert: (cb: (data: unknown) => void) =>
     ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
   onObservation: (cb: (data: unknown) => void) =>

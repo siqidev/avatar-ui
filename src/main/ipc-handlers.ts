@@ -1,10 +1,10 @@
 import { ipcMain } from "electron"
 import type { BrowserWindow } from "electron"
-import { chatPostSchema } from "../shared/ipc-schema.js"
+import { streamPostSchema } from "../shared/ipc-schema.js"
 import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { transition, initialState, isActive } from "./field-fsm.js"
-import { initRuntime, processChat, startPulse, startObservation } from "./field-runtime.js"
+import { initRuntime, processStream, startPulse, startObservation } from "./field-runtime.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -61,10 +61,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     startPulse(
       (result, correlationId) => {
         const win = getMainWindow()
-        // Chatペインにコンテキスト行（Pulse発火）
+        // Streamペインにコンテキスト行（Pulse発火）
         pushHistory("human", "定期確認", correlationId, "pulse")
         sendToRenderer(win, {
-          type: "chat.reply",
+          type: "stream.reply",
           actor: "human",
           correlationId,
           text: "定期確認",
@@ -74,7 +74,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         // AI応答
         pushHistory("ai", result.text, correlationId, "pulse", result.toolCalls)
         sendToRenderer(win, {
-          type: "chat.reply",
+          type: "stream.reply",
           actor: "ai",
           correlationId,
           text: result.text,
@@ -97,10 +97,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           formatted,
           timestamp: new Date().toISOString(),
         })
-        // Chatペインにも観測入力をコンテキスト表示
+        // Streamペインにも観測入力をコンテキスト表示
         pushHistory("human", formatted, correlationId, "observation")
         sendToRenderer(win, {
-          type: "chat.reply",
+          type: "stream.reply",
           actor: "human",
           correlationId,
           text: formatted,
@@ -112,7 +112,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         pushHistory("ai", result.text, correlationId, "observation", result.toolCalls)
         const win = getMainWindow()
         sendToRenderer(win, {
-          type: "chat.reply",
+          type: "stream.reply",
           actor: "ai",
           correlationId,
           text: result.text,
@@ -160,43 +160,43 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     }
   })
 
-  // chat.post: チャットメッセージ受信
-  ipcMain.on("chat.post", async (_event, raw: unknown) => {
-    const result = chatPostSchema.safeParse(raw)
+  // stream.post: ストリームメッセージ受信
+  ipcMain.on("stream.post", async (_event, raw: unknown) => {
+    const result = streamPostSchema.safeParse(raw)
     if (!result.success) {
-      log.error(`[IPC] chat.post バリデーション失敗: ${JSON.stringify(result.error.issues)}`)
+      log.error(`[IPC] stream.post バリデーション失敗: ${JSON.stringify(result.error.issues)}`)
       return
     }
 
     if (!isActive(fieldState)) {
-      log.error(`[IPC] chat.post拒否: 場が非アクティブ (${fieldState})`)
+      log.error(`[IPC] stream.post拒否: 場が非アクティブ (${fieldState})`)
       return
     }
 
     const { text, correlationId, actor } = result.data
     pushHistory(actor, text, correlationId)
-    log.info(`[CHAT] ${actor}: ${text.substring(0, 80)}`)
+    log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
 
     try {
-      const chatResult = await processChat(text)
-      pushHistory("ai", chatResult.text, correlationId, "user", chatResult.toolCalls)
-      log.info(`[CHAT] ai: ${chatResult.text.substring(0, 80)}`)
+      const streamResult = await processStream(text)
+      pushHistory("ai", streamResult.text, correlationId, "user", streamResult.toolCalls)
+      log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
 
       const win = getMainWindow()
       sendToRenderer(win, {
-        type: "chat.reply",
+        type: "stream.reply",
         actor: "ai",
         correlationId,
-        text: chatResult.text,
+        text: streamResult.text,
         source: "user",
-        toolCalls: chatResult.toolCalls,
+        toolCalls: streamResult.toolCalls,
       })
     } catch (err) {
-      log.error(`[CHAT] エラー: ${err instanceof Error ? err.message : err}`)
+      log.error(`[STREAM] エラー: ${err instanceof Error ? err.message : err}`)
       const win = getMainWindow()
       sendToRenderer(win, {
         type: "integrity.alert",
-        code: "CHAT_ERROR",
+        code: "STREAM_ERROR",
         message: err instanceof Error ? err.message : "不明なエラー",
       })
     }

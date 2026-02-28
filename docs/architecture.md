@@ -29,8 +29,8 @@ preloadでcontextBridge経由の最小API公開。actor + correlationIdはpreloa
 
 | ドメイン | チャンネル | パターン | 概要 |
 |---------|----------|---------|------|
-| chat | chat.post | invoke | メッセージ送信 |
-| chat | chat.reply | send | AI応答（source属性付き: user/pulse/observation） |
+| stream | stream.post | invoke | メッセージ送信 |
+| stream | stream.reply | send | AI応答（source属性付き: user/pulse/observation） |
 | field | field.state | send | 場の状態更新（avatarName/userName含む） |
 | fs | fs.rootName | invoke | Avatar Spaceルートディレクトリ名取得 |
 | fs | fs.list | invoke | ディレクトリ一覧 |
@@ -92,7 +92,7 @@ preloadでcontextBridge経由の最小API公開。actor + correlationIdはpreloa
 | 入力 | 状態 | 色 | 補助 |
 |---|---|---|---|
 | なし | NORMAL | モノクロ | なし |
-| chat.reply | REPLY | --state-info | 未読ドット |
+| stream.reply | REPLY | --state-info | 未読ドット |
 | field.state(稼働) | ACTIVE | --state-info | [RUN] |
 | field.state(警告) | WARN | --state-warn | [WARN] |
 | integrity.alert | CRITICAL | --state-critical | アラートバー + [ALERT] |
