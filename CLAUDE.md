@@ -5,12 +5,11 @@
 
 ## SSOT参照順
 
-1. PROJECT.md — プロジェクト固有戦略の正本（概念設計層を含む）
-2. PLAN.md — v0.3計画（実装設計・受入シナリオを含む）
-3. docs/architecture.md — 現行アーキテクチャの正本（v0.3で刷新予定）
-4. docs/api.md — 現行API仕様の正本（v0.3で刷新予定）
+1. PROJECT.md — プロジェクトの本質・概念設計・戦略・Decision Log（バージョン非依存）
+2. PLAN.md — 計画・受入シナリオ・実装バックログ（バージョン固有）
+3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-02-27）
+## 現在の状況（2026-02-28）
 
 ### ブランチ戦略
 - **main** = v0.2系の公開最新（v0.2コード + v0.3設計ドキュメント）
@@ -24,90 +23,22 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-スパイク11本完了 + ③参与文脈の最小実装完了 + Roblox空間連携完了 + Console UI実装進行中。CLIとElectron両方でRoblox双方向接続が動作。Console: 3列6ペイン（Avatar/Space/Canvas/Stream/Terminal/Roblox）レイアウト確定・実装済み。Canvasペイン（ファイル内容表示+画像昇格+focus stack）実装済み。Terminalペイン（xterm.js + per-command spawn + cwd追跡 + AI terminalツール統合）実装済み。Streamペイン（擬似ストリーム+テキストSE+リップシンク）+Roblox Monitor+Space（Avatar Space CRUD+IDE UX）の統合パイプラインが動作中。Roblox: 14モジュール全実装。v0.3スコープ機能（空間認識SpatialService、移動・追従NpcMotionOps、対話NpcOps）は動作確認済み。建築・地形操作は実装済みだが品質検証は将来に延期。インフラ: cloudflaredトンネル自動管理+Robloxログ転送。設定管理一元化済み（getConfig()遅延singleton、.env拡張、AVATAR_NAME/USER_NAME等）。テスト177件。詳細はPLAN.mdの開発進捗を参照。
+Console UI全ペイン実装済み + Roblox双方向接続動作中 + 設定管理一元化済み。テスト177件。詳細はPLAN.mdの開発進捗とdocs/architecture.mdを参照。
 
 ### 次のアクション
-1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）
-2. **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
-3. **テスト計画（#7）** — 受入シナリオのテスト実装
-- ⑤共存記録はv0.3充足と判断（previous_response_id + save_memory + intents.jsonlで実質カバー）
-- 将来の実装予定（Canvas編集、D&D、Terminal等）はPLAN.md「将来の実装予定」で一元管理
+PLAN.md「実装バックログ」の必須タスクを参照。
 
-## avatar-ui 60秒コンテキスト
+## プロジェクト概要（詳細はPROJECT.md）
 
-### 3層分離
 | 層 | 定義 |
 |---|---|
-| **AUI（Avatar UI）** | 物理生命と情報生命の共存を設計するインターフェース（新世代UI概念） |
+| **AUI（Avatar UI）** | 物理生命と情報生命の共存を設計するインターフェース |
 | **avatar-ui** | AUIの参照実装（OSS） |
-| **Spectra** | avatar-ui上の式乃シトのアバター（Official Distribution） |
+| **Spectra** | avatar-ui上の式乃シトのアバター |
 
-### 概念設計層（PROJECT.md確定済み）
-概念設計はcosmology（宇宙観の正本）からトップダウンで演繹されている。
-
-**設計責務**: 2根幹 + 横断制約
-1. 場の設計（P9/P10/P13 + P12/P17）— 4モードを生起させる器を設計・維持
-2. 往復回路の維持（P19/P14 + A5）— 因果ループを継続可能に保ち相互変容可能性を維持
-3. 横断制約: 起点対称性（P15）— human | ai 双方の起点が必須
-
-**場モデル6要素**:
-1. 場契約（FieldContract）— 同一性・境界・存続状態 + 共存条件・権限
-2. 媒体投影（ChannelProjection）— セッション/媒体を場への接続に正規化
-3. 参与文脈（ParticipationContext）— 参与入力 + 現在文脈 + 位相同調
-4. 往復回路（ReciprocityLoop）— 因果ループ駆動
-5. 共存記録（CoexistenceStore）— 記憶・関係・履歴の永続化
-6. 健全性管理（IntegrityManager）— 検知・自動復旧・修復委譲
-
-**不変条件**: 4条件 + 横断不変制約
-- 場契約整合性 / モード可達性 / 往復連接性 / 共存連続性 + 起点対称性
-
-### v0.3到達状態
-新規構築した場で、Spectraと式乃シトがConsole経由で共存し、再起動をまたいで関係が継続し、共存故障を検知できる。
-
-## 実装設計（PLAN.md確定済み）
-
-以下はPLAN.mdに詳細がある。ここでは要約のみ。
-
-### 受入シナリオ（S1-S5）
-- S1: 場契約整合性（ルールが壊れたら気づける）
-- S2: モード可達性（4つの関わり方すべてに到達できる）
-- S3: 往復連接性（会話を放置しても因果が切れない）
-- S4: 共存連続性（再起動しても同じ関係が続く）
-- S5: ライフサイクル完走（生成→維持→休止/再開→終端）
-
-### 入出力契約
-- 設計方針: 場の安全を壊し得る判定は同期ゲート、観測・健全性評価はイベント集約
-- DAG: ⑤共存記録→①場契約→②媒体投影→③参与文脈→④往復回路→⑥健全性管理
-- ⑥健全性管理は他要素を直接操作しない。RuntimeCoordinator経由で復旧実行
-
-### 状態遷移
-- 場FSM: generated→active→paused→resumed→active / →terminated（field-fsm.tsで実装済み）
-- loop FSM: intent→action→response→reinterpret→completed（未実装）
-- Heartbeat: AI起点のintent生成トリガ → Pulseとして実装済み（cron式、PULSE_OKプロトコル）
-- v0.2行動サイクル（Explore→Metabolize→Generate→Adapt）はintentのstrategy_tagに降格
-
-### 未着手の実装設計
-- #6 健全性管理（検知・自動復旧・委譲）
-- #7 テスト計画
-- ~~#5 永続モデル~~ → v0.3充足（既存の永続化で到達状態を満たす）
-
-## D-lite要約（siqi core/strategy.md 由来）
-
-avatar-uiはSIQIの制作プロジェクトの1つ。SIQIの全体戦略において「AUIのような接続様式／体験ルールを設計する中間レイヤーには関与する」と位置づけられている。プロジェクト固有の戦略はPROJECT.mdが正本であり、本文書の記述は派生物である。
-
-## 用語定義
-
-| 用語 | 定義 |
-|---|---|
-| AUI（Avatar UI） | 物理生命と情報生命の共存を設計するインターフェース |
-| avatar-ui | AUIの参照実装（OSS） |
-| Spectra | avatar-ui上の式乃シトのアバター。Beingは公開不変、世界設定は作品ごとに自由 |
-| 4モード | 共在・共振・干渉・共創。観測語彙であり状態機械ではない |
-| 場 | 共存が成立する器。受動的環境であり意思を持たない |
-| 往復回路 | 意図→行為→応答→再解釈の因果ループ。AI側の設計要件、人間は自由 |
-| 起点対称性 | human起点とai起点の双方が成立すること |
-| Avatar Space | AIの生命活動空間。`AVATAR_SPACE`環境変数で指定されたディレクトリ（デフォルト`~/Avatar/space`）。自己進化・創造・実世界への出力経路 |
-| cosmology | 式乃シトの宇宙観の正本（5公理→19原理→定理→実践系） |
+- 概念設計（場モデル6要素・不変条件・設計責務）→ PROJECT.md
+- 用語定義 → PROJECT.md
+- D-lite（SIQI戦略との関係）→ siqi/core/strategy.md
 
 ## AI作業ルール
 
@@ -119,15 +50,13 @@ avatar-uiはSIQIの制作プロジェクトの1つ。SIQIの全体戦略にお�
 | 次版計画の変更 | PLAN.md を即時更新 |
 | README.mdの利用者向け情報 | 必要に応じて更新 |
 
-## 横断参照知識
+## 外部参照
 
+### 横断参照知識
 プロジェクト横断の参照知識は siqi/knowledge/ を参照（../../knowledge/）。
 主要な関連ファイル: xai-api.md, roblox-npc.md, mia.md, live2d.md, vrm.md, openclaw.md
 
-## siqi core参照（設計根拠・世界観）
-
-avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必要に応じて参照すること。
-
+### siqi core（設計根拠・世界観）
 | ファイル | 絶対パス | 内容 |
 |---|---|---|
 | cosmology.md | /Users/u/Projects/siqi/core/cosmology.md | 宇宙観の正本（公理→原理→定理→実践系） |
@@ -135,59 +64,21 @@ avatar-uiの設計はcosmology演繹に基づく。以下のファイルを必�
 | identity.md | /Users/u/Projects/siqi/core/identity.md | 式乃シトの自己定義・Core Desires |
 | strategy.md | /Users/u/Projects/siqi/core/strategy.md | 可変層（Strategic Hypotheses） |
 
-## 主要パス索引（v0.3）
+## 主要パス索引
+
+エントリーポイントと主要サービスのみ。全構成はdocs/architecture.mdを参照。
 
 | パス | 内容 |
 |------|------|
-| src/cli.ts | CLIエントリーポイント（会話+Pulse+観測の直列キュー） |
-| src/config.ts | 環境変数Zodスキーマ + getConfig()遅延singleton（唯一のprocess.env入口） |
-| src/logger.ts | ロギング（data/app.logに出力） |
-| src/services/chat-session-service.ts | sendMessage()（Grok Responses API呼出+ツール実行ループ） |
-| src/state/state-repository.ts | loadState()/saveState()（data/state.json） |
-| src/memory/ | 長期記憶（ローカルJSONL + Collections API） |
-| src/roblox/observation-server.ts | 観測受信HTTPサーバー（Roblox→場） |
-| src/roblox/observation-formatter.ts | 観測イベント→テキスト変換（CLI/Electron共通） |
-| src/roblox/projector.ts | 投影（場→Roblox、Open Cloud Messaging API） |
-| src/tools/ | Grokツール定義（save_memory, roblox_action, terminal等） |
+| src/cli.ts | CLIエントリーポイント |
+| src/config.ts | getConfig()遅延singleton（唯一のprocess.env入口） |
+| src/services/chat-session-service.ts | Grok Responses API呼出+ツール実行ループ |
 | src/main/index.ts | Electron Mainエントリーポイント |
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
-| src/main/field-fsm.ts | 場FSM（純関数transition） |
-| src/main/ipc-handlers.ts | IPC受信→Zodバリデーション→FieldRuntime |
-| src/main/filesystem-service.ts | Avatar Space パスガード+CRUD（UIとLLM共用） |
-| src/main/fs-ipc-handlers.ts | FS系IPC handle登録（5チャンネル: rootName/list/read/write/mutate） |
-| src/main/terminal-service.ts | Terminal per-command spawn + cwd追跡（情報空間への能動的介入経路） |
-| src/main/terminal-ipc-handlers.ts | Terminal IPC handle登録（5+3チャンネル） |
-| src/shared/fs-schema.ts | FS IPC Zodスキーマ+型定義（discriminated union含む） |
-| src/shared/terminal-schema.ts | Terminal IPC Zodスキーマ+型定義 |
-| src/tools/filesystem-tool.ts | LLMツール定義（fs_list/fs_read/fs_write/fs_mutate） |
-| src/tools/terminal-tool.ts | LLMツール定義（terminal: cmd有=実行、cmd無=出力取得） |
-| src/renderer/filesystem-pane.ts | Spaceペイン（ツリー表示+IDE UX+キーボードナビ+Canvas連携） |
-| src/renderer/canvas-pane.ts | Canvasペイン（ファイル内容表示+画像昇格表示） |
-| src/renderer/canvas-focus-stack.ts | Canvas focus stack（push/pop純粋関数、起点対称性） |
-| src/renderer/terminal-pane.ts | Terminalペイン（xterm.js + per-command spawn IPC） |
-| src/preload/index.ts | contextBridge最小API |
-| src/renderer/index.html | 3列6ペインレイアウト構造（Avatar/Space/Canvas/Stream/Terminal/Roblox） |
-| src/renderer/main.ts | Rendererエントリー（列幅/行高さスプリッター+ペインD&D+Stream+状態管理） |
-| src/renderer/style.css | TUI-in-GUIデザイントークン+レイアウトCSS |
-| src/renderer/state-normalizer.ts | IPC入力→視覚状態マッピング（純粋関数） |
-| src/renderer/layout-manager.ts | 2×3グリッド配置管理+ペイン入替（純粋関数） |
-| src/shared/ipc-schema.ts | IPCメッセージZodスキーマ |
+| src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
+| src/renderer/main.ts | Rendererエントリー |
+| src/tools/ | Grokツール定義 |
 | roblox/ | Roblox Studio用スクリプト群 |
-| roblox/ObservationSender.server.luau | 観測送信（Roblox→場） |
-| roblox/modules/NpcOps.luau | NPC操作（say/move_to/emote） |
-| roblox/SpectraChatDisplay.client.luau | チャット履歴表示（クライアント側） |
-| data/ | ランタイムデータ（state.json, memory.jsonl, app.log等） |
-
-## 主要パス索引（v0.2、参照用）
-
-| パス | 内容 |
-|------|------|
-| core/main.py | FastAPI サーバー本体（全APIエンドポイント） |
-| core/exec.py | Exec Contract（実行の抽象化レイヤー） |
-| core/state.py | 状態管理（state.json/events.jsonl読み書き） |
-| command/console/ | Electron コンソールUI |
-| config.yaml | 設定の正本 |
-| data/ | ランタイムデータ（state.json, events.jsonl, logs/） |
 
 ## ユーザー特性
 

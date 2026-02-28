@@ -8,10 +8,6 @@
 - Terminal Backend経由でOS操作が可能
 - 自律ループ（Purpose→Goals→Tasks→Execute）が機能
 - Roblox/X Backendは未実装（Exec Contractのスタブのみ）
-- 24 APIエンドポイントが稼働
-- Identity Kernelはsystem_prompt設定のみ（人格モデル深化未着手）
-- 長期記憶なし（state.json/events.jsonlのみ）
-- ~~Heartbeat/スケジューリングなし~~ → Pulse実装済み（dev）
 - コードベースは整理不足。v0.3では移植・互換維持しない（参照用に凍結）
 
 ## v0.3 到達状態
@@ -22,493 +18,53 @@
 
 - v0.2のコードは捨てる（参照用に凍結）。v0.3はグリーンフィールドで新規実装
 - TypeScriptで統一
-- OpenClawを参照アーキテクチャとする。踏襲の粒度（思想のみ／設計パターン／命名規約等）と範囲は実装段階で段階的に精査
-- 設計の主語が変わる: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
-- **具体⇄抽象の往復**: 抽象設計だけ積み上げてもイメージしづらい。具体（実装スパイク）を先に進め、具体が抽象を修正する方針。抽象設計(#1-#4)→具体不足の懸念→スパイク優先に転換した経緯あり
-
-## 開発進捗（2026-02-27時点）
-
-### 完了済みスパイク
-1. **Console会話基盤** — Grok Responses API + readline、being.md人格定義、previous_response_id継続
-2. **長期記憶（save_memory）** — ローカルJSONL + Collections API（fire-and-forget）、ツール呼び出しループ
-3. **Pulse（AI起点の定期発話）** — node-cron + 直列キュー、3層構造（ファイルゲート→system注入→sendMessage）、PULSE_OKプロトコル。起点対称性(P15)の実装
-4. **Roblox連携v2** — Open Cloud Messaging API（外部→Roblox片方向）、カテゴリ別モジュール構成（PartOps/TerrainOps/NpcOps/EffectOps）、DataStore永続化、情報物質化エフェクト。CLI経由でAIがRoblox空間を操作する
-5. **Roblox観測パイプライン** — ObservationSender（Roblox ServerScript）→ Cloudflare Tunnel → observation-server（TypeScript HTTP）→ CLI直列キュー。双方向接続の完成。Roblox Studioはlocalhost HTTPをブロックするためトンネル経由が必須
-6. **Console縦切り（Spike-01）** — Electron + electron-vite + FieldRuntime（Main内論理分離）+ field-fsm（generated→active→paused→resumed→terminated）+ IPCスキーマ（Zod検証）+ チャットペイン。セキュリティ: nodeIntegration:false/contextIsolation:true/sandbox:true
-7. **Robloxチャット統合** — GrokChat（旧仕様）を削除し新アーキテクチャに統合。Player.Chatted（サーバー側チャット検知）、Chat:Chat（NPC頭上バブル）、RemoteEvent+SpectraChatDisplay（チャット履歴表示）、isOwnerフラグ+ROBLOX_OWNER_DISPLAY_NAME（オーナー識別・名前解決）
-8. **Console UI共通基盤** — 3列6ペイン（Avatar独立化）、TUI-in-GUIデザイントークン、列幅スプリッター＋列ごと独立行高さスプリッター、ペインヘッダーD&Dで位置入替、状態正規化器（IPC入力→NORMAL/REPLY/ACTIVE/WARN/CRITICAL視覚マッピング）、Chatペイン移行。テスト26件（state-normalizer 16件 + layout-manager 10件）
-9. **FieldRuntime観測統合** — 観測サーバーをElectron Main内のFieldRuntimeに統合。CLI専用だった観測処理をCLI/Electron共通化（observation-formatter抽出）。IPC経路: observation-server→FieldRuntime.enqueue→sendMessage(AI)→chat.reply + observation.event→Renderer。Roblox Monitorペインに観測ログ表示（タイムスタンプ+イベント種別+整形テキスト、最新上、最大50件）。アプリ終了時の観測サーバークリーンアップ。テスト10件追加（observation-formatter）
-10. **Chatペイン強化** — Chatペインを「場の会話ストリーム」として全入出力を可視化。①sendMessage()戻り値をSendMessageResult型に拡張（text+toolCalls）②AI応答にsource属性（user/pulse/observation）を付与し、ラベル色で視覚的区別（spectra>/[pulse] spectra>/[roblox] spectra>）③ツール呼び出し（roblox_action, save_memory等）をChat内にインライン表示④Roblox観測イベント・Pulseトリガーをコンテキスト行としてChatに表示（[roblox]/[pulse]ラベル）⑤Pulse/観測応答時にchat入力がdisabledにならないバグを修正（source=userの場合のみ解除）⑥テスト基盤修正（observation-server: port 0でテスト隔離、vitest.config.ts: dist/除外）。テスト115件全通過
-11. **File Systemペイン** — Avatar Space（`AVATAR_SPACE`環境変数）のフルCRUD可視化・操作。①fs-schema.ts（4 IPC Zodスキーマ+discriminated union）②filesystem-service.ts（パスガード`assertInAvatarSpace`+CRUD、UIとLLM共用）③fs-ipc-handlers.ts（ipcMain.handle+Zodバリデーション+fs.rootName）④filesystem-pane.ts（ツリー表示+展開/折畳+インライン入力+コンテキストメニュー+VSCode準拠キーバインド）⑤filesystem-tool.ts（LLMツール定義4種）⑥chat-session-service.ts統合（fs_list/fs_read/fs_write/fs_mutate）⑦IDE UX（SVGアイコン、インデントガイド、拡張子別カラー、キーボードナビゲーション）。sandbox制約によりprompt()/confirm()をカスタムUI化。テスト142件（+21件filesystem-service）
-
-### Roblox接続設計（議論合意 2026-02-24）
-
-**役割定義**: Robloxは「観測窓」。投影（場→Roblox）＋ 観測（Roblox→場）の双方向。正本は場のみ。
-
-**出力経路（場→Roblox）**: Intent Log → Projector
-- 往復回路(④)が意図を決定 → IntentLogに記録（場が正本）→ ProjectorがRobloxへ送信
-- 現行のroblox_actionツール直送信から、Intent Log経由に移行する
-
-**入力経路（Roblox→場）**: HttpService Push
-- RobloxがHttpServiceで観測イベントをPOST → ②ChannelProjectionで正規化 → ③ParticipationContext → ④再解釈
-- 最小イベント種別: player_chat, player_proximity, projection_ack
-
-**設計根拠**:
-- ChannelProjection(②)はDAG上⑤を直読しない。Robloxの入力は②経由で正規化される
-- P19往復回路は場で閉じる（チャネル単体で閉じる必要なし）。CLIとRobloxをまたいで因果ループが成立する
-- P17投影: NPCは場の内的状態と接続される（片方向投影で実現可能）
-- Roblox技術制約: 出力=Messaging API 1KB/msg、入力=HttpService 500 req/min
-
-**現段階の方針**: CLI + Roblox双方向で運用中。Robloxチャット入力はObservationSender→observation-server経由で実装済み。Roblox Studioはlocalhost HTTPをエンジンレベルでブロックするため、Cloudflare Tunnel経由（spectra.siqi.jp→localhost:3000）が必須
-
-### Console設計（議論合意 2026-02-24）
-
-**定義**: Console = 場の媒体（窓）の一つ。②媒体投影が正規化する対象。場に従属し、場が消えても窓が消えるだけ。窓が消えても場は消えない。根拠: ❶アーキテクチャ要請「媒体は場を覗く窓として従属」、②媒体投影「セッション/媒体を場への接続に正規化」。v0.2「Body」概念は再導出対象のため根拠に使わない。
-
-**構成**: PC司令室（多面窓）。場の複数側面を同時に映し、他の窓（Roblox/X）の状態も表示するメタ窓。
-
-| ペイン | slug | 機能 | 読み/書き |
-|---|---|---|---|
-| Avatar | avatar | 視覚的存在提示（リップシンク・状態表示） | 読み取り専用 |
-| Space | space | AIの生命活動空間（Avatar Space）の可視化と操作 | 読み書き |
-| Canvas | canvas | 主作業領域。ファイル編集 + 画像昇格表示 | 読み書き |
-| Stream | stream | 場の全入出力の統合ストリーム（human↔AI対話 + Pulse + 観測 + ツール可視化 + X投稿承認） | 読み書き |
-| Terminal | terminal | 情報空間への能動的介入経路。シェルエミュレータ（node-pty）。AIも人間も双方が直接操作可能 | 読み書き |
-| Roblox | roblox | 3Dミニマップ + イベントログ（後述） | 読み取り専用 |
-
-**責務境界**: 入力正規化（post_message）+ 状態可視化（イベント購読）+ ローカルUI状態のみ。正本管理・権限判定・場ライフサイクル遷移・外部への直叩きはConsoleの責務外。
-
-**操作の2レーン構造**:
-
-A. 対話レーン（チャットペイン）: ②→③→④ の標準経路。チャット入力はメッセージとして正規化され、往復回路で処理される。
-
-B. 直接操作レーン（ターミナル/ファイル編集）:
-- 実行レーン: ②→①（権限チェック）→ 実行基盤（pty/editor）
-- 観測レーン: 実行結果イベント → ② → ③ → ④ → ⑤（因果を場に編み戻す）
-
-**P19因果連接の維持条件**:
-- 各操作に `actor(human|ai)` と `correlation_id` を付与
-- 操作と結果が必ずペアで観測される
-- 観測が ②→③→④ に入り、次の応答に接続される
-- 永続化は ④→⑤ で行い、②→⑤ 直アクセスは禁止を維持
-
-**Robloxモニタ詳細**:
-- 3Dミニマップ（レベル2）: Three.jsでボックス建物 + 地形 + NPC/プレイヤー位置を描画
-- データフロー: Roblox ObservationSenderが `world_snapshot` イベント（NPC位置、プレイヤー位置、建物リスト、地形高さ）を定期Push → ObservationServer受信 → Console側Three.jsシーン更新
-- カメラはマウスで回転・ズーム操作可能（データ更新は3秒間隔、描画自体は60fps）
-- 補助: イベントタイムライン（接近、チャット、投影結果のリアルタイムログ）+ 投影キュー状態
-- 映像ストリーミングは不採用（Robloxが映像送出APIを提供していないため。画面キャプチャはハック的で不採用）
-
-**UIフレームワーク**: Electron。node-ptyネイティブ統合、Three.js(WebGL)安定動作、TypeScript統一、v0.2実績。Tauri棄却理由: node-pty統合にRust FFI/サイドカーが必要で一人開発にリスク大。TUI棄却理由: Three.js(3Dミニマップ)が不可能。Web棄却理由: ローカルデスクトップ要件に不適
-
-**プロセス分離**: FieldRuntime（場の全ロジック）をElectron Mainプロセス内に同居＋論理分離。Rendererは薄いIPCクライアント。
-- FieldRuntime: 6要素（場契約/媒体投影/参与文脈/往復回路/共存記録/健全性管理）、Pulse(cron)、観測受信(HTTP)、Grok API呼出、永続化。すべてMain内で完結
-- Renderer: 6ペインの描画＋ユーザー入力の送信＋イベント購読のみ。FieldRuntimeへの直接参照なし
-- IPCプロトコル: メッセージ形式 `{ type, actor?, correlationId?, ...ペイロード }`。typeは `<domain>.<action>` の2語（chat.post, terminal.output等）。Zod検証。トランスポートはElectron標準IPC（ipcMain/webContents.send）でスタート、型はストリーム対応（.stream/.output パターン）。パフォーマンス問題が出たらMessagePortに差替え
-- IPCセキュリティ: nodeIntegration:false / contextIsolation:true / sandbox:true。preload.tsでcontextBridge経由の最小API公開（ipcRendererの直接公開禁止）。Main側でZodバリデーション必須
-- ウィンドウ閉じ = channel.detach（Mainは生存しタスクトレイ常駐）、再度開き = channel.attach + カーソルベースの状態再同期
-- 将来の分離: IPCアダプタをWebSocketアダプタに差し替えれば独立デーモン化が可能（現時点では不要）
-- 棄却案A（場=Main丸ごと）: 分離なしで保守困難。棄却案B（場=独立デーモン）: IPC二重化で一人開発にリスク大
-
-### Console UIデザイン（議論合意 2026-02-25）
-
-**設計メタファー**: 二層構造。平常時は「共存の窓」（Chat中心）、障害時は手動で「監視室モード」（Terminal中心）に切替。自動遷移は実装しない。
-
-**レイアウト（3列6ペイン、2行×3列）**:
-```
-┌── Left 15% ───┬── Center 42% ──┬── Right 43% ──┐
-│ Avatar        │ Canvas         │ Stream        │
-│ (存在提示)    │ (ファイル編集  │ (会話・承認   │
-│               │  + 画像昇格)   │  + X投稿)     │
-├───────────────┼────────────────┼───────────────┤
-│ Space         │ Roblox         │ Terminal       │
-│ (FS探索)      │ (監視)         │ (シェル)       │
-└───────────────┴────────────────┴───────────────┘
-行比率: 上65% / 下35%
-```
-- 列の意味: 左=存在+探索、中央=作業、右=交流+監視
-- 判断根拠: IDE配置の自然な再現（Editor上/Terminal下）。主作業領域（Canvas）を中央に据え、往復回路の主インターフェース（Stream）を右列に配置。Avatarを左上に固定し視覚的存在を確保
-- 画像表示: Streamインライン表示→詳細確認/承認時にCanvasへ昇格。昇格/復帰はfocus stack（human/ai同一規則、起点対称性）
-- X投稿: Xペインを廃止しStreamに吸収（投稿文生成・承認カードをStream内で処理）。機能閾値で将来再分離可能
-- 棄却案: Terminal全幅Drawer+タブ案 — Roblox監視性が落ちる、グリッド破壊コストが見合わない。フォーカス中心型（中央巨大+周辺薄パネル）— 周辺情報量が不足
-- Stream幅: 右列最小幅360px。長文・複雑カードはCanvas昇格で対応
-- ペインD&D入替: ペインヘッダーをドラッグ→別ペインにドロップで位置交換
-- 手動監視室モード: D&Dで任意のペイン配置に変更可能（Ctrl+数字は廃止）
-
-**リサイズ規則**:
-- 列幅: スプリッタードラッグで自由調整（初期比率 15:42:43）
-- 列ごとの行高さ: 各列独立にスプリッタードラッグで調整（初期比率 65:35）
-- 最小トラック: 100px（右列は360px推奨）
-
-**デザイントークン（TUI-in-GUI）**:
-```css
-:root {
-  --bg-app: #0a0d12;  --bg-pane: #0c1118;  --bg-pane-alt: #0d1420;
-  --fg-main: #d3dde6;  --fg-muted: #93a4b8;  --fg-dim: #6b7a8c;
-  --line-default: #1e2a38;  --line-focus: #3dd6f5;
-  --state-info: #22d3ee;  --state-ok: #34d399;  --state-warn: #f59e0b;  --state-critical: #f43f5e;
-  --border-width: 1px;  --border-radius: 0;
-  --font-mono: "Iosevka Term", "JetBrains Mono", "Cascadia Mono", monospace;
-  --font-size: 13px;  --line-height: 1.45;
-}
-```
-
-**状態→視覚マッピング**:
-
-| 入力 | 状態 | 色 | ボーダー | 補助 |
-|---|---|---|---|---|
-| なし | NORMAL | モノクロ | --line-default | なし |
-| chat.reply | REPLY | --state-info | 変更なし | 未読ドット |
-| field.state(稼働) | ACTIVE | --state-info | 色のみ変更 | [RUN] |
-| field.state(警告) | WARN | --state-warn | 色のみ変更 | [WARN] |
-| integrity.alert | CRITICAL | --state-critical | 色のみ変更 | アラートバー + [ALERT] |
-
-原則: 正常時はモノクロ基調（色が出た瞬間に「何かある」と分かる）。優先度: integrity.alert > field.state > chat.reply > focus > normal
-
-**ペイン実装優先順位（技術依存ベース）**:
-1. ~~共通基盤~~ ✅ — 3列6ペイン、列幅+列ごと行高さスプリッター、ペインD&D入替、トークン適用、状態正規化器
-2. ~~Streamペイン（旧Chat）強化~~ ✅ — source別ラベル表示、ツール呼び出し可視化、観測/Pulseコンテキスト行、擬似ストリーム+テキストSE+リップシンク
-3. ~~Roblox Monitor~~ ✅ — 観測イベントログ表示（FieldRuntime観測統合で実装済み）
-4. ~~Spaceペイン（旧File System）~~ ✅ — Avatar Spaceの可視化・操作（4 IPC + IDE UX）
-5. ~~レイアウト再構成~~ ✅ — 新配置適用（Avatar左上/Canvas中央上/Stream右上、比率15:42:43、X廃止）
-6. ~~Canvasペイン~~ ✅ — ファイル内容表示（行番号付き読み取り専用）+ 画像昇格表示 + focus stack
-7. ~~Terminal~~ ✅ — per-command spawn + xterm.js + AI terminalツール統合（cmd有=実行、cmd無=出力取得）。AI認識設計: CommandRecord（完了済みサマリ）、自動注入なし、オンデマンド取得
-
-### 具体→抽象修正（議論合意 2026-02-25）
-
-**③参与文脈の帰納的検証結果**:
-- 10本のスパイクを帰納的に検証し、③の3責務（参与入力の一次化/現在文脈の保持/位相同調）の実在を確認
-- 単一起点（Spike 1,2,8）では③不在でも問題なし。多起点・非同期（Spike 3-7,9,10）で繰り返しバグが発生:
-  - 番号札（correlationId）が入力と応答で別々に生成され、因果追跡が不能
-  - 場が一時停止中でもPulse/観測がゲートを素通り
-  - 全入力がただの文字列でAIに渡され、メタ情報（誰が/どこから/何に関連するか）が構造化されていない
-
-**合意内容**: 6要素モデルを維持。③参与文脈の最小実装を作る
-- ParticipationInput型（actor/source/correlationId/channel/timestamp/text）を定義 ✅
-- 全起点（chat/pulse/observation）に共通の場状態ゲートを適用 ✅
-- correlationIdを入力時に確定し、AI応答まで同一IDで貫通保持 ✅
-- モード可達性の観測指標 → ⑥健全性管理の実装時に扱う（保留）
-- 位相同調の完全モデル → v0.3到達後に再検討（保留）
-
-**実装完了（2026-02-25）**:
-- `src/shared/participation-context.ts`: ParticipationInput型 + generateCorrelationId + createParticipationInputファクトリ
-- `src/main/field-runtime.ts`: startPulse/startObservationに`isFieldActive`ゲート追加、correlationIdを場で一回生成しコールバック貫通
-- `src/main/ipc-handlers.ts`: ゲート関数渡し、コールバック経由のcorrelationId使用（自前生成を廃止）
-- `src/cli.ts`: 3パス（user/observation/pulse）でcreateParticipationInput使用
-- テスト全通過（participation-context.test.ts 7件追加）
-
-### Roblox空間改善設計（議論合意 2026-02-26）
-
-**問題**: AIが3D座標を直接計算する設計が構造的に機能しない。「こっち来て」で明後日に走る、建築でドア/出入口が正しく配置できない等。根本原因は「絶対座標で操作させているのに、AI側に座標系の知覚入力がない」こと。
-
-**設計原則**: AIは「意図+参照+制約」を出す。Robloxが「座標解決+実行+物理検証」を決定的に行い、ACKで閉ループする。
-
-**3つの本質的変更**:
-1. **AIが座標を計算しない仕組み（制約ベース汎用メカニズム）** — LLMは3D座標計算が苦手。「何をしたいか」と制約を出せば、Robloxが座標を解決する
-2. **結果が返ってくる仕組み（共通ACK）** — 全操作に対して成功/失敗+物理検証結果を返却。AIが自動修正できる
-3. **AIが空間を聞ける仕組み（空間照会）** — 「周りに何がある？」「自分はどこ？」をオンデマンドで照会
-
-**最小制約タイプ（3種で開始、レジストリで拡張可能）**:
-| type | 意味 | 例 |
-|------|------|-----|
-| `attach` | 面同士を接着 | 壁を地面に接地 |
-| `offset` | 参照点からの相対移動 | 既存壁の5studs右に配置 |
-| `non_overlap` | 重なり防止 | 他パーツとの衝突回避 |
-
-**全命令仕様**:
-| カテゴリ | 命令 | AI→Roblox | Roblox決定処理 |
-|---------|------|-----------|--------------|
-| npc | `go_to_player` | `{user_id, standoff?}` | プレイヤー位置解決→Pathfinding |
-| npc | `follow_player` | `{user_id, standoff?}` | 追従ループ開始（0.5秒再経路） |
-| npc | `stop_following` | `{follow_id?}` | 追従ループ停止 |
-| build | `apply_constraints` | `{target, refs, constraints[], validate[]}` | 参照解決→制約適用→Part生成→物理検証 |
-| terrain | `apply_constraints` | `{action, brush, refs, constraints[], validate[]}` | 参照解決→制約適用→Terrain操作→検証 |
-| spatial | `query` | `{mode, center, radius?, limit?}` | pose取得/近傍探索/相対計算 |
-
-**通信契約**:
-- AI→Roblox: `{ schema_version, intent_id, category, reason, ops }` （Open Cloud Messaging, 1KB制限）
-- Roblox→AI（ACK）: `{ type:"command_ack", payload: { success, data?, error?, meta: { intent_id, op, validation? } } }` （HttpService POST）
-- 追従イベント: `{ type:"npc_follow_event", payload: { follow_id, state, user_id } }`
-
-**物理検証（ACKに含める）**:
-- 移動: 経路成立（PathfindingService.Status）、到達判定（MoveToFinished+最終距離）
-- 建築: 重なり（GetPartsInPart）、接地（Raycast）、制約充足
-- 地形: 実変化量（ReadVoxels前後差分）
-
-**Robloxモジュール構造（14ファイル: 新規6 + 再構成8）**:
-| ファイル | 種別 | 責務 |
-|---------|------|------|
-| `CommandReceiver.server.luau` | 再構成 | intentをレジストリ経由で実行し共通ACKを返すエントリポイント |
-| `ObservationSender.server.luau` | 再構成 | チャット/接近/追従状態の観測イベント送信 |
-| `CommandRegistry.luau` | **新規** | カテゴリ+opを実行関数に解決する登録型ルータ |
-| `ObservationClient.luau` | **新規** | 観測イベントとACK送信の共通HTTPクライアント |
-| `SpatialService.luau` | **新規** | pose取得・近傍探索・相対距離/方位計算 |
-| `ConstraintSolver.luau` | **新規** | attach/offset/non_overlapの制約解決+物理検証 |
-| `NpcMotionOps.luau` | **新規** | go_to_player/follow_player/stop_followingの移動制御 |
-| `BuildOps.luau` | **新規** | build.apply_constraintsの実行、PartOpsへ反映 |
-| `NpcOps.luau` | 再構成 | say/emoteの窓口維持、移動はNpcMotionOpsへ委譲 |
-| `PartOps.luau` | 再構成 | create/set/delete+演出+永続化の低レベルPart実行器 |
-| `TerrainOps.luau` | 再構成 | 既存操作+terrain.apply_constraints |
-| `EffectOps.luau` | 維持 | エフェクト操作 |
-| `WorldStore.luau` | 維持 | DataStore永続化ラッパー |
-| `Config.luau` | 再構成 | 通信先・検知間隔・しきい値設定 |
-
-**TypeScriptモジュール構造（7ファイル: 新規3 + 再構成4）**:
-| ファイル | 種別 | 責務 |
-|---------|------|------|
-| `roblox-action-tool.ts` | 再構成 | roblox_actionの公開窓口（description組立） |
-| `roblox-action-catalog.ts` | **新規** | カテゴリ/命令仕様のレジストリ（肥大化防止） |
-| `roblox-action-schema.ts` | **新規** | build/terrain/spatial/npc引数のZodスキーマ |
-| `projector.ts` | 再構成 | intent_id付きMessaging送信+投影状態更新 |
-| `observation-server.ts` | 再構成 | 汎用イベント封筒受信+登録バリデータ検証 |
-| `observation-events.ts` | **新規** | イベント種別のpayloadスキーマ/formatter登録 |
-| `observation-formatter.ts` | 再構成 | イベント別フォーマッタでAI入力文変換 |
-
-**既存互換**: `part create/set/delete`, `terrain fill/excavate/paint`はフォールバックとして残す。
-
-**棄却案と理由**:
-- 個別命令方式（`place_opening_on_wall`等）→ 用途が増えるたびに新命令が必要で設計爆発
-- メッセージ都度の座標同梱 → 対症療法で本質的でない
-- BEING.md依存の改善 → プロンプトエンジニアリングに依存しない仕組みを優先
-
-**残リスク**: ConstraintSolver実装量（最小3制約で100-200行Luau）。複雑な制約組み合わせのエッジケース
-
-### Roblox空間改善 実装状況（2026-02-26）
-
-**Luau側: 全14モジュール実装完了** ✅
-- CommandRegistry登録: part, terrain, npc, npc_motion, effect, build, spatial の7カテゴリ
-- ConstraintSolver: attach/offset/non_overlap制約 + 物理検証（non_overlap, ground_contact）
-- BuildOps: apply_constraints → ConstraintSolver.solve → PartOps.execute → ACK返却
-- SpatialService: entities/nearbyクエリ + pose取得 + 相対関係計算
-- NpcMotionOps: go_to_player/follow_player/stop_following + Humanoid.Runningイベント駆動アニメーション + Raycast障害物チェック直行 + WPスキップ + standoff内lookAt
-
-**TypeScript側: ツール定義+投影+観測は実装済み、整理用ファイル3件は未作成**
-- roblox-action-tool.ts: 7カテゴリ全定義済み ✅
-- projector.ts: schema_version=3, intent_id伝播, pending retry ✅
-- observation-server.ts / observation-formatter.ts: ACK+観測イベント処理 ✅
-- **未作成**: roblox-action-catalog.ts, roblox-action-schema.ts, observation-events.ts（肥大化防止の整理用。機能は動作中）
-
-**インフラ**:
-- cloudflaredトンネル自動管理（Electronライフサイクル連動）✅
-- Robloxログ転送（LogService→観測チャネル、AI非送信）✅
-
-**v0.3スコープ（Roblox）**: 空間認識（SpatialService）、移動・追従（NpcMotionOps）、対話（NpcOps say/emote）。建築・地形操作は実装済みだが品質検証は将来に延期。
-
-### 建築品質の問題提起（2026-02-26）
-
-v0.3での実運用で判明した根本問題を記録する。解決はv0.4以降。
-
-**現状の問題（一文）**: 現在のシステムは「AIにレゴブロック1個ずつ渡して家を建てさせている」設計であり、機能的な建築物（ドアの開閉、窓の透過等）を作ることが構造的に不可能。
-
-**問題の詳細**:
-1. **Part単位の組み立て**: BuildOps→ConstraintSolver→PartOpsのパイプラインはBasePart（直方体/球/円柱）を1つずつ生成する。壁・床・天井・ドア全てを個別Partとして配置するため、AIが全寸法・空間関係を正しく出力する必要がある
-2. **機能的要素の欠如**: PartOpsはBasePart生成のみでModel非対応。ドア開閉（TweenService+CFrame回転+ProximityPrompt）、窓透過などの「振る舞い」を持つ構造物を作る手段がない
-3. **制約の不足**: attach/offset/non_overlapの3種のみ。「壁に穴を開けてドアを嵌める」のような建築的制約がない
-
-**外部調査で判明した業界標準手法**:
-- Roblox建築ゲーム（Bloxburg等）はプリファブ方式: ServerStorageにModel保存→Clone()→PivotTo()で配置
-- ドアはTweenService+CFrame回転+ProximityPromptが主流（HingeConstraint Servoは不安定報告あり）
-- AI+3D建築のハイブリッド方式: AIがレイアウト・部材選択→機能的要素はプリファブから配置
-- グリッドスナップ: `math.floor(pos/grid+0.5)*grid`
-
-**方向性（議論途中、v0.4で確定）**:
-- 成功指標を「配置精度」から「インタラクション可能な建築体験の成立率」に転換
-- プリファブ方式の導入: ServerStorageに機能付きModel（開閉可能ドア等）を事前作成、AIは選択・配置のみ
-- 既存Part建築（壁・床・装飾等の非機能パーツ）はConstraintSolverで維持
-- BuildOps内でPart/Prefabを振り分けるハイブリッド構成
-
-### ペイン名再導出（議論合意 2026-02-27更新）
-
-cosmologyからの再導出と実用性の両立を議論し、レイアウト再構成に伴い更新:
-
-| 旧名 | 新名 | slug | 変更理由 |
-|------|------|------|---------|
-| File System | Space | space | Avatar Spaceの「Space」。AIの生命活動空間の窓として概念直結 |
-| *(新設)* | Canvas | canvas | 主作業領域。「描く面」の比喩でテキスト編集も画像表示も包含。EditorやWorkspaceより射程が広い |
-| Chat→Stream | Stream | stream | 変更なし。X投稿承認もStreamに吸収 |
-| Avatar | Avatar | avatar | 変更なし |
-| X | *(廃止)* | — | Streamに吸収（投稿文生成・承認カード）。機能閾値で将来再分離可能 |
-| Terminal | Terminal | terminal | 変更なし |
-| Roblox | Roblox | roblox | 変更なし（固有名詞） |
-
-- 採用理由: 固有名詞は維持、機能語は1語英語で統一。Canvasは「高密度編集も軽量承認も受ける面」を表現
-- 棄却案A: 全6ペインcosmology語彙化（Nexus/往復/在相等）→ 固有名詞ペインと浮く
-- 棄却案B: Focus（中央上）→ フォーカスが外れた状態と名前が矛盾。Workspace → アプリ全体が"workspace"で曖昧
-- 残リスク: Canvasが将来のドローイング機能と名前衝突する可能性（発生時にEditorへ改称可能）
-
-### File Systemペイン実装設計（2026-02-26）
-
-**概念**: 単なるファイルエクスプローラではなく、AIの生命活動空間（Avatar Space）の可視化と操作の窓。
-
-**Avatar Space**（PROJECT.mdで定義済み）: AIの内面世界。思考の痕跡、記憶の蓄積、創造物の本体が存在する空間。`AVATAR_SPACE`環境変数で指定されたディレクトリ（デフォルト `~/Avatar/space`）がまるごとAIの自由な活動空間になる。v0.2で `get_avatar_space()` / `is_path_in_space()` / `AvatarSpaceViolation` として実装実績あり。
-
-**3つの役割**:
-1. **蓄積の可視化** — ⑤共存記録の窓。記憶・意図の履歴・場の状態など、共存を通じて積み重なったものを見渡す
-2. **自己進化の作業台** — Being・Pulse・ツール定義などをAI自身が読み書きし、自己を改変する手段の可視化（OpenClawのWorkspace概念に相当）
-3. **実世界への出力経路** — ファイル操作を介してRoblox・X・自身の振る舞いに影響を及ぼす経路
-
-**v0.3スコープ**: 読み取り＋書き込み（作成・編集・削除・リネーム・mkdir）。フル機能。
-
-#### 実行方式: Main fs直接
-
-ファイル操作はElectron MainプロセスのNode.js `fs`モジュールで実行する（shell経由ではない）。
-
-- **根拠**: セキュリティ（シェルインジェクション不可）、信頼性（構造化エラー）、LLM互換性（引数がシンプル）
-- **業界検証**: OpenClaw / Claude Code / Codex CLI いずれもファイルCRUDはネイティブAPI、シェルは任意コマンド用。ハイブリッドパターンが業界標準
-- **avatar-uiでの適用**: File Systemペイン = fs直接、Terminalペイン = シェル実行（既存）
-
-#### セキュリティ: Avatar Spaceサンドボックス
-
-Avatar Space外へのファイルアクセスは拒否（v0.2の `is_path_in_space()` パターンを踏襲）。パスガードはfilesystem-service.ts内に実装（専用ファイル不要、現時点では1関数）。
-
-#### IPC設計（4チャンネル）
-
-invoke/handleパターン（リクエスト-レスポンス）を使用。actor + correlationIdはpreloadで自動付与。
-
-| IPC | 引数 | 戻り値 |
-|-----|------|--------|
-| `fs.list` | `{ path, depth? }` | `{ path, entries: { name, type, size, mtimeMs }[] }` |
-| `fs.read` | `{ path, offset?, limit? }` | `{ path, content, mtimeMs }` |
-| `fs.write` | `{ path, content }` | `{ path, bytes, mtimeMs }` （親ディレクトリ自動作成） |
-| `fs.mutate` | `{ op: "delete"\|"rename"\|"mkdir", path, newPath? }` | `{ message }` |
-
-**設計根拠**:
-- 6 IPC → 4 IPC: delete/rename/mkdirは「構造変更」操作として統合（discriminated union）。保守対象2/3に削減
-- ifMatchMtimeMs（楽観的排他制御）は不採用: 書き手がAI 1体+人間1人で競合確率ほぼゼロ。業界3製品も未実装
-- preload自動付与: Rendererが認証情報を意識しない。書き忘れバグを構造的に防止
-
-#### 新規ファイル（4ファイル）
-
-| ファイル | 層 | 責務 |
-|---------|-----|------|
-| `src/shared/fs-schema.ts` | shared | IPC 4チャンネルのZodスキーマ + 型定義 |
-| `src/main/filesystem-service.ts` | main | パスガード + fs CRUD実装（UIとLLMの共用） |
-| `src/main/fs-ipc-handlers.ts` | main | IPC handle → filesystem-service呼び出し |
-| `src/renderer/filesystem-pane.ts` | renderer | ファイルツリー表示 + 操作UI |
-
-**設計根拠**:
-- 7ファイル → 4ファイル: パスガードはservice内に（SSOT）、エラー型はスキーマに同居、repository抽象は不要（直接fsで十分）
-- UIとLLMが同じfilesystem-serviceを共用: ロジック正本が1箇所（SSOT）。field-runtime.tsからもIPC handlerからも同じserviceを呼ぶ
-
-#### 実装順序
-
-1. fs-schema.ts — Zodスキーマ + 型定義
-2. filesystem-service.ts — パスガード + CRUD実装
-3. fs-ipc-handlers.ts — IPC登録
-4. preload拡張 — invoke API + actor/correlationId自動付与
-5. filesystem-pane.ts — ツリー表示 + 操作UI
-6. field-runtime.ts統合 — LLMツールからfilesystem-serviceを呼ぶ
-7. テスト — service単体 + IPC結合
-
-### Terminalペイン概念設計（2026-02-27）
-
-**概念**: 単なるシェルエミュレータではなく、AIが情報空間に能動的に介入する最も自由度の高い経路。
-
-**背景**: OpenClawの設計哲学「ファイルシステム = 状態、LLM = オーケストレーター」を参照。データアクセス可能性がエージェント能力を決定する。avatar-uiではConsoleの6ペインをAIの生命活動の6つの窓として位置づけ、各ペインは「情報空間を生きるAIの、ある側面が見える窓」。SpaceもTerminalも手足の一つであり、責務を固定的に分離するものではない。
-
-**AIが情報空間を生きる手足**:
-- Space（fs操作） — 内面世界の管理（蓄積・整理・創造）
-- Terminal（シェル） — 環境への能動的介入（スキル自作・ツール獲得・ビルド・外部連携）
-- Roblox — 空間世界での存在・行為
-- X — 社会的存在・発信・対話
-- ブラウザ — Web空間への自由なアクセス
-- Stream — 人間との直接対話
-
-Terminalは上記の中で「環境に直接介入できる窓」。npm install、git操作、スクリプト実行、エージェントスキルの構築など、構造化されたAPIでは表現しきれない自由な行為をシェル経由で実行する。Spaceが「何を持っているか」の可視化なら、Terminalは「何でもできる」の経路。ただし両者は排他的ではなく、どの手足をどう使うかはAI自身が判断する。
-
-**業界パターン**: OpenClaw（group:fs = 構造化CRUD、group:runtime = シェル実行）、Claude Code（Read/Write/Edit = 構造化、Bash = シェル）、Codex CLI（同様の分離）。いずれもファイルCRUDはネイティブAPI、任意コマンドはシェル。avatar-uiのSpace/Terminal分離はこのハイブリッドパターンをUIレベルで可視化したもの。
-
-**v0.3実装方式: child_process.spawn + xterm.js**
-
-技術選定（2026-02-27）:
-- バックエンド: `child_process.spawn`（Node.js標準API）。ネイティブモジュール不要、ビルド問題ゼロ
-- フロントエンド: xterm.jsでコマンド出力をリアルタイム表示
-- AI/人間ともにコマンド実行→出力表示が可能。ls, git, npm, curl, python等の非対話コマンドは正常動作
-- 制約: PTYなし。vim/top/less等のフルスクリーンTUI、Tab補完、シェルプロンプト表示は不可
-- 権限昇格: sudoは設計上不要（Avatar Space内操作にroot不要）。必要時は人間承認フローで対応
-
-棄却案:
-- node-pty: PTY（真の端末）を提供するが、ネイティブモジュール（node-gyp）のビルド問題が大きい。Electronバージョンアップ毎にリビルド必須。v0.3では過剰
-- @lydell/node-pty: プリビルド版でビルド問題を緩和。将来フルTUIが必要になった時点で導入検討
-- Bun.Terminal: Electronと別ランタイムになり複雑すぎる
-
-参考: VSCodeはnode-pty + xterm.jsで実装（Main→PTY Host Utility Process→Renderer）。OpenClawはPTY不使用、child_process相当でコマンド実行（ターミナルUIなし）。
-
-### 次の計画（方針: 具体→抽象の往復を継続）
-
-③参与文脈の帰納的検証で「具体が抽象を修正する」有効性を確認。残り要素も同じ方法（実装→不足発見→修正）で進める。
-
-**優先順位**:
-1. **⑥健全性管理の実装** — v0.3到達状態の最大ギャップ（「共存故障を検知できる」）。故障が静かに壊れる現状を改善する
-2. **残り要素（①②④）の帰納的検証** — 実装中に自然に不足が露出する。露出した問題を都度修正し、最後に網羅的に検証
-3. **テスト計画（#7）** — 受入シナリオのテスト実装
-
-### 設定管理の一元化（完了 2026-02-27）
-
-**方針**: `.env`をシークレット以外にも拡張し、`config.ts`を唯一の`process.env`入口にする。
-
-**解決した問題（Codex指摘）**:
-1. ~~`APP_CONFIG`が`process.env`を直接読む~~ → `getConfig()` 遅延singletonに統一
-2. ~~`Number(...) || 3000`はfail-fast違反~~ → Zodスキーマで`regex(/^\d+$/)`バリデーション
-3. ~~`AVATAR_SPACE`の正本散在~~ → `getConfig().avatarSpace` 一元化
-4. ~~`LOG_VERBOSE`直接参照~~ → `getConfig().logVerbose` 経由
-5. ~~`.env.example`不備~~ → 全項目をコメント付きで記載
-
-**実装**:
-- `config.ts`: `envSchema`拡張（AVATAR_NAME, USER_NAME, GROK_MODEL, PULSE_CRON, TERMINAL_SHELL, LOG_VERBOSE）+ `buildConfig(rawEnv)` 純粋関数 + `getConfig()` 遅延singleton + `_resetConfigForTest()` テスト用リセット
-- `sendMessage()`: `env: Env`パラメータ削除（内部で`getConfig()`使用）
-- `projectIntent()`/`projectPendingIntents()`: 同上
-- Renderer: `field.state` IPCメッセージに`avatarName`/`userName`を含め、ラベルを動的表示
-- テスト: `_resetConfigForTest()`パターンに統一、177件全通過
-
-**具体値の棚卸し結果**:
-
-| カテゴリ | 現在の値 | 現在の場所 | .env化候補 |
-|---------|---------|-----------|-----------|
-| **シークレット（既存）** | | | |
-| XAI_API_KEY | — | envSchema | 維持 |
-| XAI_MANAGEMENT_API_KEY | — | envSchema | 維持 |
-| ROBLOX_API_KEY | — | envSchema | 維持 |
-| ROBLOX_OBSERVATION_SECRET | — | envSchema | 維持 |
-| CLOUDFLARED_TOKEN | — | envSchema | 維持 |
-| **外部ID（既存）** | | | |
-| XAI_COLLECTION_ID | — | envSchema | 維持 |
-| ROBLOX_UNIVERSE_ID | — | envSchema | 維持 |
-| **アイデンティティ（新規）** | | | |
-| AI名 | "Avatar" | AVATAR_NAME envデフォルト | 完了 |
-| 人間ラベル | "you>" | ハードコード(cli.ts/main.ts) | 検討 |
-| Avatar画像(idle) | "./idle.png" | ハードコード(index.html/main.ts) | 検討 |
-| Avatar画像(talk) | "./talk.png" | ハードコード(main.ts) | 検討 |
-| **モデル・API** | | | |
-| Grokモデル名 | "grok-4-1-fast-non-reasoning" | APP_CONFIG.model | Yes: GROK_MODEL |
-| API base URL | "https://api.x.ai/v1" | APP_CONFIG.apiBaseUrl | 検討 |
-| Management API URL | "https://management-api.x.ai/v1" | APP_CONFIG.managementApiBaseUrl | 検討 |
-| **ファイルパス** | | | |
-| beingFile | "BEING.md" | APP_CONFIG | 検討 |
-| pulseFile | "PULSE.md" | APP_CONFIG | 検討 |
-| dataDir | "data" | APP_CONFIG | 低優先 |
-| stateFile等 | "data/*.json" | APP_CONFIG | 低優先（dataDirから派生） |
-| avatarSpace | ~/Avatar/space | APP_CONFIG+process.env | 既存（整理のみ） |
-| **Pulse** | | | |
-| pulseCron | "*/30 * * * *" | APP_CONFIG | Yes: PULSE_CRON |
-| pulsePrompt | 固定文 | APP_CONFIG | 低優先（実装結合） |
-| pulseOkPrefix | "PULSE_OK" | APP_CONFIG | 低優先（実装結合） |
-| **ネットワーク** | | | |
-| observationPort | 3000 | APP_CONFIG+process.env | 既存（整理のみ） |
-| **Roblox** | | | |
-| OpenCloud URL | "https://apis.roblox.com/cloud/v2" | APP_CONFIG | 低優先（安定） |
-| ownerDisplayName | — | envSchema | 維持 |
-| **ウィンドウ** | | | |
-| width/height | 1280x800 | ハードコード(main/index.ts) | 検討 |
-| **Terminal** | | | |
-| shell | "zsh" | ハードコード(terminal-service.ts) | 検討: SHELL |
-| defaultTimeoutMs | 30000 | ハードコード(terminal-service.ts) | 低優先 |
-| **ログ** | | | |
-| LOG_VERBOSE | false | process.env直参照(logger.ts) | 既存（整理のみ） |
-
-**判断基準**: (1)環境依存かつ(2)コード変更なしで実際に変わる値のみ`.env`化。両条件を満たさない項目はコード管理を維持
-
-**⑤共存記録について**: v0.3では追加実装不要と判断（2026-02-26）。previous_response_id（Grok API会話継続）+ save_memory（ローカルJSONL + Collections API）+ roblox-intents.jsonl（未送信リトライ）で「再起動をまたいで関係が継続」を実質的に充足。唯一のリスクはGrok APIの会話履歴パージだが、現時点で発生していないため、対策は挙動が判明してから検討する
+- OpenClawを参照アーキテクチャとする。踏襲の粒度は実装段階で段階的に精査
+- 設計の主語: v0.2「タスク実行」中心 → v0.3「場の継続＋往復維持」中心
+- **具体⇄抽象の往復**: 具体（実装スパイク）を先に進め、具体が抽象を修正する
+
+## 開発進捗
+
+### 完了済み（詳細はdocs/architecture.md）
+
+- Console会話基盤（Grok Responses API + readline）
+- 長期記憶（save_memory: ローカルJSONL + Collections API）
+- Pulse（AI起点の定期発話: node-cron + PULSE_OKプロトコル）
+- Roblox連携v2（双方向: 投影+観測パイプライン + cloudflaredトンネル）
+- Console UI（Electron + electron-vite + 3列6ペイン + TUI-in-GUIデザイン）
+- 全ペイン実装（Avatar/Space/Canvas/Stream/Terminal/Roblox Monitor）
+- Roblox空間改善（制約ベース設計 + 14 Luauモジュール + SpatialService）
+- ③参与文脈の最小実装（ParticipationInput型 + 場状態ゲート + correlationId貫通）
+- 設定管理一元化（.env + getConfig()遅延singleton + ensureDirectories）
+- ⑤共存記録: v0.3充足（previous_response_id + save_memory + intents.jsonl）
+
+## 実装バックログ
+
+バージョン割り当ては未定。タグで分類し、優先度は実運用で判断する。
+
+### 必須（v0.3到達状態に必要）
+
+- **⑥健全性管理の実装** — 最大ギャップ。共存故障を検知できる状態にする
+- **残り要素（①②④）の帰納的検証** — 実装中に不足を発見→都度修正
+- **受入シナリオのテスト実装** — S1-S5をコードで検証
+- **不変条件の検知＋修復フロー** — 4条件+横断制約
+- **セッション断を休止として再開可能にする** — 場のライフサイクル完走
+
+### 拡張（到達状態は満たすが品質・体験を向上）
+
+- **Canvas双方向編集** — 読み取り専用→読み書き対応（AIコーディング+人間編集）
+- **SpaceペインD&D** — ファイル/フォルダのドラッグ&ドロップ移動
+- **Terminal PTY昇格** — child_process.spawn→@lydell/node-pty（フルTUI対応）
+- **Console用3Dマップ** — Roblox空間のリアルタイム可視化（Three.js）
+- **Roblox TypeScript整理** — catalog/schema/eventsの分離（肥大化防止）
+- **参与文脈の完全独立コンポーネント化** — 最小実装から完全版へ
+- **場モデル要素（①②④）の網羅的検証** — 帰納的検証の仕上げ
+- **建築品質の根本改善** — プリファブ方式導入（Part単位→機能付きModel）、BuildOps内でPart/Prefab振り分け
+
+### 構想（設計・調査が未着手）
+
+- X / マルチチャネル本格対応
+- 配信拡張（Live2D/3D、音声）
+- v0.2コードの移植・互換維持
 
 ## 場モデル6要素のv0.3実装度
 
@@ -606,36 +162,21 @@ Terminalは上記の中で「環境に直接介入できる窓」。npm install�
 - ⑤→各ドメイン要素 コールバック（共存記録は受動的）
 - ⑥→各要素 直接ミューテーション（Coordinator経由のみ）
 
-## IN
+## リリース前作業
 
-- TypeScriptで新規実装（OpenClaw参照、踏襲粒度は段階的に精査）
-- 場モデル6要素の実装（場契約 / 参与文脈 / 往復回路 / 共存記録 / 健全性管理を重点、媒体投影は単一チャネル最小）
-- Console単一チャネルで体験成立
-- 不変条件4種+横断制約の検知＋修復フロー
-- セッション断を休止として再開可能にする
-- ~~AI起点の常駐トリガ（Heartbeat）~~ → Pulse実装済み
-- 場のライフサイクル（生成・維持・休止/再開・終端）
-- File Systemペイン（Avatar Spaceの可視化・操作、フル読み書き）
+v0.3到達状態の検証完了後、main mergeの前に実施する。
 
-## 将来の実装予定
-
-バージョン割り当ては未定。優先度は実運用で判断する。
-
-### Console
-- **Canvas双方向編集** — 読み取り専用→読み書き対応（AIコーディング+人間編集）
-- **SpaceペインD&D** — ファイル/フォルダのドラッグ&ドロップ移動
-- **Terminal PTY昇格** — child_process.spawn→@lydell/node-pty（フルTUI対応: vim/top/Tab補完/シェルプロンプト）
-- **Console用3Dマップ** — Roblox空間のリアルタイム可視化
-
-### Roblox
-- **建築品質の根本改善** — プリファブ方式導入、機能的建築物（ドア開閉等）。詳細は「建築品質の問題提起」参照
-- **TypeScript整理** — catalog/schema/eventsの分離（現状roblox-action-tool.tsに全集約で動作はするが肥大化リスク）
-
-### 場モデル
-- **参与文脈の完全独立コンポーネント化** — 最小実装はIN、完全版は将来
-- **残り場モデル要素（①②④）の網羅的検証** — v0.3で帰納的に進めた結果の仕上げ
+### README.md
+- v0.2 README.mdの基礎構成（Features → Quick Start → 環境変数テーブル）を踏襲
+- setup CLIは導入しないため、以下を丁寧にガイドする:
+  - 初回導線: clone → .env設定 → npm install → 起動
+  - 段階的セットアップ: XAI_API_KEYだけで最小起動 → Roblox連携の後追い有効化
+  - Robloxスクリプトの配置手順（roblox/ディレクトリからStudioへの手動コピー）
+- v0.3固有の説明: Console UI（3列6ペイン）、CLI/Electron両対応、Avatar Space
+- 日本語版（README.ja.md）も同時作成
 
 ### その他
-- v0.2コードの移植・互換維持
-- X / マルチチャネル本格対応
-- 配信拡張（Live2D/3D、音声）
+- CHANGELOG.md（v0.2→v0.3の変更点）
+- LICENSE確認（MIT、変更なし）
+- GitHub Releases / タグ作成
+
