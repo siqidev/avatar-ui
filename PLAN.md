@@ -48,9 +48,9 @@
 - ~~⑥健全性管理の実装~~ — 完了（検知+通知+凍結。docs/architecture.md参照）
 - ~~セッション断を休止として再開可能にする~~ — 完了（セッション永続化。docs/architecture.md参照）
 - **残り要素（①②④）の帰納的検証** — ギャップ分析完了、以下のタスクを導出:
-  - **④応答タイムアウト** — sendMessageのAPI呼び出しが無応答の場合の検知と回復。AbortController + タイムアウト
-  - **④Pulse/観測同時発火の確認** — enqueue()直列化が十分かの検証。不十分なら対処
-  - **②媒体投影の散在整理** — ipc-handlers.tsに混在する媒体投影の処理を整理し、将来のチャネル拡張の土台を作る
+  - ~~④応答タイムアウト~~ — 完了（API 20秒タイムアウト+warn通知。docs/architecture.md参照）
+  - ~~④Pulse/観測同時発火の確認~~ — 確認済み（enqueue() Promise chain直列化で十分。JSシングルスレッド+イベントループにより安全）
+  - ~~②媒体投影の散在整理~~ — 完了（ChannelProjection + MessageRecorder分離。docs/architecture.md参照）
 - **受入シナリオのテスト実装** — S1-S5をコードで検証
 - **不変条件の検知＋修復フロー** — 4条件+横断制約
 

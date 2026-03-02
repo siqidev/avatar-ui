@@ -1,8 +1,7 @@
 import { ipcMain } from "electron"
 import type { BrowserWindow } from "electron"
 import { streamPostSchema } from "../shared/ipc-schema.js"
-import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema.js"
-import type { ToolCallInfo } from "../services/chat-session-service.js"
+import type { FieldState } from "../shared/ipc-schema.js"
 import { transition, isActive } from "./field-fsm.js"
 import {
   initRuntime,
@@ -11,21 +10,17 @@ import {
   startObservation,
   getState,
   updateFieldState,
-  appendMessage,
   resetToNewField,
 } from "./field-runtime.js"
+import { createConsoleProjection } from "./channel-projection.js"
+import type { ChannelProjection } from "./channel-projection.js"
+import { recordMessage } from "./message-recorder.js"
 import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
 // 場の状態（モジュールスコープで保持、field-runtimeの永続化状態と同期）
 let fieldState: FieldState = "generated"
-
-// Rendererにメッセージを送る
-function sendToRenderer(win: BrowserWindow | null, msg: ToRendererMessage): void {
-  if (!win || win.isDestroyed()) return
-  win.webContents.send(msg.type, msg)
-}
 
 // 場の状態を取得する（外部参照用）
 export function getFieldState(): FieldState {
@@ -48,37 +43,15 @@ export function safeDetach(): void {
   }
 }
 
-// --- メッセージ履歴の記録（永続化付き） ---
-function recordMessage(
-  actor: "human" | "ai",
-  text: string,
-  source?: Source,
-  toolCalls?: ToolCallInfo[],
-): void {
-  appendMessage({
-    actor,
-    text,
-    ...(source ? { source } : {}),
-    ...(toolCalls?.length ? {
-      toolCalls: toolCalls.map((tc) => ({
-        name: tc.name,
-        result: tc.result,
-      })),
-    } : {}),
-  })
-}
-
 // IPCハンドラを登録する
 export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): void {
 
-  // IntegrityManager: alertSink登録（検知→Renderer通知）
+  // ChannelProjection: Console（Electron BrowserWindow）チャネルを生成
+  const projection: ChannelProjection = createConsoleProjection(getMainWindow)
+
+  // IntegrityManager: alertSink登録（検知→投影経由でRenderer通知）
   setAlertSink((code, message) => {
-    const win = getMainWindow()
-    sendToRenderer(win, {
-      type: "integrity.alert",
-      code,
-      message: `${message}。再起動してください`,
-    })
+    projection.sendIntegrityAlert(code, message)
   })
 
   // FieldRuntime初期化
@@ -99,11 +72,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
   if (runtimeReady) {
     startPulse(
       (result, correlationId) => {
-        const win = getMainWindow()
         // Streamペインにコンテキスト行（Pulse発火）
         recordMessage("human", "定期確認", "pulse")
-        sendToRenderer(win, {
-          type: "stream.reply",
+        projection.sendStreamReply({
           actor: "human",
           correlationId,
           text: "定期確認",
@@ -112,8 +83,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         })
         // AI応答
         recordMessage("ai", result.text, "pulse", result.toolCalls)
-        sendToRenderer(win, {
-          type: "stream.reply",
+        projection.sendStreamReply({
           actor: "ai",
           correlationId,
           text: result.text,
@@ -127,19 +97,15 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     // 観測サーバー起動（Roblox連携有効時のみ）
     startObservation(
       (event, formatted, correlationId) => {
-        const win = getMainWindow()
         // Roblox Monitorペインへ
-        sendToRenderer(win, {
-          type: "observation.event",
+        projection.sendObservationEvent({
           eventType: event.type,
           payload: event.payload,
           formatted,
-          timestamp: new Date().toISOString(),
         })
         // Streamペインにも観測入力をコンテキスト表示
         recordMessage("human", formatted, "observation")
-        sendToRenderer(win, {
-          type: "stream.reply",
+        projection.sendStreamReply({
           actor: "human",
           correlationId,
           text: formatted,
@@ -149,9 +115,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       },
       (result, correlationId) => {
         recordMessage("ai", result.text, "observation", result.toolCalls)
-        const win = getMainWindow()
-        sendToRenderer(win, {
-          type: "stream.reply",
+        projection.sendStreamReply({
           actor: "ai",
           correlationId,
           text: result.text,
@@ -186,28 +150,15 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       return
     }
 
-    // 場の状態 + 永続化された履歴をRendererに送信
-    const win = getMainWindow()
+    // 場の状態 + 永続化された履歴を投影
     const config = getConfig()
     const restored = getState()
-    const history = restored.field.messageHistory
 
-    sendToRenderer(win, {
-      type: "field.state",
+    projection.sendFieldState({
       state: fieldState,
       avatarName: config.avatarName,
       userName: config.userName,
-      ...(history.length > 0 ? { lastMessages: history.map((m) => ({
-        actor: m.actor,
-        text: m.text,
-        correlationId: "restored",
-        source: m.source,
-        toolCalls: m.toolCalls?.map((tc) => ({
-          name: tc.name,
-          args: {} as Record<string, unknown>,
-          result: tc.result,
-        })),
-      })) } : {}),
+      history: restored.field.messageHistory,
     })
   })
 
@@ -243,9 +194,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       recordMessage("ai", streamResult.text, "user", streamResult.toolCalls)
       log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
 
-      const win = getMainWindow()
-      sendToRenderer(win, {
-        type: "stream.reply",
+      projection.sendStreamReply({
         actor: "ai",
         correlationId,
         text: streamResult.text,
