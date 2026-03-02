@@ -4,7 +4,7 @@ import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled } from "../config.js"
 import type { AppConfig } from "../config.js"
-import { loadState, saveState, defaultState, pushMessage } from "../state/state-repository.js"
+import { loadState, saveState, pushMessage } from "../state/state-repository.js"
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
 import type { SendMessageResult } from "../services/chat-session-service.js"
@@ -107,13 +107,12 @@ export function initRuntime(): void {
   })
   beingPrompt = loadBeing()
 
-  // state.json読み込み（破損検知: ENOENT以外はthrow）
-  try {
-    state = loadState()
-  } catch (err) {
-    report("COEXISTENCE_STATE_LOAD_CORRUPTED",
-      `state.json破損: ${err instanceof Error ? err.message : String(err)}`)
-    state = defaultState()
+  // state.json読み込み（破損時は.prevフォールバック → warn続行）
+  const loadResult = loadState()
+  state = loadResult.state
+  if (loadResult.recoveredFromPrev) {
+    warn("COEXISTENCE_STATE_LOAD_CORRUPTED",
+      "state.json破損を検知しました。直前の保存状態から復帰しました")
   }
 
   // 起動時補正

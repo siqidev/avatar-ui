@@ -50,7 +50,11 @@ async function main(): Promise<void> {
   })
 
   const beingPrompt = loadBeing()
-  const state = loadState()
+  const loadResult = loadState()
+  const state = loadResult.state
+  if (loadResult.recoveredFromPrev) {
+    process.stdout.write("警告: state.json破損を検知しました。直前の保存状態から復帰しました\n")
+  }
 
   // 起動メッセージ
   if (state.participant.lastResponseId) {

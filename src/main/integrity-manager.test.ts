@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { report, warn, setAlertSink, isFrozen, _resetForTest } from "./integrity-manager.js"
+import { report, warn, setAlertSink, isFrozen, _resetForTest, RECOVERY_POLICY } from "./integrity-manager.js"
 import { _resetConfigForTest } from "../config.js"
 
 describe("integrity-manager", () => {
@@ -9,14 +9,17 @@ describe("integrity-manager", () => {
   })
 
   describe("report", () => {
-    it("sinkが設定済みなら呼ばれる", () => {
+    it("sinkが設定済みなら呼ばれる（userMessageを使用）", () => {
       const sink = vi.fn()
       setAlertSink(sink)
 
       report("RECIPROCITY_STREAM_ERROR", "APIエラー")
 
       expect(sink).toHaveBeenCalledOnce()
-      expect(sink).toHaveBeenCalledWith("RECIPROCITY_STREAM_ERROR", "APIエラー")
+      expect(sink).toHaveBeenCalledWith(
+        "RECIPROCITY_STREAM_ERROR",
+        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+      )
     })
 
     it("sink未設定でもクラッシュしない", () => {
@@ -37,8 +40,14 @@ describe("integrity-manager", () => {
       report("RECIPROCITY_PULSE_ERROR", "2回目")
 
       expect(sink).toHaveBeenCalledTimes(2)
-      expect(sink).toHaveBeenNthCalledWith(1, "RECIPROCITY_STREAM_ERROR", "1回目")
-      expect(sink).toHaveBeenNthCalledWith(2, "RECIPROCITY_PULSE_ERROR", "2回目")
+      expect(sink).toHaveBeenNthCalledWith(1,
+        "RECIPROCITY_STREAM_ERROR",
+        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+      )
+      expect(sink).toHaveBeenNthCalledWith(2,
+        "RECIPROCITY_PULSE_ERROR",
+        RECOVERY_POLICY.RECIPROCITY_PULSE_ERROR.userMessage,
+      )
     })
   })
 
@@ -50,7 +59,10 @@ describe("integrity-manager", () => {
       warn("RECIPROCITY_STREAM_ERROR", "タイムアウト")
 
       expect(sink).toHaveBeenCalledOnce()
-      expect(sink).toHaveBeenCalledWith("RECIPROCITY_STREAM_ERROR", "タイムアウト")
+      expect(sink).toHaveBeenCalledWith(
+        "RECIPROCITY_STREAM_ERROR",
+        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+      )
       expect(isFrozen()).toBe(false)
     })
 

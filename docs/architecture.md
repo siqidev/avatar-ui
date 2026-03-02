@@ -257,7 +257,18 @@ State = {
 }
 ```
 
-旧形式 `{ lastResponseId }` からの自動マイグレーション対応。atomic write（tmp→rename）。
+旧形式 `{ lastResponseId }` からの自動マイグレーション対応。atomic write（tmp→rename）+ 1世代バックアップ（.prev）。
+
+### 永続化の耐障害性
+
+**1世代バックアップ**: saveState()は毎回、現行state.jsonを.prevにrenameしてから新版を書く。ファイルシステムのrename操作のみでI/Oコスト実質ゼロ。
+
+**破損フォールバック**: loadState()は3段階で復帰を試みる:
+1. state.json → 正常なら使用
+2. state.jsonがJSON破損 → .corruptedにリネーム → state.json.prevを試行
+3. .prevも読めない → defaultState()（新規状態）
+
+戻り値は`LoadStateResult = { state, recoveredFromPrev }`。.prevフォールバック時はrecoveredFromPrev=trueとなり、field-runtime.tsがwarn通知（凍結なし、次の入力は受け付ける）。
 
 ### 起動時補正（field-runtime.ts correctStateOnStartup()）
 
@@ -299,19 +310,33 @@ Grok Responses APIの`previous_response_id`が無効/期限切れの場合（400
 
 ### v0.3の機構
 
-検知+通知+凍結（修復委譲の最小実現）。自動復旧・RuntimeCoordinatorはスコープ外。
+検知+通知+凍結+修復ポリシー宣言。自動復旧の実行体（RuntimeCoordinator）はv0.4以降。
 
 ### 通知の2段階: warn（警告）と report（凍結）
 
 | 関数 | 用途 | 凍結 |
 |---|---|---|
-| `warn(code, message)` | 外部障害（APIタイムアウト、通信エラー）。次の入力は受け付ける | なし |
-| `report(code, message)` | 場の整合性破壊（FSM不正遷移、state破損）。再起動が必要 | あり |
+| `warn(code, message)` | 外部障害（APIタイムアウト、通信エラー、state破損復帰）。次の入力は受け付ける | なし |
+| `report(code, message)` | 場の整合性破壊（FSM不正遷移、state保存失敗）。再起動が必要 | あり |
 
 ```
-warn:   検知 → ログ出力 → alertBar表示 → 次の入力を受け付ける
-report: 検知 → ログ出力 → alertBar表示 → 凍結ラッチON → 復帰は再起動
+warn:   検知 → ログ出力 → alertBar表示（userMessage） → 次の入力を受け付ける
+report: 検知 → ログ出力 → alertBar表示（userMessage） → 凍結ラッチON → 復帰は再起動
 ```
+
+### 修復ポリシー（RECOVERY_POLICY）
+
+各AlertCodeに対して修復方針をRECOVERY_POLICY定数で宣言（integrity-manager.ts）:
+
+```ts
+RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze", userMessage: string }>
+```
+
+- `action: "continue"` → warn（次の入力で自然回復）
+- `action: "freeze"` → report（再起動が必要）
+- `userMessage` → ユーザー向けの原因+対処メッセージ。sink経由でRendererに表示
+
+ポリシーはv0.3では宣言のみ。RuntimeCoordinatorがポリシーを参照して自動復旧を発行する機構はv0.4で追加予定。
 
 ### AlertCode一覧
 
@@ -321,8 +346,8 @@ report: 検知 → ログ出力 → alertBar表示 → 凍結ラッチON → 復
 | RECIPROCITY_STREAM_ERROR | 往復連接性 | ipc-handlers.ts stream catch | warn（非凍結） |
 | RECIPROCITY_PULSE_ERROR | 往復連接性 | field-runtime.ts Pulse catch | warn（非凍結） |
 | RECIPROCITY_OBSERVATION_ERROR | 往復連接性 | field-runtime.ts 観測 catch | warn（非凍結） |
-| COEXISTENCE_STATE_LOAD_CORRUPTED | 共存連続性 | state-repository.ts loadState | report（凍結） |
-| COEXISTENCE_STATE_SAVE_FAILED | 共存連続性 | state-repository.ts saveState | report（凍結） |
+| COEXISTENCE_STATE_LOAD_CORRUPTED | 共存連続性 | field-runtime.ts initRuntime | warn（非凍結、.prevから自動復帰済み） |
+| COEXISTENCE_STATE_SAVE_FAILED | 共存連続性 | field-runtime.ts persistState | report（凍結） |
 
 ### API呼び出しタイムアウト
 

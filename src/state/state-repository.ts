@@ -69,51 +69,94 @@ function migrateFromLegacy(obj: Record<string, unknown>): State {
 }
 
 // --- state.jsonを読み込む ---
+// 優先順: state.json → state.json.prev（1世代フォールバック） → defaultState()
 // ENOENT（ファイルなし = 初回起動）はdefaultState()を返す
-// JSON破損はthrow（fail-fast）
 
-export function loadState(): State {
+function parseStateFile(filePath: string): State {
+  const raw = fs.readFileSync(filePath, "utf-8")
+  const obj = JSON.parse(raw) as Record<string, unknown>
+
+  // 新形式: schemaVersionが存在する
+  if (typeof obj.schemaVersion === "number" && obj.schemaVersion === CURRENT_SCHEMA_VERSION) {
+    const field = obj.field as Record<string, unknown> | undefined
+    const participant = obj.participant as Record<string, unknown> | undefined
+
+    return {
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      field: {
+        state: typeof field?.state === "string" ? field.state : "generated",
+        messageHistory: Array.isArray(field?.messageHistory) ? field.messageHistory as PersistedMessage[] : [],
+      },
+      participant: {
+        lastResponseId: typeof participant?.lastResponseId === "string" ? participant.lastResponseId : null,
+        lastResponseAt: typeof participant?.lastResponseAt === "string" ? participant.lastResponseAt : null,
+      },
+    }
+  }
+
+  // 旧形式: マイグレーション
+  return migrateFromLegacy(obj)
+}
+
+export type LoadStateResult = {
+  state: State
+  recoveredFromPrev: boolean // .prevから復帰した場合true
+}
+
+export function loadState(): LoadStateResult {
+  const stateFile = getConfig().stateFile
+  const prevFile = `${stateFile}.prev`
+
+  // 1. state.jsonを試行
   try {
-    const raw = fs.readFileSync(getConfig().stateFile, "utf-8")
-    const obj = JSON.parse(raw) as Record<string, unknown>
-
-    // 新形式: schemaVersionが存在する
-    if (typeof obj.schemaVersion === "number" && obj.schemaVersion === CURRENT_SCHEMA_VERSION) {
-      const field = obj.field as Record<string, unknown> | undefined
-      const participant = obj.participant as Record<string, unknown> | undefined
-
-      return {
-        schemaVersion: CURRENT_SCHEMA_VERSION,
-        field: {
-          state: typeof field?.state === "string" ? field.state : "generated",
-          messageHistory: Array.isArray(field?.messageHistory) ? field.messageHistory as PersistedMessage[] : [],
-        },
-        participant: {
-          lastResponseId: typeof participant?.lastResponseId === "string" ? participant.lastResponseId : null,
-          lastResponseAt: typeof participant?.lastResponseAt === "string" ? participant.lastResponseAt : null,
-        },
-      }
-    }
-
-    // 旧形式: マイグレーション
-    return migrateFromLegacy(obj)
+    return { state: parseStateFile(stateFile), recoveredFromPrev: false }
   } catch (err: unknown) {
+    // ENOENT: ファイルなし = 初回起動
     if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      return defaultState()
+      return { state: defaultState(), recoveredFromPrev: false }
     }
-    throw err
+
+    // JSON破損 → .prevにフォールバック
+    // 壊れたファイルを.corruptedにリネーム（原因調査用）
+    try {
+      fs.renameSync(stateFile, `${stateFile}.corrupted`)
+    } catch { /* リネーム失敗は無視 */ }
+
+    // 2. .prevを試行
+    try {
+      const state = parseStateFile(prevFile)
+      return { state, recoveredFromPrev: true }
+    } catch {
+      // .prevも読めない → defaultState()
+      return { state: defaultState(), recoveredFromPrev: true }
+    }
   }
 }
 
-// --- state.jsonに保存する（atomic write: tmp→rename） ---
+// --- state.jsonに保存する（atomic write: prev→rename→tmp→rename） ---
+// 1世代バックアップ: 保存のたびに現行ファイルを.prevにrenameしてから新版を書く
+// 破損時は.prevから復帰できる（loadStateのフォールバック）
 
 export function saveState(state: State): void {
   const config = getConfig()
   fs.mkdirSync(config.dataDir, { recursive: true })
 
-  const tmpFile = `${config.stateFile}.tmp`
+  const stateFile = config.stateFile
+  const prevFile = `${stateFile}.prev`
+  const tmpFile = `${stateFile}.tmp`
+
+  // 現行を.prevに退避（ファイルが存在しない場合は無視）
+  try {
+    fs.renameSync(stateFile, prevFile)
+  } catch (err: unknown) {
+    if (!(err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT")) {
+      throw err
+    }
+  }
+
+  // 新版を書き込み
   fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2))
-  fs.renameSync(tmpFile, config.stateFile)
+  fs.renameSync(tmpFile, stateFile)
 }
 
 // --- メッセージ履歴のヘルパー ---

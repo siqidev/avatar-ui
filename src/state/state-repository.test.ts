@@ -22,8 +22,9 @@ describe("state-repository", () => {
   })
 
   it("ファイルが存在しない場合、デフォルト状態を返す", () => {
-    const state = loadState()
-    expect(state).toEqual(defaultState())
+    const result = loadState()
+    expect(result.state).toEqual(defaultState())
+    expect(result.recoveredFromPrev).toBe(false)
   })
 
   it("保存した状態を読み込める", () => {
@@ -32,9 +33,10 @@ describe("state-repository", () => {
     state.participant.lastResponseAt = "2026-03-01T00:00:00.000Z"
     saveState(state)
 
-    const loaded = loadState()
-    expect(loaded.participant.lastResponseId).toBe("resp_test_123")
-    expect(loaded.participant.lastResponseAt).toBe("2026-03-01T00:00:00.000Z")
+    const result = loadState()
+    expect(result.state.participant.lastResponseId).toBe("resp_test_123")
+    expect(result.state.participant.lastResponseAt).toBe("2026-03-01T00:00:00.000Z")
+    expect(result.recoveredFromPrev).toBe(false)
   })
 
   it("旧形式（{ lastResponseId }）からマイグレーションできる", () => {
@@ -43,10 +45,11 @@ describe("state-repository", () => {
       JSON.stringify({ lastResponseId: "resp_old_456", memory: { syncCursorId: "old" } }),
     )
 
-    const state = loadState()
-    expect(state.participant.lastResponseId).toBe("resp_old_456")
-    expect(state.field.state).toBe("generated")
-    expect(state.field.messageHistory).toEqual([])
+    const result = loadState()
+    expect(result.state.participant.lastResponseId).toBe("resp_old_456")
+    expect(result.state.field.state).toBe("generated")
+    expect(result.state.field.messageHistory).toEqual([])
+    expect(result.recoveredFromPrev).toBe(false)
   })
 
   it("新形式のstate.jsonを正しく読み込める", () => {
@@ -60,16 +63,38 @@ describe("state-repository", () => {
     state.participant.lastResponseAt = "2026-03-02T12:00:00.000Z"
     saveState(state)
 
-    const loaded = loadState()
-    expect(loaded.field.state).toBe("paused")
-    expect(loaded.field.messageHistory).toHaveLength(2)
-    expect(loaded.field.messageHistory[0].text).toBe("こんにちは")
-    expect(loaded.participant.lastResponseId).toBe("resp_new_789")
+    const result = loadState()
+    expect(result.state.field.state).toBe("paused")
+    expect(result.state.field.messageHistory).toHaveLength(2)
+    expect(result.state.field.messageHistory[0].text).toBe("こんにちは")
+    expect(result.state.participant.lastResponseId).toBe("resp_new_789")
+    expect(result.recoveredFromPrev).toBe(false)
   })
 
-  it("不正なJSONはthrowする（fail-fast）", () => {
+  it("不正なJSONは.prevフォールバック → デフォルト状態で復帰", () => {
     fs.writeFileSync(TEST_STATE_FILE, "invalid json")
-    expect(() => loadState()).toThrow(SyntaxError)
+    const result = loadState()
+    // .prevも存在しないためdefaultState()にフォールバック
+    expect(result.state).toEqual(defaultState())
+    expect(result.recoveredFromPrev).toBe(true)
+    // 破損ファイルは.corruptedにリネームされる
+    expect(fs.existsSync(`${TEST_STATE_FILE}.corrupted`)).toBe(true)
+  })
+
+  it("不正なJSON + .prevが存在する場合、.prevから復帰", () => {
+    // .prevに正常な状態を保存
+    const prevState = defaultState()
+    prevState.field.state = "paused"
+    prevState.participant.lastResponseId = "resp_prev_123"
+    fs.writeFileSync(`${TEST_STATE_FILE}.prev`, JSON.stringify(prevState, null, 2))
+
+    // state.jsonを破損させる
+    fs.writeFileSync(TEST_STATE_FILE, "corrupted!!!")
+
+    const result = loadState()
+    expect(result.state.field.state).toBe("paused")
+    expect(result.state.participant.lastResponseId).toBe("resp_prev_123")
+    expect(result.recoveredFromPrev).toBe(true)
   })
 
   it("atomic write: 書き込み後にtmpファイルが残らない", () => {
@@ -78,6 +103,24 @@ describe("state-repository", () => {
 
     expect(fs.existsSync(TEST_STATE_FILE)).toBe(true)
     expect(fs.existsSync(`${TEST_STATE_FILE}.tmp`)).toBe(false)
+  })
+
+  it("saveState: 1世代バックアップ（.prev）を作成する", () => {
+    const state1 = defaultState()
+    state1.participant.lastResponseId = "resp_v1"
+    saveState(state1)
+
+    const state2 = defaultState()
+    state2.participant.lastResponseId = "resp_v2"
+    saveState(state2)
+
+    // state.jsonは最新版
+    const current = JSON.parse(fs.readFileSync(TEST_STATE_FILE, "utf-8"))
+    expect(current.participant.lastResponseId).toBe("resp_v2")
+
+    // .prevは1つ前の版
+    const prev = JSON.parse(fs.readFileSync(`${TEST_STATE_FILE}.prev`, "utf-8"))
+    expect(prev.participant.lastResponseId).toBe("resp_v1")
   })
 
   describe("pushMessage", () => {

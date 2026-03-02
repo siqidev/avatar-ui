@@ -36,8 +36,8 @@
 - ③参与文脈の最小実装（ParticipationInput型 + 場状態ゲート + correlationId貫通）
 - 設定管理一元化（.env + getConfig()遅延singleton + ensureDirectories）
 - ⑤共存記録: v0.3充足（previous_response_id + save_memory + intents.jsonl）
-- ⑥健全性管理（検知+通知+凍結: AlertCode enum + IntegrityManager + 凍結ラッチ）
-- セッション永続化（場状態+会話履歴+チェーンID永続化、safeDetach、起動時補正、チェーン断裂自動回復）
+- ⑥健全性管理（検知+通知+凍結: AlertCode enum + IntegrityManager + 凍結ラッチ + RECOVERY_POLICY宣言）
+- セッション永続化（場状態+会話履歴+チェーンID永続化、safeDetach、起動時補正、チェーン断裂自動回復、1世代バックアップ+.prevフォールバック）
 
 ## 実装バックログ
 
@@ -52,7 +52,7 @@
   - ~~④Pulse/観測同時発火の確認~~ — 確認済み（enqueue() Promise chain直列化で十分。JSシングルスレッド+イベントループにより安全）
   - ~~②媒体投影の散在整理~~ — 完了（ChannelProjection + MessageRecorder分離。docs/architecture.md参照）
 - ~~受入シナリオのテスト実装~~ — 完了（S1-S5受入テスト34件。enqueue凍結スキップ時のPromise未解決バグも修正。docs/architecture.md参照）
-- **不変条件の検知＋修復フロー** — 4条件+横断制約
+- ~~不変条件の検知＋修復フロー~~ — 完了（RECOVERY_POLICY宣言 + state.json 1世代バックアップ + .prevフォールバック + warn/report分離 + userMessage。RuntimeCoordinatorはv0.4。docs/architecture.md参照）
 
 ### 拡張（到達状態は満たすが品質・体験を向上）
 
