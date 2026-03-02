@@ -4,7 +4,7 @@ import type {
   ResponseInput,
   Tool,
 } from "openai/resources/responses/responses"
-import type { State } from "../state/state-repository.js"
+import type { State, PersistedMessage } from "../state/state-repository.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
@@ -37,7 +37,7 @@ import {
   saveMemoryArgsSchema,
   createMemoryRecord,
 } from "../memory/memory-record.js"
-import { appendMemory } from "../memory/memory-log-repository.js"
+import { appendMemory, readRecentMemories } from "../memory/memory-log-repository.js"
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
 import { appendIntent } from "../roblox/intent-log.js"
 import { projectIntent } from "../roblox/projector.js"
@@ -56,6 +56,51 @@ export type SendMessageResult = {
   toolCalls: ToolCallInfo[]
 }
 
+// チェーン断裂エラーかどうか判定する（400/404 = レスポンスID無効/期限切れ）
+function isChainBreakError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false
+  const status = (err as { status?: number }).status
+  return status === 400 || status === 404
+}
+
+// messageHistoryからResponseInput用の会話コンテキストを構築する
+// チェーン断裂時の復旧素材として使用（直近の会話を要約的に再注入）
+const MAX_RECOVERY_MESSAGES = 20
+function buildRecoveryContext(
+  beingPrompt: string,
+  history: PersistedMessage[],
+  userInput: string,
+): ResponseInput {
+  const input: ResponseInput = [
+    { role: "system" as const, content: beingPrompt },
+  ]
+
+  // memory.jsonlから直近の記憶を読み込む（文脈の厚みを確保）
+  const memoryResult = readRecentMemories(10)
+  if (memoryResult.success && memoryResult.data.length > 0) {
+    const memoryContext = memoryResult.data
+      .map((m) => `[記憶 ${(m.tags ?? []).join(",")}] ${m.text}`)
+      .join("\n")
+    input.push({
+      role: "developer" as const,
+      content: `以下はあなたが過去に保存した記憶です。文脈の再構築に使ってください:\n${memoryContext}`,
+    })
+  }
+
+  // messageHistoryから直近の会話を復元
+  const recent = history.slice(-MAX_RECOVERY_MESSAGES)
+  for (const msg of recent) {
+    input.push({
+      role: msg.actor === "human" ? "user" as const : "assistant" as const,
+      content: msg.text,
+    })
+  }
+
+  // 今回のユーザー入力
+  input.push({ role: "user" as const, content: userInput })
+  return input
+}
+
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
   client: OpenAI,
@@ -65,9 +110,11 @@ export async function sendMessage(
   forceSystemPrompt = false,
 ): Promise<SendMessageResult> {
   const config = getConfig()
+  const lastResponseId = state.participant.lastResponseId
+
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput =
-    state.lastResponseId && !forceSystemPrompt
+    lastResponseId && !forceSystemPrompt
       ? [{ role: "user" as const, content: userInput }]
       : [
           { role: "system" as const, content: beingPrompt },
@@ -76,17 +123,43 @@ export async function sendMessage(
 
   const tools = buildTools(config)
 
-  let response = await client.responses.create({
-    model: config.model,
-    input,
-    tools,
-    store: true,
-    ...(state.lastResponseId
-      ? { previous_response_id: state.lastResponseId }
-      : {}),
-  })
+  let response: Response
+  try {
+    response = await client.responses.create({
+      model: config.model,
+      input,
+      tools,
+      store: true,
+      ...(lastResponseId
+        ? { previous_response_id: lastResponseId }
+        : {}),
+    })
+  } catch (err) {
+    // チェーン断裂検知（400/404: レスポンスIDが無効/期限切れ）
+    if (lastResponseId && isChainBreakError(err)) {
+      log.info(`[CHAIN] 断裂検知 (${lastResponseId}) — 復旧コンテキストで再試行`)
+      state.participant.lastResponseId = null
+      state.participant.lastResponseAt = null
 
-  state.lastResponseId = response.id
+      // 復旧: being + memory + messageHistory + 今回の入力で新チェーン開始
+      const recoveryInput = buildRecoveryContext(
+        beingPrompt,
+        state.field.messageHistory,
+        userInput,
+      )
+      response = await client.responses.create({
+        model: config.model,
+        input: recoveryInput,
+        tools,
+        store: true,
+      })
+      log.info(`[CHAIN] 復旧成功 — 新チェーン開始 (${response.id})`)
+    } else {
+      throw err
+    }
+  }
+
+  state.participant.lastResponseId = response.id
 
   // ツール呼び出しループ（Grokがツールを呼んだら処理して再送信）
   const allToolCalls: ToolCallInfo[] = []
@@ -121,7 +194,7 @@ export async function sendMessage(
       store: true,
       previous_response_id: response.id,
     })
-    state.lastResponseId = response.id
+    state.participant.lastResponseId = response.id
   }
 
   return {

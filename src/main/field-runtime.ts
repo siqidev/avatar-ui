@@ -4,8 +4,8 @@ import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled } from "../config.js"
 import type { AppConfig } from "../config.js"
-import { loadState, saveState, defaultState } from "../state/state-repository.js"
-import type { State } from "../state/state-repository.js"
+import { loadState, saveState, defaultState, pushMessage } from "../state/state-repository.js"
+import type { State, PersistedMessage } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
 import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
@@ -23,6 +23,9 @@ let config: AppConfig
 let state: State
 let beingPrompt: string
 let initialized = false
+
+// チェーンTTL（30日）
+const CHAIN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 // 直列キュー（同時にsendMessageを呼ばないようにする）
 // 凍結中はジョブをスキップ（検知後の安全側停止）
@@ -66,6 +69,30 @@ function loadPulse(): string | null {
   }
 }
 
+// --- 起動時の状態補正 ---
+// 異常終了（active/resumed）→ paused に補正
+// terminated → 維持（attach時にリセット）
+// チェーンTTL超過 → lastResponseId null化
+function correctStateOnStartup(s: State): void {
+  const fs = s.field.state
+
+  // active/resumed = 異常終了（Main終了=暗黙のdetach）
+  if (fs === "active" || fs === "resumed") {
+    log.info(`[RUNTIME] 起動時補正: ${fs} → paused（異常終了検知）`)
+    s.field.state = "paused"
+  }
+
+  // チェーンTTL超過チェック
+  if (s.participant.lastResponseId && s.participant.lastResponseAt) {
+    const elapsed = Date.now() - new Date(s.participant.lastResponseAt).getTime()
+    if (elapsed > CHAIN_TTL_MS) {
+      log.info(`[RUNTIME] チェーンTTL超過（${Math.floor(elapsed / 86400000)}日）→ lastResponseId null化`)
+      s.participant.lastResponseId = null
+      s.participant.lastResponseAt = null
+    }
+  }
+}
+
 // FieldRuntimeを初期化する
 export function initRuntime(): void {
   if (initialized) return
@@ -86,8 +113,70 @@ export function initRuntime(): void {
     state = defaultState()
   }
 
+  // 起動時補正
+  correctStateOnStartup(state)
+
+  // 補正結果を即保存
+  try {
+    saveState(state)
+  } catch (err) {
+    report("COEXISTENCE_STATE_SAVE_FAILED",
+      `state.json保存失敗: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
   initialized = true
-  log.info(`[RUNTIME] 初期化完了 (lastResponseId: ${state.lastResponseId ?? "なし"})`)
+  log.info(`[RUNTIME] 初期化完了 (fieldState: ${state.field.state}, lastResponseId: ${state.participant.lastResponseId ?? "なし"})`)
+}
+
+// --- 状態アクセスAPI（ipc-handlersから使用） ---
+
+export function getState(): State {
+  return state
+}
+
+export function getBeingPrompt(): string {
+  return beingPrompt
+}
+
+// 場の状態を更新して永続化する
+export function updateFieldState(newFieldState: string): void {
+  state.field.state = newFieldState
+  persistState()
+}
+
+// messageHistoryに追加して永続化する
+export function appendMessage(msg: PersistedMessage): void {
+  pushMessage(state.field.messageHistory, msg)
+  persistState()
+}
+
+// 参与者のレスポンスIDを更新して永続化する
+export function updateParticipantChain(responseId: string | null): void {
+  state.participant.lastResponseId = responseId
+  state.participant.lastResponseAt = responseId ? new Date().toISOString() : null
+  persistState()
+}
+
+// terminated → 新規場にリセット（attach時に呼ばれる）
+export function resetToNewField(): void {
+  log.info("[RUNTIME] terminated → 新規場にリセット")
+  state.field.state = "generated"
+  state.field.messageHistory = []
+  // 参与者側はリセットしない（接続契約: 参与者の意味資産は場の終了で消えない）
+  // ただしterminatedは「場の正常終了」なので、チェーンもリセットする
+  state.participant.lastResponseId = null
+  state.participant.lastResponseAt = null
+  persistState()
+}
+
+// state.jsonに保存する（エラー時は凍結報告）
+function persistState(): void {
+  try {
+    saveState(state)
+  } catch (err) {
+    report("COEXISTENCE_STATE_SAVE_FAILED",
+      `state.json保存失敗: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 // ストリームメッセージを処理する（stream.post → sendMessage → stream.reply）
@@ -98,7 +187,8 @@ export function processStream(text: string): Promise<SendMessageResult> {
     enqueue(async () => {
       try {
         const result = await sendMessage(client, state, beingPrompt, text)
-        saveState(state)
+        // lastResponseIdはsendMessage内でstate.participant.lastResponseIdに更新済み
+        updateParticipantChain(state.participant.lastResponseId)
         resolve(result)
       } catch (err) {
         reject(err)
@@ -135,7 +225,7 @@ export function startPulse(
           config.pulsePrompt,
           true, // forceSystemPrompt
         )
-        saveState(state)
+        updateParticipantChain(state.participant.lastResponseId)
         if (!result.text.startsWith(config.pulseOkPrefix)) {
           log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
@@ -194,7 +284,7 @@ export function startObservation(
         try {
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, formatted)
-          saveState(state)
+          updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
         } catch (err) {
@@ -220,5 +310,5 @@ export function stopRuntime(): void {
 
 // 現在のlastResponseIdを取得（会話継続性の確認用）
 export function getLastResponseId(): string | null {
-  return state?.lastResponseId ?? null
+  return state?.participant?.lastResponseId ?? null
 }

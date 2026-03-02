@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   const state = loadState()
 
   // 起動メッセージ
-  if (state.lastResponseId) {
+  if (state.participant.lastResponseId) {
     process.stdout.write("前回の会話を継続します\n")
   } else {
     process.stdout.write("新しい会話を開始します\n")

@@ -2,7 +2,7 @@ import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { getConfig, ensureDirectories } from "../config.js"
-import { registerIpcHandlers } from "./ipc-handlers.js"
+import { registerIpcHandlers, safeDetach } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
 import { dispose as disposeTerminal } from "./terminal-service.js"
@@ -33,8 +33,19 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"))
   }
 
+  // ウィンドウ閉じ → safeDetach（場の状態を永続化）
+  mainWindow.on("close", () => {
+    safeDetach()
+  })
+
   mainWindow.on("closed", () => {
     mainWindow = null
+  })
+
+  // レンダラプロセス異常終了 → safeDetach
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    log.error(`[ELECTRON] レンダラプロセス異常終了: ${details.reason}`)
+    safeDetach()
   })
 }
 
@@ -70,6 +81,7 @@ app.on("window-all-closed", () => {
 
 // アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
+  safeDetach()
   disposeTerminal()
   stopTunnel()
   stopRuntime()

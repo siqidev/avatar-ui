@@ -3,36 +3,23 @@ import type { BrowserWindow } from "electron"
 import { streamPostSchema } from "../shared/ipc-schema.js"
 import type { FieldState, Source, ToRendererMessage } from "../shared/ipc-schema.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
-import { transition, initialState, isActive } from "./field-fsm.js"
-import { initRuntime, processStream, startPulse, startObservation } from "./field-runtime.js"
+import { transition, isActive } from "./field-fsm.js"
+import {
+  initRuntime,
+  processStream,
+  startPulse,
+  startObservation,
+  getState,
+  updateFieldState,
+  appendMessage,
+  resetToNewField,
+} from "./field-runtime.js"
 import { setAlertSink, isFrozen, report } from "./integrity-manager.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
-// 場の状態（モジュールスコープで保持）
-let fieldState: FieldState = initialState()
-
-// メッセージ履歴（再接続時の再同期用、直近20件保持）
-type HistoryEntry = {
-  actor: "human" | "ai"
-  text: string
-  correlationId: string
-  source?: Source
-  toolCalls?: ToolCallInfo[]
-}
-const messageHistory: HistoryEntry[] = []
-const MAX_HISTORY = 20
-
-function pushHistory(
-  actor: "human" | "ai",
-  text: string,
-  correlationId: string,
-  source?: Source,
-  toolCalls?: ToolCallInfo[],
-): void {
-  messageHistory.push({ actor, text, correlationId, source, toolCalls })
-  if (messageHistory.length > MAX_HISTORY) messageHistory.shift()
-}
+// 場の状態（モジュールスコープで保持、field-runtimeの永続化状態と同期）
+let fieldState: FieldState = "generated"
 
 // Rendererにメッセージを送る
 function sendToRenderer(win: BrowserWindow | null, msg: ToRendererMessage): void {
@@ -43,6 +30,42 @@ function sendToRenderer(win: BrowserWindow | null, msg: ToRendererMessage): void
 // 場の状態を取得する（外部参照用）
 export function getFieldState(): FieldState {
   return fieldState
+}
+
+// --- safeDetach: 冪等なdetach処理（複数箇所から安全に呼べる） ---
+export function safeDetach(): void {
+  // ガード: active/resumed以外はno-op
+  if (fieldState !== "active" && fieldState !== "resumed") return
+
+  try {
+    fieldState = transition(fieldState, "detach")
+    log.info(`[FSM] ${fieldState} (detach)`)
+    updateFieldState(fieldState)
+  } catch (err) {
+    // 想定外（ガードを通過したのに遷移失敗）
+    report("FIELD_CONTRACT_VIOLATION",
+      `safeDetach失敗: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+// --- メッセージ履歴の記録（永続化付き） ---
+function recordMessage(
+  actor: "human" | "ai",
+  text: string,
+  source?: Source,
+  toolCalls?: ToolCallInfo[],
+): void {
+  appendMessage({
+    actor,
+    text,
+    ...(source ? { source } : {}),
+    ...(toolCalls?.length ? {
+      toolCalls: toolCalls.map((tc) => ({
+        name: tc.name,
+        result: tc.result,
+      })),
+    } : {}),
+  })
 }
 
 // IPCハンドラを登録する
@@ -63,6 +86,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
   try {
     initRuntime()
     runtimeReady = true
+
+    // 永続化された場状態を復元
+    const restored = getState()
+    fieldState = restored.field.state as FieldState
+    log.info(`[IPC] 永続化状態を復元: fieldState=${fieldState}, history=${restored.field.messageHistory.length}件`)
   } catch (err) {
     log.error(`[RUNTIME] 初期化失敗: ${err instanceof Error ? err.message : err}`)
   }
@@ -73,7 +101,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       (result, correlationId) => {
         const win = getMainWindow()
         // Streamペインにコンテキスト行（Pulse発火）
-        pushHistory("human", "定期確認", correlationId, "pulse")
+        recordMessage("human", "定期確認", "pulse")
         sendToRenderer(win, {
           type: "stream.reply",
           actor: "human",
@@ -83,7 +111,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           toolCalls: [],
         })
         // AI応答
-        pushHistory("ai", result.text, correlationId, "pulse", result.toolCalls)
+        recordMessage("ai", result.text, "pulse", result.toolCalls)
         sendToRenderer(win, {
           type: "stream.reply",
           actor: "ai",
@@ -109,7 +137,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           timestamp: new Date().toISOString(),
         })
         // Streamペインにも観測入力をコンテキスト表示
-        pushHistory("human", formatted, correlationId, "observation")
+        recordMessage("human", formatted, "observation")
         sendToRenderer(win, {
           type: "stream.reply",
           actor: "human",
@@ -120,7 +148,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         })
       },
       (result, correlationId) => {
-        pushHistory("ai", result.text, correlationId, "observation", result.toolCalls)
+        recordMessage("ai", result.text, "observation", result.toolCalls)
         const win = getMainWindow()
         sendToRenderer(win, {
           type: "stream.reply",
@@ -137,6 +165,12 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // channel.attach: ウィンドウ接続
   ipcMain.on("channel.attach", () => {
+    // terminated → 新規場にリセット（接続契約: 旧場は終了済み）
+    if (fieldState === "terminated") {
+      resetToNewField()
+      fieldState = "generated"
+    }
+
     try {
       fieldState = transition(fieldState, "attach")
       log.info(`[FSM] ${fieldState} (attach)`)
@@ -145,32 +179,41 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         fieldState = "active"
         log.info(`[FSM] ${fieldState} (resumed→active)`)
       }
+      updateFieldState(fieldState)
     } catch (err) {
       report("FIELD_CONTRACT_VIOLATION",
         `attach失敗: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
-    // 場の状態 + 直近メッセージ履歴をRendererに送信
+
+    // 場の状態 + 永続化された履歴をRendererに送信
     const win = getMainWindow()
     const config = getConfig()
+    const restored = getState()
+    const history = restored.field.messageHistory
+
     sendToRenderer(win, {
       type: "field.state",
       state: fieldState,
       avatarName: config.avatarName,
       userName: config.userName,
-      ...(messageHistory.length > 0 ? { lastMessages: [...messageHistory] } : {}),
+      ...(history.length > 0 ? { lastMessages: history.map((m) => ({
+        actor: m.actor,
+        text: m.text,
+        correlationId: "restored",
+        source: m.source,
+        toolCalls: m.toolCalls?.map((tc) => ({
+          name: tc.name,
+          args: {} as Record<string, unknown>,
+          result: tc.result,
+        })),
+      })) } : {}),
     })
   })
 
   // channel.detach: ウィンドウ切断
   ipcMain.on("channel.detach", () => {
-    try {
-      fieldState = transition(fieldState, "detach")
-      log.info(`[FSM] ${fieldState} (detach)`)
-    } catch (err) {
-      report("FIELD_CONTRACT_VIOLATION",
-        `detach失敗: ${err instanceof Error ? err.message : String(err)}`)
-    }
+    safeDetach()
   })
 
   // stream.post: ストリームメッセージ受信
@@ -192,12 +235,12 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     }
 
     const { text, correlationId, actor } = result.data
-    pushHistory(actor, text, correlationId)
+    recordMessage(actor, text)
     log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
 
     try {
       const streamResult = await processStream(text)
-      pushHistory("ai", streamResult.text, correlationId, "user", streamResult.toolCalls)
+      recordMessage("ai", streamResult.text, "user", streamResult.toolCalls)
       log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
 
       const win = getMainWindow()
@@ -220,6 +263,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     try {
       fieldState = transition(fieldState, "terminate")
       log.info(`[FSM] ${fieldState} (terminate)`)
+      updateFieldState(fieldState)
     } catch (err) {
       report("FIELD_CONTRACT_VIOLATION",
         `terminate失敗: ${err instanceof Error ? err.message : String(err)}`)
