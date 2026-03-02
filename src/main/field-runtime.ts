@@ -29,17 +29,20 @@ const CHAIN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 // 直列キュー（同時にsendMessageを呼ばないようにする）
 // 凍結中はジョブをスキップ（検知後の安全側停止）
+// onSkip: 凍結スキップ時に呼ばれるコールバック（processStreamのPromise未解決防止用）
 let queue: Promise<void> = Promise.resolve()
-function enqueue(fn: () => Promise<void>): Promise<void> {
+function enqueue(fn: () => Promise<void>, onSkip?: () => void): Promise<void> {
   queue = queue.then(() => {
     if (isFrozen()) {
       log.info("[RUNTIME] 凍結中 — ジョブスキップ")
+      onSkip?.()
       return
     }
     return fn()
   }, () => {
     if (isFrozen()) {
       log.info("[RUNTIME] 凍結中 — ジョブスキップ")
+      onSkip?.()
       return
     }
     return fn()
@@ -193,7 +196,7 @@ export function processStream(text: string): Promise<SendMessageResult> {
       } catch (err) {
         reject(err)
       }
-    })
+    }, () => reject(new Error("凍結中 — ジョブスキップ")))
   })
 }
 

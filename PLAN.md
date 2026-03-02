@@ -51,7 +51,7 @@
   - ~~④応答タイムアウト~~ — 完了（API 20秒タイムアウト+warn通知。docs/architecture.md参照）
   - ~~④Pulse/観測同時発火の確認~~ — 確認済み（enqueue() Promise chain直列化で十分。JSシングルスレッド+イベントループにより安全）
   - ~~②媒体投影の散在整理~~ — 完了（ChannelProjection + MessageRecorder分離。docs/architecture.md参照）
-- **受入シナリオのテスト実装** — S1-S5をコードで検証
+- ~~受入シナリオのテスト実装~~ — 完了（S1-S5受入テスト34件。enqueue凍結スキップ時のPromise未解決バグも修正。docs/architecture.md参照）
 - **不変条件の検知＋修復フロー** — 4条件+横断制約
 
 ### 拡張（到達状態は満たすが品質・体験を向上）

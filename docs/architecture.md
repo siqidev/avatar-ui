@@ -340,7 +340,7 @@ report: 検知 → ログ出力 → alertBar表示 → 凍結ラッチON → 復
 
 `integrity-manager.ts`の`frozen`フラグ。一度`report()`が呼ばれるとtrueになり、以下を遮断:
 - `ipc-handlers.ts`: stream.post受信時に`isFrozen()`チェック → 拒否
-- `field-runtime.ts`: `enqueue()`実行前に`isFrozen()`チェック → スキップ
+- `field-runtime.ts`: `enqueue()`実行前に`isFrozen()`チェック → スキップ（onSkipコールバックでprocessStreamのPromiseをreject）
 - Renderer: alertBar表示 + 入力disabled
 
 凍結はFSM不正遷移やstate破損など場の整合性破壊に限定。APIタイムアウト等の一時障害では凍結しない。
@@ -348,6 +348,20 @@ report: 検知 → ログ出力 → alertBar表示 → 凍結ラッチON → 復
 ### 縮退運用
 
 凍結後は入力が無効化され、再起動以外の復帰手段はない。v0.3では選択肢UI（バックアップ復元等）は提供しない。ユーザーはアプリを再起動して復帰する。
+
+## 受入テスト（S1-S5）
+
+`src/main/acceptance/` に5シナリオ34テスト。モジュール間の統合動作を検証する。
+
+| ファイル | シナリオ | 検証対象 | テスト数 |
+|---------|---------|---------|---------|
+| s1-field-contract | S1: 場契約整合性 | ipc-handlers + field-fsm + integrity-manager | 11 |
+| s2-mode-reachability | S2: モード可達性 | 3入力経路の区別と投影 | 7 |
+| s3-reciprocity-linkage | S3: 往復連接性 | enqueue直列化 + エラー耐性 | 5 |
+| s4-coexistence-continuity | S4: 共存連続性 | state-repository + field-runtime の永続化・復元 | 6 |
+| s5-lifecycle | S5: ライフサイクル完走 | 全遷移の統合テスト | 5 |
+
+モック戦略: S1/S5はfield-runtimeをモック（FSM統合を検証）、S2/S3/S4はfield-runtimeを実物で使用し深い依存（OpenAI/cron/sendMessage/観測サーバー）をモック。`_harness.ts`に共有モック・ヘルパーを集約。
 
 ## SSOT一覧
 
