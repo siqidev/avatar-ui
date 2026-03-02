@@ -19,13 +19,23 @@ export function setAlertSink(s: AlertSink): void {
   sink = s
 }
 
-// 検知イベントを報告する
+// 検知イベントを報告する（凍結あり: 場の整合性破壊）
+// 用途: FSM不正遷移、state.json破損/保存失敗
 // 1. ログ出力（常に）
 // 2. sink経由でRenderer通知（設定済みの場合）
 // 3. 凍結ラッチをON（以降の操作を拒否）
 export function report(code: AlertCode, message: string): void {
   log.error(`[INTEGRITY] ${code}: ${message}`)
   frozen = true
+  sink?.(code, message)
+}
+
+// 警告を通知する（凍結なし: 外部障害等の一時的な問題）
+// 用途: APIタイムアウト、通信エラー等。次の入力は受け付ける
+// 1. ログ出力（常に）
+// 2. sink経由でRenderer通知（設定済みの場合）
+export function warn(code: AlertCode, message: string): void {
+  log.error(`[INTEGRITY:WARN] ${code}: ${message}`)
   sink?.(code, message)
 }
 

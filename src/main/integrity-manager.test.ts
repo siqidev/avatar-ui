@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { report, setAlertSink, isFrozen, _resetForTest } from "./integrity-manager.js"
+import { report, warn, setAlertSink, isFrozen, _resetForTest } from "./integrity-manager.js"
 import { _resetConfigForTest } from "../config.js"
 
 describe("integrity-manager", () => {
@@ -39,6 +39,27 @@ describe("integrity-manager", () => {
       expect(sink).toHaveBeenCalledTimes(2)
       expect(sink).toHaveBeenNthCalledWith(1, "RECIPROCITY_STREAM_ERROR", "1回目")
       expect(sink).toHaveBeenNthCalledWith(2, "RECIPROCITY_PULSE_ERROR", "2回目")
+    })
+  })
+
+  describe("warn", () => {
+    it("sinkに通知するが凍結しない", () => {
+      const sink = vi.fn()
+      setAlertSink(sink)
+
+      warn("RECIPROCITY_STREAM_ERROR", "タイムアウト")
+
+      expect(sink).toHaveBeenCalledOnce()
+      expect(sink).toHaveBeenCalledWith("RECIPROCITY_STREAM_ERROR", "タイムアウト")
+      expect(isFrozen()).toBe(false)
+    })
+
+    it("warn後もreportで凍結できる", () => {
+      warn("RECIPROCITY_PULSE_ERROR", "一時障害")
+      expect(isFrozen()).toBe(false)
+
+      report("FIELD_CONTRACT_VIOLATION", "整合性破壊")
+      expect(isFrozen()).toBe(true)
     })
   })
 

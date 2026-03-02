@@ -299,22 +299,40 @@ Grok Responses APIの`previous_response_id`が無効/期限切れの場合（400
 
 検知+通知+凍結（修復委譲の最小実現）。自動復旧・RuntimeCoordinatorはスコープ外。
 
-### 統一パターン
+### 通知の2段階: warn（警告）と report（凍結）
+
+| 関数 | 用途 | 凍結 |
+|---|---|---|
+| `warn(code, message)` | 外部障害（APIタイムアウト、通信エラー）。次の入力は受け付ける | なし |
+| `report(code, message)` | 場の整合性破壊（FSM不正遷移、state破損）。再起動が必要 | あり |
 
 ```
-検知 → alertBar表示（「{code}: {message}。再起動してください」）→ 壊れた操作を凍結 → 復帰は再起動
+warn:   検知 → ログ出力 → alertBar表示 → 次の入力を受け付ける
+report: 検知 → ログ出力 → alertBar表示 → 凍結ラッチON → 復帰は再起動
 ```
 
 ### AlertCode一覧
 
-| AlertCode | 不変条件 | 検知箇所 | 凍結動作 |
+| AlertCode | 不変条件 | 検知箇所 | 通知種別 |
 |---|---|---|---|
-| FIELD_CONTRACT_VIOLATION | 場契約整合性 | ipc-handlers.ts FSM catch | stream.post等のIPC処理をスキップ（terminate除く） |
-| RECIPROCITY_STREAM_ERROR | 往復連接性 | ipc-handlers.ts stream catch | Main: stream.post拒否 / Renderer: 入力disabled |
-| RECIPROCITY_PULSE_ERROR | 往復連接性 | field-runtime.ts Pulse catch | cronジョブ停止 |
-| RECIPROCITY_OBSERVATION_ERROR | 往復連接性 | field-runtime.ts 観測 catch | 観測→AI転送を停止 |
-| COEXISTENCE_STATE_LOAD_CORRUPTED | 共存連続性 | state-repository.ts loadState | initRuntime()でcatch → defaultState()で続行 |
-| COEXISTENCE_STATE_SAVE_FAILED | 共存連続性 | state-repository.ts saveState | 同上パターンでreport |
+| FIELD_CONTRACT_VIOLATION | 場契約整合性 | ipc-handlers.ts FSM catch | report（凍結） |
+| RECIPROCITY_STREAM_ERROR | 往復連接性 | ipc-handlers.ts stream catch | warn（非凍結） |
+| RECIPROCITY_PULSE_ERROR | 往復連接性 | field-runtime.ts Pulse catch | warn（非凍結） |
+| RECIPROCITY_OBSERVATION_ERROR | 往復連接性 | field-runtime.ts 観測 catch | warn（非凍結） |
+| COEXISTENCE_STATE_LOAD_CORRUPTED | 共存連続性 | state-repository.ts loadState | report（凍結） |
+| COEXISTENCE_STATE_SAVE_FAILED | 共存連続性 | state-repository.ts saveState | report（凍結） |
+
+### API呼び出しタイムアウト
+
+全ての外部API呼び出しにタイムアウトを設定し、無応答でキューがブロックされることを防止する。
+
+| 呼び出し先 | タイムアウト | リトライ | 設定箇所 |
+|---|---|---|---|
+| Grok Responses API | 20秒 | なし（maxRetries: 0） | chat-session-service.ts |
+| Roblox Open Cloud API | 20秒 | なし | roblox-messaging.ts（AbortSignal.timeout） |
+| Terminal実行 | AI指定（timeoutMs） | なし | terminal-service.ts |
+
+タイムアウト時はthrowしてそのジョブだけ失敗終了。warn()でUI通知し、次の入力は正常に処理する。
 
 ### 凍結ラッチ
 
@@ -322,6 +340,8 @@ Grok Responses APIの`previous_response_id`が無効/期限切れの場合（400
 - `ipc-handlers.ts`: stream.post受信時に`isFrozen()`チェック → 拒否
 - `field-runtime.ts`: `enqueue()`実行前に`isFrozen()`チェック → スキップ
 - Renderer: alertBar表示 + 入力disabled
+
+凍結はFSM不正遷移やstate破損など場の整合性破壊に限定。APIタイムアウト等の一時障害では凍結しない。
 
 ### 縮退運用
 

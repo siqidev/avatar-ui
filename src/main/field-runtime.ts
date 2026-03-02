@@ -12,7 +12,7 @@ import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
-import { report, isFrozen } from "./integrity-manager.js"
+import { report, warn, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
 
 // FieldRuntime: 場のロジックを統合する
@@ -233,7 +233,7 @@ export function startPulse(
           log.info("[PULSE] 対応不要")
         }
       } catch (err) {
-        report("RECIPROCITY_PULSE_ERROR",
+        warn("RECIPROCITY_PULSE_ERROR",
           `Pulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
       }
     })
@@ -288,7 +288,7 @@ export function startObservation(
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
         } catch (err) {
-          report("RECIPROCITY_OBSERVATION_ERROR",
+          warn("RECIPROCITY_OBSERVATION_ERROR",
             `観測AI応答エラー: ${err instanceof Error ? err.message : String(err)}`)
         }
       })

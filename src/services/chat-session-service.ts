@@ -101,6 +101,11 @@ function buildRecoveryContext(
   return input
 }
 
+// API呼び出しタイムアウト（1回のresponses.createの上限）
+// SDKデフォルトは10分×3回=最大30分。fail-fast方針で20秒×リトライなしに制限
+const API_CALL_TIMEOUT_MS = 20_000
+const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as const
+
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 export async function sendMessage(
   client: OpenAI,
@@ -133,7 +138,7 @@ export async function sendMessage(
       ...(lastResponseId
         ? { previous_response_id: lastResponseId }
         : {}),
-    })
+    }, API_CALL_OPTIONS)
   } catch (err) {
     // チェーン断裂検知（400/404: レスポンスIDが無効/期限切れ）
     if (lastResponseId && isChainBreakError(err)) {
@@ -152,7 +157,7 @@ export async function sendMessage(
         input: recoveryInput,
         tools,
         store: true,
-      })
+      }, API_CALL_OPTIONS)
       log.info(`[CHAIN] 復旧成功 — 新チェーン開始 (${response.id})`)
     } else {
       throw err
@@ -193,7 +198,7 @@ export async function sendMessage(
       tools,
       store: true,
       previous_response_id: response.id,
-    })
+    }, API_CALL_OPTIONS)
     state.participant.lastResponseId = response.id
   }
 

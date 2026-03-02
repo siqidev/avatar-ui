@@ -1,6 +1,9 @@
 import { type AppResult, ok, fail } from "../types/result.js"
 import { getConfig } from "../config.js"
 
+// Roblox API呼び出しタイムアウト
+const ROBLOX_FETCH_TIMEOUT_MS = 20_000
+
 // Roblox Open Cloud Messaging API V2 でゲームサーバーにメッセージを送信する
 export async function publishMessage(
   apiKey: string,
@@ -23,6 +26,7 @@ export async function publishMessage(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ topic, message }),
+      signal: AbortSignal.timeout(ROBLOX_FETCH_TIMEOUT_MS),
     })
 
     if (!resp.ok) {

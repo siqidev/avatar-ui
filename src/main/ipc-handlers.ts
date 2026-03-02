@@ -14,7 +14,7 @@ import {
   appendMessage,
   resetToNewField,
 } from "./field-runtime.js"
-import { setAlertSink, isFrozen, report } from "./integrity-manager.js"
+import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -253,7 +253,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         toolCalls: streamResult.toolCalls,
       })
     } catch (err) {
-      report("RECIPROCITY_STREAM_ERROR",
+      warn("RECIPROCITY_STREAM_ERROR",
         `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
     }
   })
