@@ -36,7 +36,7 @@ describe("message-recorder", () => {
     })
   })
 
-  it("toolCalls付きで記録する（name + resultのみ抽出）", () => {
+  it("toolCalls付きで記録する（name + args + result を保持）", () => {
     recordMessage("ai", "保存しました", "user", [
       { name: "save_memory", args: { text: "test" }, result: "ok" },
     ])
@@ -45,7 +45,7 @@ describe("message-recorder", () => {
       actor: "ai",
       text: "保存しました",
       source: "user",
-      toolCalls: [{ name: "save_memory", result: "ok" }],
+      toolCalls: [{ name: "save_memory", args: { text: "test" }, result: "ok" }],
     })
   })
 

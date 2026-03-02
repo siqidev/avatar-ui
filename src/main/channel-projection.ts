@@ -74,7 +74,7 @@ export function createConsoleProjection(
             source: m.source,
             toolCalls: m.toolCalls?.map((tc) => ({
               name: tc.name,
-              args: {} as Record<string, unknown>,
+              args: tc.args ?? {} as Record<string, unknown>,
               result: tc.result,
             })),
           })),

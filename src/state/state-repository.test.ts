@@ -163,10 +163,11 @@ describe("state-repository", () => {
         actor: "ai",
         text: "応答",
         source: "pulse",
-        toolCalls: [{ name: "save_memory", result: "ok" }],
+        toolCalls: [{ name: "save_memory", args: { text: "記憶内容", importance: 0.7 }, result: "ok" }],
       })
       expect(history[0].source).toBe("pulse")
       expect(history[0].toolCalls).toHaveLength(1)
+      expect(history[0].toolCalls![0].args).toEqual({ text: "記憶内容", importance: 0.7 })
     })
   })
 })

@@ -19,6 +19,7 @@ export function recordMessage(
     ...(toolCalls?.length ? {
       toolCalls: toolCalls.map((tc) => ({
         name: tc.name,
+        args: tc.args,
         result: tc.result,
       })),
     } : {}),

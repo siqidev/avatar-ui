@@ -6,6 +6,7 @@ import { getConfig } from "../config.js"
 
 export type PersistedToolCall = {
   name: string
+  args?: Record<string, unknown>
   result: string // 先頭プレビューのみ（MAX_TOOL_RESULT_CHARS で切り詰め）
 }
 
@@ -173,6 +174,7 @@ export function pushMessage(
   // toolCallsのresultプレビュー
   const trimmedToolCalls = msg.toolCalls?.map((tc) => ({
     name: tc.name,
+    ...(tc.args ? { args: tc.args } : {}),
     result: tc.result.length > MAX_TOOL_RESULT_CHARS
       ? tc.result.substring(0, MAX_TOOL_RESULT_CHARS)
       : tc.result,
