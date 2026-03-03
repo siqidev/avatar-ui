@@ -582,9 +582,9 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze", userMessage:
 | 長期記憶 | data/memory.jsonl + xAI Collections API |
 | アプリログ | data/app.log |
 | Roblox投影ログ | data/roblox-intents.jsonl |
-| プロジェクト戦略 | PROJECT.md |
+| プロジェクト戦略 | docs/PROJECT.md |
 | 現行アーキテクチャ | docs/architecture.md（本文書） |
-| 次版計画 | PLAN.md |
+| 次版計画 | docs/PLAN.md |
 | 人格定義 | BEING.md |
 | Pulse定義 | PULSE.md |
 | Rojo設定（Studio同期） | default.project.json |

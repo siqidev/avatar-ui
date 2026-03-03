@@ -5,7 +5,7 @@
 // 修復フロー: 各AlertCodeに対してcontinue（続行）/ freeze（凍結→再起動）を定義
 // RuntimeCoordinator（復旧操作の自動発行）はv0.4以降
 //
-// 他要素を直接操作しない（PLAN.md制約: ⑥→各要素 直接ミューテーション禁止）
+// 他要素を直接操作しない（docs/PLAN.md制約: ⑥→各要素 直接ミューテーション禁止）
 
 import type { AlertCode } from "../shared/ipc-schema.js"
 import * as log from "../logger.js"
