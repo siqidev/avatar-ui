@@ -1,7 +1,7 @@
 --[[
   CommandReceiver v3 — 外部AIからの操作を受信し、CommandRegistry経由で実行するサーバースクリプト
 
-  配置場所: ServerScriptService
+  配置場所: ServerScriptService/AvatarRuntime（Rojo管理）
   前提: ゲーム設定でHttpServiceを有効化済み、DataStoreアクセスを有効化済み
 
   v3変更点:
@@ -17,21 +17,25 @@
 local MessagingService = game:GetService("MessagingService")
 local HttpService = game:GetService("HttpService")
 
--- モジュール読み込み
-local CommandRegistry = require(script.modules.CommandRegistry)
-local ObservationClient = require(script.modules.ObservationClient)
+-- モジュール読み込み（AvatarRuntime/Modules から参照）
+local Modules = script.Parent:WaitForChild("Modules")
+if not Modules:FindFirstChild("Config") then
+	error("[CommandReceiver] Config が見つかりません。roblox/modules/Config.example.luau を Config.luau にコピーしてください")
+end
+local CommandRegistry = require(Modules.CommandRegistry)
+local ObservationClient = require(Modules.ObservationClient)
 
 -- プロトコル定数（TypeScript側projector.tsのMESSAGE_TOPICと一致）
 local MESSAGE_TOPIC = "AICommands"
 
 -- カテゴリ別モジュールを登録
-CommandRegistry.register("part", require(script.modules.PartOps))
-CommandRegistry.register("terrain", require(script.modules.TerrainOps))
-CommandRegistry.register("npc", require(script.modules.NpcOps))
-CommandRegistry.register("npc_motion", require(script.modules.NpcMotionOps))
-CommandRegistry.register("effect", require(script.modules.EffectOps))
-CommandRegistry.register("build", require(script.modules.BuildOps))
-CommandRegistry.register("spatial", require(script.modules.SpatialService))
+CommandRegistry.register("part", require(Modules.PartOps))
+CommandRegistry.register("terrain", require(Modules.TerrainOps))
+CommandRegistry.register("npc", require(Modules.NpcOps))
+CommandRegistry.register("npc_motion", require(Modules.NpcMotionOps))
+CommandRegistry.register("effect", require(Modules.EffectOps))
+CommandRegistry.register("build", require(Modules.BuildOps))
+CommandRegistry.register("spatial", require(Modules.SpatialService))
 
 -- 起動時復元（DataStoreから前回の状態を読み込み）
 print("[CommandReceiver] DataStoreから復元中...")

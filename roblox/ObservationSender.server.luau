@@ -1,7 +1,7 @@
 --[[
   ObservationSender v3 — Roblox内イベントを外部（場）にPush送信するサーバースクリプト
 
-  配置場所: ServerScriptService
+  配置場所: ServerScriptService/AvatarRuntime（Rojo管理）
   前提: HttpServiceを有効化済み
   設定: modules/Config を編集する
 
@@ -17,10 +17,11 @@
 local Players = game:GetService("Players")
 local LogService = game:GetService("LogService")
 
--- 設定読み込み（オブジェクト名が "CommandReceiver.server" のためブラケット記法）
-local Config = require(script.Parent["CommandReceiver.server"].modules.Config)
-local ObservationClient = require(script.Parent["CommandReceiver.server"].modules.ObservationClient)
-local SpatialService = require(script.Parent["CommandReceiver.server"].modules.SpatialService)
+-- モジュール読み込み（AvatarRuntime/Modules から参照）
+local Modules = script.Parent:WaitForChild("Modules")
+local Config = require(Modules.Config)
+local ObservationClient = require(Modules.ObservationClient)
+local SpatialService = require(Modules.SpatialService)
 
 -- オーナーかどうか判定（ownerUserId=0なら全員通過）
 local function isOwner(player)

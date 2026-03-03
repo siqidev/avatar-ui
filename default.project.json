@@ -1,0 +1,30 @@
+{
+  "name": "spectra-nexus",
+  "servePort": 34872,
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "AvatarRuntime": {
+        "$className": "Folder",
+        "CommandReceiver": {
+          "$path": "roblox/CommandReceiver.server.luau"
+        },
+        "ObservationSender": {
+          "$path": "roblox/ObservationSender.server.luau"
+        },
+        "Modules": {
+          "$path": "roblox/modules"
+        }
+      }
+    },
+    "StarterGui": {
+      "$className": "StarterGui",
+      "$ignoreUnknownInstances": true,
+      "NpcChatDisplay": {
+        "$path": "roblox/NpcChatDisplay.client.luau"
+      }
+    }
+  }
+}

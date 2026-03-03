@@ -2,7 +2,8 @@
   Config — Roblox側の全設定を集約するモジュール
 
   セットアップ: このファイルを Config.luau にコピーして値を書き換える
-  配置場所: CommandReceiver.server > modules > Config（ModuleScript）
+    cp roblox/modules/Config.example.luau roblox/modules/Config.luau
+  配置場所: ServerScriptService/AvatarRuntime/Modules/Config（Rojo管理）
   ※ Config.luau は .gitignore 済み（個人値がリポジトリに入らない）
 ]]
 
