@@ -162,10 +162,12 @@ docs/                 PROJECT.md、PLAN.md、architecture.md
 
 ## セキュリティ
 
+**前提**: Roblox連携は信頼できるプレイヤーのみのプライベートサーバーを想定。公開サーバー対応には追加のセキュリティ対策が必要（[docs/PLAN.md](docs/PLAN.md) 参照）。
+
 | 原則 | 説明 |
 |------|------|
-| **ローカル動作** | 単一ユーザーのローカル運用を前提 |
-| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限 |
+| **単一ユーザー運用** | 単一ユーザーのローカル運用を前提 |
+| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード） |
 | **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
 | **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |
 

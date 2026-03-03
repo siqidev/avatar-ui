@@ -162,10 +162,12 @@ docs/                 PROJECT.md, PLAN.md, architecture.md
 
 ## Security
 
+**Assumption**: Roblox integration is designed for private servers with trusted players only. Public server support requires additional hardening (see [docs/PLAN.md](docs/PLAN.md)).
+
 | Principle | Description |
 |-----------|-------------|
-| **Local only** | Designed for single-user local operation |
-| **Restricted filesystem** | AI file access is restricted to Avatar Space |
+| **Single-user local** | Designed for single-user local operation |
+| **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard) |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
 
