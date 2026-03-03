@@ -63,15 +63,15 @@ describe("channel-projection", () => {
     it("履歴なしでfield.stateを送信する", () => {
       projection.sendFieldState({
         state: "active",
-        avatarName: "Spectra",
-        userName: "shito",
+        avatarName: "TestAvatar",
+        userName: "testuser",
         history: [],
       })
 
       const sent = mockWin.webContents.send.mock.calls[0][1]
       expect(sent.type).toBe("field.state")
       expect(sent.state).toBe("active")
-      expect(sent.avatarName).toBe("Spectra")
+      expect(sent.avatarName).toBe("TestAvatar")
       expect(sent.lastMessages).toBeUndefined()
     })
 
@@ -83,8 +83,8 @@ describe("channel-projection", () => {
 
       projection.sendFieldState({
         state: "active",
-        avatarName: "Spectra",
-        userName: "shito",
+        avatarName: "TestAvatar",
+        userName: "testuser",
         history,
       })
 

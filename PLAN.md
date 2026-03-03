@@ -188,6 +188,51 @@
 
 v0.3到達状態の検証完了後、main mergeの前に実施する。
 
+### OSS汎用化（個人固有コードの除去）
+
+コードベース全体の調査結果。Spectra/式乃シト固有のハードコードを汎用化し、OSSユーザーが自分のアバターを定義できるようにする。
+**対象外**: AIプロバイダ固有コード（Grok/xAIは設計上の選択）、CLAUDE.md/PLAN.md/PROJECT.md（個人ドキュメントとして隔離）。
+
+#### 最高優先度（セキュリティ・個人情報）
+
+| ファイル | 問題 | 対処 |
+|---------|------|------|
+| `roblox/modules/Config.luau` | 本番URL `spectra.siqi.jp`、認証トークン、個人Roblox UserID | `Config.example.luau`を作成（汎用デフォルト値）。Config.luauは.gitignore維持 |
+
+#### 高優先度（固有名ハードコード）
+
+| ファイル | 問題 | 対処 |
+|---------|------|------|
+| `src/renderer/main.ts:384` | `avatarLabel = "spectra>"` 初期値 | `"avatar>"` / `"user>"` に変更（field.state受信で上書きされる仮値） |
+| `roblox/SpectraChatDisplay.client.luau` | ファイル名+内容に"Spectra"ハードコード | `NpcChatDisplay.client.luau`にリネーム + Config参照化 |
+| `roblox/modules/NpcOps.luau:28-30` | `"SpectraChatEvent"` ハードコード | Config.chatEventName参照に変更 |
+| `BEING.md` / `PULSE.md` | Spectra固有の人格・Pulse定義 | `.example`テンプレートを作成。OSSユーザーが自分で定義する前提 |
+| `package.json:12` | `"author": "siqidev"` | 変更不要（OSSのauthor=開発者で正当） |
+
+#### 中優先度（テストデータ）
+
+| ファイル | 問題 | 対処 |
+|---------|------|------|
+| `src/main/channel-projection.test.ts` | `avatarName: "Spectra"`, `userName: "shito"` | `"TestAvatar"` / `"testuser"` に変更 |
+| `src/main/acceptance/` 各テスト | 同上 | 同上 |
+
+#### 低優先度（許容範囲だが改善可能）
+
+| ファイル | 問題 | 対処 |
+|---------|------|------|
+| `src/config.ts:21-22` | `AVATAR_NAME` デフォルト `"Avatar"` / `USER_NAME` デフォルト `"User"` | 既に汎用。対処不要 |
+| アバター画像パス（docs記載） | avatar.pngの配置説明 | README.mdで汎用的にガイド |
+
+#### Roblox Luauの設定管理方式
+
+Luauにはprocess.envの概念がない。`Config.luau`（ModuleScript）がNode.jsの`.env`に相当する。
+
+- `Config.example.luau`（リポジトリに入る）→ `Config.luau`（ユーザーがコピーして自分の値を設定）
+- NpcOps.luau: サーバー側スクリプトなので同階層の `Config` を直接require可能
+- NpcChatDisplay.client.luau: クライアント側なのでServerScriptServiceのConfigを直接requireできない
+  - 折衷案: NpcOps側がConfig.chatEventNameでRemoteEventを作成 → クライアント側はその名前を定数で持つ（1箇所のみ）
+- Config.example.luauに追加する設定項目: `chatEventName`, `chatDisplayName`, `chatDisplayColor`
+
 ### README.md
 - v0.2 README.mdの基礎構成（Features → Quick Start → 環境変数テーブル）を踏襲
 - setup CLIは導入しないため、以下を丁寧にガイドする:

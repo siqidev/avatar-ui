@@ -381,8 +381,8 @@ function removeThinking(): void {
 }
 
 // === 設定（field.stateから受信） ===
-let avatarLabel = "spectra>"
-let userLabel = "you>"
+let avatarLabel = "avatar>"
+let userLabel = "user>"
 
 // === 状態管理 ===
 let streamPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }

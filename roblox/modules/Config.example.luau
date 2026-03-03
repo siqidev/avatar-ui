@@ -10,7 +10,7 @@ return {
 	-- 観測イベントの送信先URL（TypeScript側のObservationServerのアドレス）
 	-- Studio（ローカル開発）: http://127.0.0.1:3000/observation
 	-- 本番: トンネルや公開サーバーのURLに変更する
-	observationUrl = "http://localhost:3000/observation",
+	observationUrl = "http://127.0.0.1:3000/observation",
 
 	-- 観測送信の認証シークレット（TypeScript側の ROBLOX_OBSERVATION_SECRET と一致させる）
 	-- 空文字列 = 認証なし（ローカル開発用）
@@ -23,11 +23,23 @@ return {
 	ownerUserId = 0,
 
 	-- NPCの名前（Workspace内のModelの名前と一致させる）
-	npcName = "NPC",
+	npcName = "AvatarNpc",
 
 	-- 接近検知の距離（スタッド）
 	proximityRange = 30,
 
 	-- 接近チェック間隔（秒）
 	proximityCheckInterval = 3,
+
+	-- NPC追従のデフォルト離隔距離（スタッド）
+	followStandoff = 4,
+
+	-- NPC追従の経路再計算間隔（秒）
+	followRepathInterval = 0.5,
+
+	-- NPC追従のプレイヤー見失い判定時間（秒）
+	followLostTimeout = 3,
+
+	-- 空間クエリのデフォルト半径（スタッド）
+	spatialQueryRadius = 30,
 }

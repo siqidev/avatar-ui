@@ -4,22 +4,22 @@ import type { ObservationEvent } from "./observation-server.js"
 
 describe("resolvePlayerName", () => {
   it("isOwner=true + ownerDisplayName → 表示名を返す", () => {
-    const result = resolvePlayerName({ player: "SitoSiqi", isOwner: true }, "シト")
-    expect(result).toBe("シト")
+    const result = resolvePlayerName({ player: "OwnerPlayer", isOwner: true }, "OwnerDisplay")
+    expect(result).toBe("OwnerDisplay")
   })
 
   it("isOwner=true + ownerDisplayNameなし → player名を返す", () => {
-    const result = resolvePlayerName({ player: "SitoSiqi", isOwner: true })
-    expect(result).toBe("SitoSiqi")
+    const result = resolvePlayerName({ player: "OwnerPlayer", isOwner: true })
+    expect(result).toBe("OwnerPlayer")
   })
 
   it("isOwner=false → player名をそのまま返す", () => {
-    const result = resolvePlayerName({ player: "OtherPlayer", isOwner: false }, "シト")
+    const result = resolvePlayerName({ player: "OtherPlayer", isOwner: false }, "OwnerDisplay")
     expect(result).toBe("OtherPlayer")
   })
 
   it("isOwnerフィールドなし → player名を返す", () => {
-    const result = resolvePlayerName({ player: "Guest" }, "シト")
+    const result = resolvePlayerName({ player: "Guest" }, "OwnerDisplay")
     expect(result).toBe("Guest")
   })
 })
@@ -40,11 +40,11 @@ describe("formatObservation", () => {
   it("player_chat + isOwner → オーナー表示名で出力", () => {
     const event: ObservationEvent = {
       type: "player_chat",
-      payload: { player: "SitoSiqi", message: "やあ", isOwner: true },
+      payload: { player: "OwnerPlayer", message: "やあ", isOwner: true },
     }
-    const result = formatObservation(event, "シト")
-    expect(result).toContain("シト")
-    expect(result).not.toContain("SitoSiqi")
+    const result = formatObservation(event, "OwnerDisplay")
+    expect(result).toContain("OwnerDisplay")
+    expect(result).not.toContain("OwnerPlayer")
   })
 
   it("player_proximity(enter) → 接近テキスト", () => {

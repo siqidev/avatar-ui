@@ -25,9 +25,9 @@ local ANIM_IDS = {
 }
 
 -- チャット履歴表示用RemoteEvent（サーバー→クライアント転送）
-local spectraChatEvent = Instance.new("RemoteEvent")
-spectraChatEvent.Name = "SpectraChatEvent"
-spectraChatEvent.Parent = game.ReplicatedStorage
+local npcChatEvent = Instance.new("RemoteEvent")
+npcChatEvent.Name = "NpcChatEvent"
+npcChatEvent.Parent = game.ReplicatedStorage
 
 -- Animator取得（なければ作成）
 local function getAnimator(humanoid)
@@ -64,7 +64,7 @@ local function handleSay(op)
 	end
 
 	Chat:Chat(head, text, Enum.ChatColor.Blue)
-	spectraChatEvent:FireAllClients(text)
+	npcChatEvent:FireAllClients(text)
 
 	return { success = true, data = { text = text } }
 end
