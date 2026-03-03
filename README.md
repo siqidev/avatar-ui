@@ -13,14 +13,12 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 
 ## Features
 
-- **Field persistence** — Session state, conversation history, and API chain survive restarts
-- **Three input sources** — Human chat, AI-initiated Pulse (cron), and Roblox observation events flow through a unified queue
 - **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
-- **Avatar Space** — Sandboxed filesystem the AI can read/write
+- **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
+- **Long-term memory (RAG)** — The avatar decides what matters and remembers it
+- **Avatar Space** — Dedicated filesystem the AI can read and write
 - **Terminal** — AI and human share a shell (command execution + output viewing)
-- **Roblox integration** — Bidirectional: project intents into Roblox, observe events back
-- **Integrity management** — Detects field contract violations, freezes on corruption, warns on transient errors
-- **Local-first** — Runs entirely on your machine
+- **Roblox integration** — Chat with the avatar in Roblox and have it follow players
 
 ## Quick Start
 
@@ -74,7 +72,7 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | Display name for the avatar |
 | `USER_NAME` | | `User` | Display name for the human |
 | `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | AI model |
-| `AVATAR_SPACE` | | `~/Avatar/space` | Sandboxed filesystem root |
+| `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
 | `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
 | `LOG_VERBOSE` | | `false` | Show INFO logs on stderr |
@@ -167,7 +165,7 @@ docs/                 PROJECT.md, PLAN.md, architecture.md
 | Principle | Description |
 |-----------|-------------|
 | **Local only** | Designed for single-user local operation |
-| **Sandboxed filesystem** | AI file access is restricted to Avatar Space |
+| **Restricted filesystem** | AI file access is restricted to Avatar Space |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
 

@@ -13,14 +13,12 @@ AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有
 
 ## 特徴
 
-- **場の永続化** — セッション状態・会話履歴・APIチェーンが再起動後も継続
-- **3つの入力起点** — 人間のチャット、AI起点のPulse（cron）、Roblox観測イベントが統一キューを通る
 - **Console UI** — 6ペインのElectronインターフェース（Avatar / Space / Canvas / Stream / Terminal / Roblox）
-- **Avatar Space** — AIが読み書きできるサンドボックス化されたファイルシステム
+- **自発行動（Pulse）** — 人間の入力を待たず、アバターが自発的に動く
+- **長期記憶（RAG）** — アバターは重要だと判断したことを自分で記憶する
+- **Avatar Space** — AIが読み書きできる専用ファイルシステム
 - **Terminal** — AIと人間がシェルを共有（コマンド実行＋出力確認）
-- **Roblox連携** — 双方向: 意図をRobloxに投影し、イベントを観測
-- **健全性管理** — 場契約違反を検知、破損時は凍結、一時障害は警告
-- **ローカル動作** — 完全にローカルマシンで動作
+- **Roblox連携** — アバターとRoblox空間で対話し、プレイヤーに追従する
 
 ## クイックスタート
 
@@ -74,7 +72,7 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
 | `USER_NAME` | | `User` | ユーザーの表示名 |
 | `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | 使用モデル |
-| `AVATAR_SPACE` | | `~/Avatar/space` | サンドボックスのルートパス |
+| `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
 | `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
 | `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
@@ -167,7 +165,7 @@ docs/                 PROJECT.md、PLAN.md、architecture.md
 | 原則 | 説明 |
 |------|------|
 | **ローカル動作** | 単一ユーザーのローカル運用を前提 |
-| **サンドボックス** | AIのファイルアクセスはAvatar Space内に制限 |
+| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限 |
 | **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
 | **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |
 
