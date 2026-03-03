@@ -86,19 +86,21 @@
 
 v0.3.0の前提: Robloxはプライベートサーバー（信頼できるプレイヤーのみ）。この前提により、敵対的プロンプトインジェクションのリスクは許容範囲内。
 
-以下はプライベートサーバー前提を外す場合（公開サーバー対応時）に必要な対策:
+#### v0.3.0で実装済みの対策
 
-| リスク | 深刻度（公開時） | 現状 | 対策候補 |
-|--------|----------------|------|---------|
-| Roblox観測経由のプロンプトインジェクション | 高 | 未対策 | 観測入力のサニタイズ、ツール呼び出しの承認フロー |
-| terminal無制限実行 | 高 | 未対策 | コマンドのホワイトリスト/ブラックリスト、cwd制限 |
-| 環境変数露出（terminal経由） | 高 | 未対策 | spawn時のenv sanitize（APIキー除去） |
-| symlink follow（fs_*ツール） | 中 | 未対策 | assertInAvatarSpaceにfs.realpath検証を追加 |
-| TOCTOU（パス検証→ファイル操作の間隔） | 低〜中 | 未対策 | ファイル操作のコンテナ隔離（Docker） |
+| 対策 | 実装 | 根拠 |
+|------|------|------|
+| ~~AVATAR_SHELL=offデフォルト~~ | config.ts + buildTools()でツール除外 + handleTerminal()二重ガード | 能力境界: terminalを渡さないことでenv露出・ファイルアクセス・破壊的コマンドを一括防止 |
+| ~~env sanitize（allowlist方式）~~ | terminal-service.ts buildSanitizedEnv() | AVATAR_SHELL=on時のAPIキー露出防止。PATH/HOME/SHELL等のみ許可 |
+| ~~realpath検証~~ | filesystem-service.ts assertInAvatarSpace() | ツール契約の健全化: symlinkでAvatar Space外へ脱出する経路を遮断 |
+| ~~README警告~~ | README.md / README.ja.md Security節 | AVATAR_SHELL=onのリスクをユーザーに明示 |
 
-プライベートサーバー前提でも有効な最小対策（LLMの誤動作防止）:
-- terminal spawn時のenv sanitize（APIキー除去）— 効果高・コスト低
-- assertInAvatarSpaceにrealpath検証追加 — 5行程度
+#### 公開サーバー対応時に必要な追加対策
+
+| リスク | 深刻度（公開時） | 対策候補 |
+|--------|----------------|---------|
+| Roblox観測経由のプロンプトインジェクション | 高 | 観測入力のサニタイズ、ツール呼び出しの承認フロー |
+| TOCTOU（パス検証→ファイル操作の間隔） | 低〜中 | ファイル操作のコンテナ隔離（Docker） |
 
 参考: OpenClawはDockerコンテナベースのサンドボックスを採用（デフォルトoff、3モード）。ホスト上のパス検証はTOCTOU脆弱性が報告されている（Snyk Labs）。avatar-uiは単一ユーザーの個人デスクトップツールのため、Docker隔離は過剰と判断。
 

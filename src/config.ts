@@ -38,6 +38,11 @@ const envSchema = z.object({
 
   // --- Terminal ---
   TERMINAL_SHELL: z.string().min(1).default("zsh"),
+  // AIのシェル実行権限（デフォルトoff: AIはterminalツールを使えない）
+  AVATAR_SHELL: z
+    .string()
+    .default("off")
+    .transform((v) => v.toLowerCase() === "on"),
 
   // --- ログ ---
   LOG_VERBOSE: z
@@ -89,6 +94,7 @@ export type AppConfig = {
 
   // Terminal
   terminalShell: string
+  avatarShell: boolean
 
   // ログ
   logVerbose: boolean
@@ -159,6 +165,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
+    avatarShell: env.AVATAR_SHELL,
 
     // ログ
     logVerbose: env.LOG_VERBOSE,

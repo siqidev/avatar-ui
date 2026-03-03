@@ -75,6 +75,7 @@ npm run dev
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
 | `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
+| `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `LOG_VERBOSE` | | `false` | Show INFO logs on stderr |
 
 ### Optional: Long-term memory (Collections API)
@@ -167,9 +168,12 @@ docs/                 PROJECT.md, PLAN.md, architecture.md
 | Principle | Description |
 |-----------|-------------|
 | **Single-user local** | Designed for single-user local operation |
-| **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard) |
+| **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard + symlink resolution) |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
+| **AI shell off by default** | `AVATAR_SHELL=off` — AI cannot execute shell commands unless explicitly enabled |
+
+**Warning**: Setting `AVATAR_SHELL=on` grants the AI unrestricted shell access on your machine. The AI can execute any command, read any file, and modify your system. Only enable this if you understand and accept the risks. When enabled, API keys are removed from the AI's shell environment to prevent accidental exposure.
 
 ## License
 

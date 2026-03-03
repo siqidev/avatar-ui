@@ -20,12 +20,24 @@ function getAvatarSpaceRoot(): string {
   return path.resolve(getConfig().avatarSpace)
 }
 
-/** パスがAvatar Space内であることを検証。違反時はthrow */
-function assertInAvatarSpace(targetPath: string): string {
+/** パスがAvatar Space内であることを検証（symlink解決込み）。違反時はthrow */
+async function assertInAvatarSpace(targetPath: string): Promise<string> {
   const root = getAvatarSpaceRoot()
   const resolved = path.resolve(root, targetPath)
   if (!resolved.startsWith(root + path.sep) && resolved !== root) {
     throw new Error(`Avatar Space外へのアクセスは拒否されました: ${targetPath}`)
+  }
+  // symlink解決: リンク先の実体パスもAvatar Space内か検証
+  // root自体もrealpath解決する（macOSの/var→/private/var等に対応）
+  try {
+    const realRoot = await fs.realpath(root)
+    const real = await fs.realpath(resolved)
+    if (!real.startsWith(realRoot + path.sep) && real !== realRoot) {
+      throw new Error(`リンク先がAvatar Space外です: ${targetPath} → ${real}`)
+    }
+  } catch (e) {
+    // ENOENT: ファイルが存在しない場合はsymlink検証不要（write/mkdir等の新規作成）
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e
   }
   return resolved
 }
@@ -38,7 +50,7 @@ export function fsRootName(): string {
 // --- CRUD ---
 
 export async function fsList(args: FsListArgs): Promise<FsListResult> {
-  const resolved = assertInAvatarSpace(args.path)
+  const resolved = await assertInAvatarSpace(args.path)
   const dirents = await fs.readdir(resolved, { withFileTypes: true })
 
   const entries: FsEntry[] = await Promise.all(
@@ -64,7 +76,7 @@ export async function fsList(args: FsListArgs): Promise<FsListResult> {
 }
 
 export async function fsRead(args: FsReadArgs): Promise<FsReadResult> {
-  const resolved = assertInAvatarSpace(args.path)
+  const resolved = await assertInAvatarSpace(args.path)
   const content = await fs.readFile(resolved, "utf-8")
   const stat = await fs.stat(resolved)
 
@@ -80,7 +92,7 @@ export async function fsRead(args: FsReadArgs): Promise<FsReadResult> {
 }
 
 export async function fsWrite(args: FsWriteArgs): Promise<FsWriteResult> {
-  const resolved = assertInAvatarSpace(args.path)
+  const resolved = await assertInAvatarSpace(args.path)
 
   // 親ディレクトリの自動作成
   await fs.mkdir(path.dirname(resolved), { recursive: true })
@@ -93,19 +105,19 @@ export async function fsWrite(args: FsWriteArgs): Promise<FsWriteResult> {
 export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
   switch (args.op) {
     case "delete": {
-      const resolved = assertInAvatarSpace(args.path)
+      const resolved = await assertInAvatarSpace(args.path)
       await fs.rm(resolved, { recursive: true })
       return { message: `削除しました: ${args.path}` }
     }
     case "rename": {
-      const resolvedFrom = assertInAvatarSpace(args.path)
-      const resolvedTo = assertInAvatarSpace(args.newPath)
+      const resolvedFrom = await assertInAvatarSpace(args.path)
+      const resolvedTo = await assertInAvatarSpace(args.newPath)
       await fs.mkdir(path.dirname(resolvedTo), { recursive: true })
       await fs.rename(resolvedFrom, resolvedTo)
       return { message: `リネームしました: ${args.path} → ${args.newPath}` }
     }
     case "mkdir": {
-      const resolved = assertInAvatarSpace(args.path)
+      const resolved = await assertInAvatarSpace(args.path)
       await fs.mkdir(resolved, { recursive: true })
       return { message: `ディレクトリを作成しました: ${args.path}` }
     }

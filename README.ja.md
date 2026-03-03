@@ -75,6 +75,7 @@ npm run dev
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
 | `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
+| `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
 
 ### オプション: 長期記憶（Collections API）
@@ -167,9 +168,12 @@ docs/                 PROJECT.md、PLAN.md、architecture.md
 | 原則 | 説明 |
 |------|------|
 | **単一ユーザー運用** | 単一ユーザーのローカル運用を前提 |
-| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード） |
+| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード + symlink解決） |
 | **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
 | **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |
+| **AIシェルはデフォルト無効** | `AVATAR_SHELL=off` — 明示的に有効化しない限りAIはシェルを実行できない |
+
+**警告**: `AVATAR_SHELL=on` を設定すると、AIにマシン上での無制限のシェルアクセスを許可します。AIは任意のコマンド実行、任意のファイル読み書き、システム変更が可能になります。リスクを理解した上で有効化してください。有効化時、AIのシェル環境からAPIキーは自動的に除去されます。
 
 ## ライセンス
 

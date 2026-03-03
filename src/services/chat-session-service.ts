@@ -216,8 +216,11 @@ function buildTools(config: import("../config.js").AppConfig): Tool[] {
     fsReadToolDef,
     fsWriteToolDef,
     fsMutateToolDef,
-    terminalToolDef,
   ]
+  // AVATAR_SHELL=on の場合のみAIにterminalツールを提供
+  if (config.avatarShell) {
+    tools.push(terminalToolDef)
+  }
   if (isCollectionsEnabled(config) && config.xaiCollectionId) {
     tools.push({
       type: "file_search",
@@ -409,7 +412,12 @@ async function handleFsMutate(argsJson: string): Promise<string> {
 }
 
 // terminalツールの実行（コマンド実行 or 直近出力取得）
+// 二重ガード: buildToolsでツール定義を除外しても、万が一呼ばれた場合に備える
 async function handleTerminal(argsJson: string): Promise<string> {
+  const config = getConfig()
+  if (!config.avatarShell) {
+    return JSON.stringify({ status: "error", reason: "AVATAR_SHELL_DISABLED" })
+  }
   const parsed = JSON.parse(argsJson)
   const validation = terminalArgsSchema.safeParse(parsed)
   if (!validation.success) {

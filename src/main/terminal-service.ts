@@ -17,6 +17,12 @@ import type {
 const CWD_MARKER_PREFIX = "__AVATAR_CWD__:"
 const CWD_MARKER_RE = new RegExp(`${CWD_MARKER_PREFIX}(.+)\\n?$`)
 
+// AI実行時に許可する環境変数（allowlist方式: 漏れに強い）
+const AI_ENV_ALLOWLIST = [
+  "PATH", "HOME", "SHELL", "TERM", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE",
+  "USER", "LOGNAME", "EDITOR", "VISUAL",
+]
+
 const MAX_SCROLLBACK = 200
 const MAX_COMMAND_OUTPUT = 200
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -84,10 +90,13 @@ export function execCommand(args: TerminalExecArgs): { accepted: boolean; reason
 
   // シェル実行: コマンド末尾にpwdマーカーを付与
   // -c（非ログイン）: Electron親プロセスのPATHを継承。-lcだとzshrcのプロンプトテーマが初期化ゴミを出す
+  // AI実行時はallowlist方式で環境変数をサニタイズ（APIキー等の露出防止）
+  const spawnEnv = actor === "ai" ? buildSanitizedEnv() : { ...process.env, TERM: "dumb" }
+
   const wrappedCmd = `${cmd}; __exit=$?; echo "${CWD_MARKER_PREFIX}$(pwd)"; exit $__exit`
   const child = spawn(getConfig().terminalShell, ["-c", wrappedCmd], {
     cwd: currentCwd,
-    env: { ...process.env, TERM: "dumb" },
+    env: spawnEnv,
     stdio: ["pipe", "pipe", "pipe"],
     detached: true, // プロセスグループ分離（killで子孫プロセスまで届ける）
   })
@@ -255,4 +264,13 @@ function pushScrollback(text: string): void {
 function pushCommandOutput(text: string): void {
   const lines = text.split("\n")
   commandOutput.push(...lines)
+}
+
+/** AI実行用のサニタイズ済み環境変数を構築（allowlist方式） */
+function buildSanitizedEnv(): Record<string, string> {
+  const env: Record<string, string> = { TERM: "dumb" }
+  for (const key of AI_ENV_ALLOWLIST) {
+    if (process.env[key]) env[key] = process.env[key]!
+  }
+  return env
 }
