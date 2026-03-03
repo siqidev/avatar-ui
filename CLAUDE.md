@@ -70,7 +70,6 @@ docs/PLAN.md「実装バックログ」の必須タスクを参照。
 
 | パス | 内容 |
 |------|------|
-| src/cli.ts | CLIエントリーポイント |
 | src/config.ts | getConfig()遅延singleton（唯一のprocess.env入口） |
 | src/services/chat-session-service.ts | Grok Responses API呼出+ツール実行ループ |
 | src/main/index.ts | Electron Mainエントリーポイント |

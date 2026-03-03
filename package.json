@@ -4,7 +4,6 @@
   "description": "AUI reference implementation",
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
-    "dev:cli": "tsx --env-file=.env src/cli.ts",
     "build": "electron-vite build",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -29,7 +28,6 @@
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^34.5.8",
     "electron-vite": "^5.0.0",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

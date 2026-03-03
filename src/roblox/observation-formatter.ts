@@ -1,5 +1,4 @@
 // 観測イベントをAIへの入力テキストに変換する
-// cli.tsから抽出した共通モジュール（CLI/Electron両方で使用）
 // v3: command_ack, npc_follow_eventを追加
 
 import type { ObservationEvent } from "./observation-server.js"

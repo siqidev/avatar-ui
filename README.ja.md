@@ -16,7 +16,6 @@ AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有
 - **場の永続化** — セッション状態・会話履歴・APIチェーンが再起動後も継続
 - **3つの入力起点** — 人間のチャット、AI起点のPulse（cron）、Roblox観測イベントが統一キューを通る
 - **Console UI** — 6ペインのElectronインターフェース（Avatar / Space / Canvas / Stream / Terminal / Roblox）
-- **CLIモード** — 同じ場のロジックを持つ軽量readlineインターフェース
 - **Avatar Space** — AIが読み書きできるサンドボックス化されたファイルシステム
 - **Terminal** — AIと人間がシェルを共有（コマンド実行＋出力確認）
 - **Roblox連携** — 双方向: 意図をRobloxに投影し、イベントを観測
@@ -63,16 +62,8 @@ cp PULSE.example.md PULSE.md
 
 ### 4. 起動
 
-**Electron（Console UI）:**
-
 ```bash
 npm run dev
-```
-
-**CLI:**
-
-```bash
-npm run dev:cli
 ```
 
 ## 環境変数
@@ -158,7 +149,6 @@ Studio: Pluginsタブ > Rojo > Connect。ファイル変更は自動同期され
 
 ```
 src/
-  cli.ts              CLIエントリーポイント
   config.ts           環境変数→AppConfig（唯一の入口）
   main/               Electron Main（FieldRuntime、IPC、サービス）
   preload/            contextBridge API

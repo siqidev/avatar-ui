@@ -16,7 +16,6 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 - **Field persistence** — Session state, conversation history, and API chain survive restarts
 - **Three input sources** — Human chat, AI-initiated Pulse (cron), and Roblox observation events flow through a unified queue
 - **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
-- **CLI mode** — Lightweight readline interface with the same field logic
 - **Avatar Space** — Sandboxed filesystem the AI can read/write
 - **Terminal** — AI and human share a shell (command execution + output viewing)
 - **Roblox integration** — Bidirectional: project intents into Roblox, observe events back
@@ -63,16 +62,8 @@ Edit these to define your avatar's personality and periodic behavior.
 
 ### 4. Run
 
-**Electron (Console UI):**
-
 ```bash
 npm run dev
-```
-
-**CLI:**
-
-```bash
-npm run dev:cli
 ```
 
 ## Environment Variables
@@ -158,7 +149,6 @@ Key concepts:
 
 ```
 src/
-  cli.ts              CLI entry point
   config.ts           Environment → AppConfig (single source)
   main/               Electron Main (FieldRuntime, IPC, services)
   preload/            contextBridge API

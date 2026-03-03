@@ -180,7 +180,7 @@ export function _resetConfigForTest(rawEnv: Record<string, string | undefined>):
   return _config
 }
 
-/** 起動時ディレクトリ保証（CLI/Electron共通、getConfig()直後に1回呼ぶ） */
+/** 起動時ディレクトリ保証（getConfig()直後に1回呼ぶ） */
 export function ensureDirectories(config: AppConfig): void {
   // data/ は内部運用データ → 常に暗黙作成
   mkdirSync(config.dataDir, { recursive: true })

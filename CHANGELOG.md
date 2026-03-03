@@ -20,11 +20,6 @@ Complete rewrite from Python/FastAPI to TypeScript/Electron. v0.2 code is retire
 - Resizable columns via splitter drag, pane swap via drag & drop
 - Context isolation + sandbox security model
 
-### CLI
-
-- Lightweight readline interface with the same FieldRuntime logic
-- Pulse + observation server support
-
 ### Roblox integration
 
 - Bidirectional: intent projection (field → Roblox) + observation (Roblox → field)

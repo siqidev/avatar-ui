@@ -15,8 +15,7 @@ import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
 
-// FieldRuntime: 場のロジックを統合する
-// CLIのmain()と同等の機能をElectron Main向けに提供
+// FieldRuntime: 場のロジックを統合する（Electron Main向け）
 
 let client: OpenAI
 let config: AppConfig
