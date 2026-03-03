@@ -197,7 +197,7 @@ Spectra/式乃シト固有のハードコードを汎用化。Config.example.lua
 - setup CLIは導入しないため、以下を丁寧にガイドする:
   - 初回導線: clone → .env設定 → npm install → 起動
   - 段階的セットアップ: XAI_API_KEYだけで最小起動 → Roblox連携の後追い有効化
-  - Robloxスクリプトの配置手順（roblox/ディレクトリからStudioへの手動コピー）
+  - Robloxスクリプトの同期手順（Rojo: `rojo serve`でVSCode→Studio自動同期）
 - v0.3固有の説明: Console UI（3列6ペイン）、CLI/Electron両対応、Avatar Space
 - 日本語版（README.ja.md）も同時作成
 
