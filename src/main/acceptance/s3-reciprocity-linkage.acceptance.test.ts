@@ -11,7 +11,7 @@ import { createWindowMock, createFireHelper, setupTempDataDir, cleanupTempDataDi
 // --- モック宣言（S2と同一構成: field-runtimeは実物） ---
 
 vi.mock("electron", () => ({
-  ipcMain: { on: vi.fn() },
+  ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
 vi.mock("openai", () => ({

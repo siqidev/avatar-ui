@@ -64,7 +64,7 @@
 - **参与文脈の完全独立コンポーネント化** — 最小実装から完全版へ
 - **建築品質の根本改善** — プリファブ方式導入（Part単位→機能付きModel）、BuildOps内でPart/Prefab振り分け
 - **場モデル要素の網羅的検証** — ギャップセクションの項目を含む、帰納的検証の完全版
-- **ツール呼び出し承認フロー** — AIのツール実行前にユーザー承認を挟む（Roblox観測経由のプロンプトインジェクション対策）
+- **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）
 - **ファイル操作サンドボックス** — Dockerコンテナ隔離によるTOCTOU脆弱性の根本排除
 
 ### ギャップ（帰納的検証で発見、将来の検討材料）
@@ -96,12 +96,13 @@ v0.3.0の前提: Robloxはプライベートサーバー（信頼できるプレ
 | ~~env sanitize（allowlist方式）~~ | terminal-service.ts buildSanitizedEnv() | AVATAR_SHELL=on時のAPIキー露出防止。PATH/HOME/SHELL等のみ許可 |
 | ~~realpath検証~~ | filesystem-service.ts assertInAvatarSpace() | ツール契約の健全化: symlinkでAvatar Space外へ脱出する経路を遮断 |
 | ~~README警告~~ | README.md / README.ja.md Security節 | AVATAR_SHELL=onのリスクをユーザーに明示 |
+| ~~ツール呼び出し承認フロー~~ | tool-approval-service.ts + TOOL_AUTO_APPROVE | Streamインライン承認UI。リスト外ツールはユーザー承認待ち、拒否時はGrokに構造化エラー返却 |
 
 #### 公開サーバー対応時に必要な追加対策
 
 | リスク | 深刻度（公開時） | 対策候補 |
 |--------|----------------|---------|
-| Roblox観測経由のプロンプトインジェクション | 高 | 観測入力のサニタイズ、ツール呼び出しの承認フロー |
+| Roblox観測経由のプロンプトインジェクション | 高 | ~~ツール呼び出しの承認フロー（実装済み）~~、観測入力のサニタイズ |
 | TOCTOU（パス検証→ファイル操作の間隔） | 低〜中 | ファイル操作のコンテナ隔離（Docker） |
 
 参考: OpenClawはDockerコンテナベースのサンドボックスを採用（デフォルトoff、3モード）。ホスト上のパス検証はTOCTOU脆弱性が報告されている（Snyk Labs）。avatar-uiは単一ユーザーの個人デスクトップツールのため、Docker隔離は過剰と判断。

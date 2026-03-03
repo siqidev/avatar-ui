@@ -16,6 +16,8 @@ import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
 import { recordMessage } from "./message-recorder.js"
 import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
+import { initApprovalService, resolveApproval, cancelAllPending } from "./tool-approval-service.js"
+import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -53,6 +55,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
   setAlertSink((code, message) => {
     projection.sendIntegrityAlert(code, message)
   })
+
+  // ツール承認サービス初期化
+  initApprovalService(getMainWindow)
 
   // FieldRuntime初期化
   let runtimeReady = false
@@ -164,6 +169,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // channel.detach: ウィンドウ切断
   ipcMain.on("channel.detach", () => {
+    cancelAllPending()
     safeDetach()
   })
 
@@ -205,6 +211,16 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       warn("RECIPROCITY_STREAM_ERROR",
         `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
     }
+  })
+
+  // tool.approval.respond: ツール承認応答（Renderer→Main）
+  ipcMain.handle("tool.approval.respond", (_event, raw: unknown) => {
+    const parsed = toolApprovalRespondSchema.safeParse(raw)
+    if (!parsed.success) {
+      log.error(`[IPC] tool.approval.respond バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
+      return { ok: false }
+    }
+    return resolveApproval(parsed.data.requestId, parsed.data.decision)
   })
 
   // field.terminate: 場の終了

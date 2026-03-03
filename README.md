@@ -76,6 +76,7 @@ npm run dev
 | `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
+| `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
 | `LOG_VERBOSE` | | `false` | Show INFO logs on stderr |
 
 ### Optional: Long-term memory (Collections API)

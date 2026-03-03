@@ -2,6 +2,7 @@ import { z } from "zod/v4"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { mkdirSync, existsSync } from "node:fs"
+import { TOOL_NAMES } from "./shared/tool-approval-schema.js"
 
 // 環境変数スキーマ（Zodバリデーション + デフォルト値）
 const envSchema = z.object({
@@ -43,6 +44,20 @@ const envSchema = z.object({
     .string()
     .default("off")
     .transform((v) => v.toLowerCase() === "on"),
+
+  // ツール自動承認リスト（カンマ区切り。リスト外のツールは実行前にユーザー承認が必要）
+  TOOL_AUTO_APPROVE: z
+    .string()
+    .default("save_memory,fs_list,fs_read")
+    .transform((v) => {
+      const names = v.split(",").map((s) => s.trim()).filter(Boolean)
+      for (const name of names) {
+        if (!TOOL_NAMES.includes(name as typeof TOOL_NAMES[number])) {
+          throw new Error(`TOOL_AUTO_APPROVE に未知のツール名: ${name}`)
+        }
+      }
+      return names
+    }),
 
   // --- ログ ---
   LOG_VERBOSE: z
@@ -95,6 +110,9 @@ export type AppConfig = {
   // Terminal
   terminalShell: string
   avatarShell: boolean
+
+  // ツール承認
+  toolAutoApprove: string[]
 
   // ログ
   logVerbose: boolean
@@ -166,6 +184,9 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
     avatarShell: env.AVATAR_SHELL,
+
+    // ツール承認
+    toolAutoApprove: env.TOOL_AUTO_APPROVE,
 
     // ログ
     logVerbose: env.LOG_VERBOSE,

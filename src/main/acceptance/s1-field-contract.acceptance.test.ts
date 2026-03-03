@@ -9,7 +9,7 @@ import type { MockWindow } from "./_harness.js"
 // --- モック宣言（hoisted） ---
 
 vi.mock("electron", () => ({
-  ipcMain: { on: vi.fn() },
+  ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
 vi.mock("../field-runtime.js", () => ({

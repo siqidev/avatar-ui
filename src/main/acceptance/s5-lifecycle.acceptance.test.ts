@@ -9,7 +9,7 @@ import type { MockWindow } from "./_harness.js"
 // --- モック宣言（S1と同一構成: field-runtimeをモック、FSM/integrityは実物） ---
 
 vi.mock("electron", () => ({
-  ipcMain: { on: vi.fn() },
+  ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
 vi.mock("../field-runtime.js", () => ({

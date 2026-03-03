@@ -204,6 +204,15 @@ AIが呼び出し可能な7ツール。chat-session-service.tsがツール定義
 | `save_memory` | tools/save-memory-tool.ts | 長期記憶保存（memory.jsonl + Collections API） |
 | `roblox_action` | roblox/roblox-action-tool.ts | Roblox空間操作（7カテゴリ: part/terrain/npc/npc_motion/effect/build/spatial） |
 
+### ツール承認フロー
+
+`TOOL_AUTO_APPROVE`（デフォルト: `save_memory,fs_list,fs_read`）に含まれないツールは、実行前にRendererへ承認リクエストを送信し、ユーザーの許可/拒否を待つ。
+
+- 承認サービス: tool-approval-service.ts（requestApproval/resolveApproval/cancelAllPending）
+- IPC: Main→Renderer `tool.approval.request`（webContents.send）、Renderer→Main `tool.approval.respond`（ipcMain.handle）
+- 拒否時: `{ status: "denied" }` をfunction_call_outputとしてGrokに返却（AIが拒否を踏まえて応答続行）
+- ウィンドウ破棄/detach時: 全pending承認を自動拒否
+
 ## Avatar Spaceファイルシステム
 
 ### セキュリティ

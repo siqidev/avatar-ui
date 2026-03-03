@@ -16,6 +16,7 @@ import type {
   TerminalResizeArgs,
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
+import type { ToolApprovalRespond } from "../shared/tool-approval-schema.js"
 
 // Renderer に公開する最小API
 // ipcRendererの直接公開は禁止。1チャネル1メソッドで公開する
@@ -50,6 +51,10 @@ contextBridge.exposeInMainWorld("fieldApi", {
   terminalSnapshot: (): Promise<TerminalSnapshot> =>
     ipcRenderer.invoke("terminal.snapshot"),
 
+  // Renderer → Main（ツール承認応答: request-response）
+  respondToolApproval: (args: ToolApprovalRespond): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("tool.approval.respond", args),
+
   // Main → Renderer（イベント購読）
   onFieldState: (cb: (data: unknown) => void) =>
     ipcRenderer.on("field.state", (_e, data) => cb(data)),
@@ -65,4 +70,6 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("terminal.lifecycle", (_e, data) => cb(data)),
   onTerminalSnapshot: (cb: (data: unknown) => void) =>
     ipcRenderer.on("terminal.snapshot", (_e, data) => cb(data)),
+  onToolApprovalRequest: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("tool.approval.request", (_e, data) => cb(data)),
 })

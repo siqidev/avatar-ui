@@ -18,6 +18,8 @@ import {
   fsMutateToolDef,
 } from "../tools/filesystem-tool.js"
 import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
+import { requestApproval } from "../main/tool-approval-service.js"
+import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
   execCommand,
   waitForExit,
@@ -176,12 +178,25 @@ export async function sendMessage(
     const toolResults: ResponseInput = []
     for (const call of toolCalls) {
       log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
-      const result = await handleToolCall(call, client, response.id)
+      const parsedArgs = JSON.parse(call.args) as Record<string, unknown>
+
+      // 承認ゲート: auto-approveリスト外のツールはユーザー承認を待つ
+      const approval = await requestApproval(call.name as ToolName, parsedArgs)
+      let result: string
+      if (approval.approved) {
+        result = await handleToolCall(call, client, response.id)
+      } else {
+        result = JSON.stringify({
+          status: "denied",
+          message: "ユーザーがこのツール実行を拒否しました",
+        })
+        log.info(`[TOOL_DENIED] ${call.name}: ${approval.reason}`)
+      }
       log.info(`[TOOL_RESULT] ${call.name}: ${result}`)
 
       allToolCalls.push({
         name: call.name,
-        args: JSON.parse(call.args) as Record<string, unknown>,
+        args: parsedArgs,
         result,
       })
 

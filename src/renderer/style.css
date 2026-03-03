@@ -534,6 +534,43 @@ body {
   display: block;
 }
 
+.tool-call-approval {
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--state-warn);
+  margin-bottom: 4px;
+}
+.tool-call-approval.resolved {
+  border-left-color: var(--line-default);
+  opacity: 0.7;
+}
+.tool-call-approval-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+}
+.tool-call-approval-actions button {
+  font-size: 11px;
+  padding: 2px 12px;
+  border: 1px solid var(--line-default);
+  background: var(--bg-pane);
+  color: var(--fg-default);
+  cursor: pointer;
+}
+.tool-call-approval-actions .btn-approve {
+  border-color: var(--state-ok);
+  color: var(--state-ok);
+}
+.tool-call-approval-actions .btn-deny {
+  border-color: var(--state-critical);
+  color: var(--state-critical);
+}
+.tool-call-approval-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .stream-form {
   display: flex;
   gap: 0;

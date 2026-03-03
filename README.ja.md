@@ -76,6 +76,7 @@ npm run dev
 | `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
+| `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
 | `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
 
 ### オプション: 長期記憶（Collections API）

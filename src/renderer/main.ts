@@ -51,6 +51,8 @@ declare global {
       onTerminalOutput: (cb: (data: unknown) => void) => void
       onTerminalLifecycle: (cb: (data: unknown) => void) => void
       onTerminalSnapshot: (cb: (data: unknown) => void) => void
+      onToolApprovalRequest: (cb: (data: unknown) => void) => void
+      respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
     }
   }
 }
@@ -618,6 +620,64 @@ window.fieldApi.onObservation((data) => {
   setTimeout(() => {
     robloxPane.dataset.state = "normal"
   }, 3000)
+})
+
+// === ツール承認リクエスト ===
+window.fieldApi.onToolApprovalRequest((data) => {
+  const req = data as {
+    requestId: string
+    toolName: string
+    args: Record<string, unknown>
+  }
+
+  const div = document.createElement("div")
+  div.className = "tool-call-approval"
+
+  const nameEl = document.createElement("span")
+  nameEl.className = "tool-call-name"
+  nameEl.textContent = req.toolName
+
+  const argsStr = Object.entries(req.args)
+    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join(" ")
+  const argsEl = document.createElement("span")
+  argsEl.className = "tool-call-args"
+  argsEl.textContent = argsStr ? ` ${argsStr}` : ""
+
+  const actionsEl = document.createElement("div")
+  actionsEl.className = "tool-call-approval-actions"
+
+  const approveBtn = document.createElement("button")
+  approveBtn.className = "btn-approve"
+  approveBtn.textContent = "許可"
+
+  const denyBtn = document.createElement("button")
+  denyBtn.className = "btn-deny"
+  denyBtn.textContent = "拒否"
+
+  function respond(decision: "approve" | "deny"): void {
+    approveBtn.disabled = true
+    denyBtn.disabled = true
+    div.classList.add("resolved")
+
+    const resultEl = document.createElement("div")
+    resultEl.className = "tool-call-result"
+    resultEl.textContent = decision === "approve" ? "  └ 許可" : "  └ 拒否"
+    div.appendChild(resultEl)
+
+    window.fieldApi.respondToolApproval({ requestId: req.requestId, decision })
+  }
+
+  approveBtn.addEventListener("click", () => respond("approve"))
+  denyBtn.addEventListener("click", () => respond("deny"))
+
+  actionsEl.appendChild(approveBtn)
+  actionsEl.appendChild(denyBtn)
+  div.appendChild(nameEl)
+  div.appendChild(argsEl)
+  div.appendChild(actionsEl)
+  messagesEl.appendChild(div)
+  messagesEl.scrollTop = messagesEl.scrollHeight
 })
 
 formEl.addEventListener("submit", (e) => {

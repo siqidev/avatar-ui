@@ -12,7 +12,7 @@ import type { MockWindow } from "./_harness.js"
 // --- モック宣言（field-runtimeは実物、深い依存をモック） ---
 
 vi.mock("electron", () => ({
-  ipcMain: { on: vi.fn() },
+  ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
 vi.mock("openai", () => ({
