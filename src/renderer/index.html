@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:" />
+  <title>AUI Console</title>
+  <script src="/theme-init.js"></script>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="console">
+    <!-- 左列: Avatar + Space -->
+    <div class="column" id="col-0">
+      <div id="pane-avatar" class="pane" data-slot="avatar" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Avatar</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="avatar-display">
+            <img id="avatar-img" src="./idle.png" alt="Avatar" />
+          </div>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-space" class="pane" data-slot="space" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span class="fs-path-display"></span>
+          <button class="fs-action-btn" id="fs-new-file" title="New File"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></button>
+          <button class="fs-action-btn" id="fs-new-folder" title="New Folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><path d="M12 11v6"/><path d="M9 14h6"/></svg></button>
+          <button class="fs-action-btn" id="fs-refresh" title="Refresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg></button>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="fs-tree" id="fs-tree"></div>
+          <div class="fs-error" id="fs-error"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="splitter-v" id="splitter-v1"></div>
+
+    <!-- 中央列: Canvas + Roblox -->
+    <div class="column" id="col-1">
+      <div id="pane-canvas" class="pane" data-slot="canvas" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span id="canvas-title">Canvas</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="canvas-empty" id="canvas-empty">Canvas</div>
+          <div class="canvas-content" id="canvas-content"></div>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-roblox" class="pane" data-slot="roblox" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Roblox</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">Roblox Monitor</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="splitter-v" id="splitter-v2"></div>
+
+    <!-- 右列: Stream + Terminal -->
+    <div class="column" id="col-2">
+      <div id="pane-stream" class="pane" data-slot="stream" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Stream</span>
+          <span class="status-text" id="field-status"></span>
+          <span class="unread-dot"></span>
+          <span class="badge"></span>
+        </div>
+        <div class="alert-bar" id="alert-bar"></div>
+        <div class="pane-body">
+          <div class="stream-messages" id="stream-messages"></div>
+          <form class="stream-form" id="stream-form">
+            <input type="text" id="stream-input" placeholder="" autocomplete="off" />
+            <button type="submit"></button>
+          </form>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-terminal" class="pane" data-slot="terminal" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>Terminal</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div id="terminal-container" class="terminal-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,17 +1,6 @@
-# AVATAR UI
-
 <p align="center">
-  📖 <a href="./README.md">English</a>
+  <img src="docs/assets/banner.svg" alt="Avatar UI" width="800" />
 </p>
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![Node.js 18+](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-
-デスクトップで動く、自分専用AIアバターのエージェントUI。  
-目的を与えれば、アバターが自ら計画し実行する。
-
-![demo](./docs/assets/demo_v0.2.ja.gif)
 
 <p align="center">
   <a href="https://www.geckoterminal.com/solana/pools/ky7frWSyXRcHKvN7UXyPuhA5rjP1ypDPDJNEHxJubmJ" target="_blank" rel="noopener">
@@ -29,122 +18,193 @@
   <sub>Market by Orynth</sub>
 </p>
 
+<p align="center">
+  <a href="./README.md">English version</a>
+</p>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+
+物理生命と情報生命の共存インターフェース。
+
+AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有するデスクトップアプリケーションです。セッションを跨ぎ、再起動を跨ぎ、メディア（コンソール＋Roblox）を跨いで、継続的な往復対話を維持します。
+
 ## 特徴
 
-- **ローカル専用** – 自分のマシンで完結
-- **自律ループ** – 目的 → 目標 → タスクの階層構造で自動計画
-- **OS操作** – ファイル操作やコマンド実行をアバターが提案・実行
-- **Avatar Space** – 隔離された作業領域
-- **Grokスタック統合** – Web/Xから情報を自動取得
-- **リアルタイム監視** – CPU/メモリ/API使用量
+- **Console UI** — 6ペインのElectronインターフェース（Avatar / Space / Canvas / Stream / Terminal / Roblox）
+- **自発行動（Pulse）** — 人間の入力を待たず、アバターが自発的に動く
+- **長期記憶（RAG）** — アバターは重要だと判断したことを自分で記憶する
+- **Avatar Space** — AIが読み書きできる専用ファイルシステム
+- **Terminal** — AIと人間がシェルを共有（コマンド実行＋出力確認）
+- **Roblox連携** — アバターとRoblox空間で対話し、プレイヤーに追従する
 
-## 使い方
-
-1. Coreを起動 → Consoleが表示される
-2. 目的を設定 → アバターが目標・タスクを提案
-3. 各アクションを承認または拒否
-4. アバターが実行し結果を報告
-
-## スラッシュコマンド
-
-スラッシュコマンドでモデル・温度・言語・タスクの制御ができます。
-
-- `/language <ja|en>` – UI言語の切替
-- `/model <name>` – モデル切替（例: `grok-4-1-fast-non-reasoning`）
-- `/reset` – 目的・目標・タスクをリセット
-- `/retry <task-id>` – タスクIDで再試行（例: `G4-T1`）
-- `/temperature <0.0-2.0>` – 温度（サンプリングの揺らぎ）
-- `/theme <classic|cobalt|amber>` – UIテーマ切替
+<p align="center">
+  <img src="docs/assets/console.png" alt="Console UI" width="800" />
+</p>
 
 ## クイックスタート
 
 ### 前提条件
 
-- Python 3.10+
-- Node.js 18+
-- [xAI APIキー](https://x.ai/)
+- Node.js 20+
+- [xAI APIキー](https://console.x.ai/)
 
-### 1. リポジトリを取得
+### 1. クローンとインストール
 
 ```bash
 git clone https://github.com/siqidev/avatar-ui.git
 cd avatar-ui
+npm install
 ```
 
-### 2. セットアップ（ターミナル2つ推奨）
-
-ターミナルA（Core）:
+### 2. 設定
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 cp .env.example .env
 ```
 
-ターミナルB（Console）:
-
-```bash
-cd command/console && npm install
-```
-
-`.env` を開いて最低限以下を設定:
+最低限の設定:
 
 ```
 XAI_API_KEY=your-xai-api-key
-AVATAR_API_KEY=your-secret-key
-AVATAR_CORE_URL=http://127.0.0.1:8000/v1/think
 ```
 
-| 変数 | 必須 | 説明 |
-|------|------|------|
-| `XAI_API_KEY` | ✅ | xAI API（Grok）のキー |
-| `AVATAR_API_KEY` | ✅ | Core APIアクセス制限用 |
-| `AVATAR_CORE_URL` | ✅ | Core APIのURL |
-| `AVATAR_SHELL` | | 使用するシェル（デフォルト: OS標準） |
-| `AVATAR_SPACE` | | 作業ディレクトリ（デフォルト: ~/Avatar） |
+これだけで基本動作します。オプション機能は[環境変数](#環境変数)を参照。
 
-### 3. 起動
-
-ターミナル1（Core）:
+### 3. アイデンティティファイルの作成
 
 ```bash
-source .venv/bin/activate
-python -m uvicorn core.main:app --host 127.0.0.1 --port 8000
+cp BEING.example.md BEING.md
+cp PULSE.example.md PULSE.md
 ```
 
-ターミナル2（Console）:
+アバターの人格と定期行動を定義します。
+
+### 4. 起動
 
 ```bash
-cd command/console && npm start
+npm run dev
 ```
 
-## 設定
+## 環境変数
 
-`config.yaml` を編集:
+| 変数 | 必須 | デフォルト | 説明 |
+|------|------|----------|------|
+| `XAI_API_KEY` | Yes | — | xAI APIキー（Grok用） |
+| `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
+| `USER_NAME` | | `User` | ユーザーの表示名 |
+| `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | 使用モデル |
+| `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
+| `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
+| `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
+| `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
+| `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
+| `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
 
-```yaml
-avatar:
-  name: AVATAR             # 表示名
+### オプション: 長期記憶（Collections API）
 
-grok:
-  model: grok-4-1-fast-non-reasoning  # 既定モデル
-  temperature: 1.0         # 温度
-  daily_token_limit: 100000  # 1日あたりのトークン上限
+| 変数 | 説明 |
+|------|------|
+| `XAI_MANAGEMENT_API_KEY` | xAI Management APIキー |
+| `XAI_COLLECTION_ID` | メモリ保存先のCollection ID |
 
-system_prompt: |
-  技術的で直接的なスタイルで簡潔に応答してください。  # システムプロンプト
+### オプション: Roblox連携
+
+`ROBLOX_API_KEY` と `ROBLOX_UNIVERSE_ID` の両方を設定すると有効化されます。
+
+| 変数 | 説明 |
+|------|------|
+| `ROBLOX_API_KEY` | Open Cloud APIキー（[Creator Hub](https://create.roblox.com/credentials)） |
+| `ROBLOX_UNIVERSE_ID` | ゲーム設定ページのUniverse ID |
+| `ROBLOX_OBSERVATION_SECRET` | 認証トークン（Config.luauと一致させる） |
+| `ROBLOX_OWNER_DISPLAY_NAME` | オーナー表示名（観測フォーマット用） |
+| `ROBLOX_OBSERVATION_PORT` | 観測サーバーポート（デフォルト: `3000`） |
+| `CLOUDFLARED_TOKEN` | Cloudflare Tunnelトークン（Electronが自動管理） |
+
+## Robloxセットアップ
+
+AVATAR UIは[Rojo](https://rojo.space/)を使って `roblox/` のLuauスクリプトをRoblox Studioに同期します。
+
+### 初回セットアップ
+
+0. NPCモデルをWorkspaceに配置する
+   - Humanoid付きのキャラクターモデルが必要（[NPC作成ガイド](https://create.roblox.com/docs/characters/npc)）
+   - モデル名を `Config.luau` の `npcName` と一致させる（デフォルト: `AvatarNpc`）
+1. [Rokit](https://github.com/rojo-rbx/rokit)をインストールし、プロジェクトルートで `rokit install` を実行
+2. Studioプラグインをインストール: `rojo plugin install`
+3. Roblox Studioで **HttpService** と **Studio Access to API Services** を有効化（Game Settings > Security）
+4. `roblox/modules/Config.example.luau` を `roblox/modules/Config.luau` にコピーして値を編集
+
+### 開発ワークフロー
+
+```bash
+rojo serve
 ```
 
-| 項目 | 設定場所 |
-|------|----------|
-| アバター名・ペルソナ | `config.yaml` → `avatar`, `system_prompt` |
-| テーマ・色 | `config.yaml` → `console_ui` |
-| アバター画像 | `command/console/assets/` |
+Studio: Pluginsタブ > Rojo > Connect。ファイル変更は自動同期されます。
+
+## Console UIレイアウト
+
+```
+┌── Left 15% ───┬── Center 42% ──┬── Right 43% ──┐
+│ Avatar        │ Canvas         │ Stream        │
+│ (存在提示)    │ (ファイル編集  │ (会話・承認   │
+│               │  + 画像昇格)   │  + ツール)    │
+├───────────────┼────────────────┼───────────────┤
+│ Space         │ Roblox         │ Terminal       │
+│ (FS探索)      │ (監視)         │ (シェル)       │
+└───────────────┴────────────────┴───────────────┘
+```
+
+- 列幅はスプリッタードラッグで自由調整
+- ペインヘッダーのドラッグ&ドロップで位置交換
+- AUIメニュー: テーマ（Modern / Classic）、モデル（ランタイム切替）、言語（日本語 / English）
+
+## アーキテクチャ
+
+技術的な詳細は [docs/architecture.md](docs/architecture.md) を参照。
+
+主要概念:
+
+- **場（Field）** — 永続的な共有空間。状態遷移: `generated → active → paused → resumed → terminated`
+- **往復回路** — 人間・Pulse・観測の入力を順序保証する直列化キュー
+- **健全性管理** — `warn()` は一時障害（継続）、`report()` は契約違反（凍結）
+- **セッション永続化** — `data/state.json` のatomic write、1世代バックアップ、破損回復
+
+## プロジェクト構成
+
+```
+src/
+  config.ts           環境変数→AppConfig（唯一の入口）
+  main/               Electron Main（FieldRuntime、IPC、サービス）
+  preload/            contextBridge API
+  renderer/           6ペインUI
+  services/           Grok Responses APIクライアント
+  roblox/             Roblox投影・観測・ツール定義
+  tools/              LLMツール定義（fs、terminal、memory、roblox）
+  shared/             プロセス間共有Zodスキーマ
+  state/              永続化（state.json）
+roblox/               Roblox Studio用Luauスクリプト（Rojo管理）
+docs/                 PROJECT.md、PLAN.md、architecture.md
+```
+
+## セキュリティ
+
+**前提**: Roblox連携は信頼できるプレイヤーのみのプライベートサーバーを想定。公開サーバー対応には追加のセキュリティ対策が必要（[docs/PLAN.md](docs/PLAN.md) 参照）。
+
+| 原則 | 説明 |
+|------|------|
+| **単一ユーザー運用** | 単一ユーザーのローカル運用を前提 |
+| **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード + symlink解決） |
+| **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
+| **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |
+| **AIシェルはデフォルト無効** | `AVATAR_SHELL=off` — 明示的に有効化しない限りAIはシェルを実行できない |
+
+**警告**: `AVATAR_SHELL=on` を設定すると、AIにマシン上での無制限のシェルアクセスを許可します。AIは任意のコマンド実行、任意のファイル読み書き、システム変更が可能になります。リスクを理解した上で有効化してください。有効化時、AIのシェル環境からAPIキーは自動的に除去されます。
 
 ## サポート
 
-AUIはAVATAR UIを応援するコミュニティトークンです。  
+AUIはAVATAR UIを応援するコミュニティトークンです。
 Orynthに掲載されており、市場情報はGeckoTerminalで確認できます。
 
 Token CA (Solana): `63rvcwia2reibpdJMCf71bPLqBLvPRu9eM2xmRvNory`
@@ -154,18 +214,8 @@ Token CA (Solana): `63rvcwia2reibpdJMCf71bPLqBLvPRu9eM2xmRvNory`
 
 > 本セクションは情報提供を目的としており、投資助言や勧誘を意図するものではありません。
 
-## セキュリティ
-
-AVATAR UIはOS権限でコマンドを実行します。
-
-| 原則 | 内容 |
-|------|------|
-| **ローカル専用** | 自分だけが使用する前提で設計 |
-| **承認フロー** | コマンド実行前に内容を確認 |
-| **APIキー管理** | `.env`をgit管理外に保持 |
-
 ## ライセンス
 
 [MIT License](LICENSE)
 
-© 2025 [SIQI](https://siqi.jp) (Sito Sikino)
+(c) 2025-2026 [SIQI](https://siqi.jp) (Sito Sikino)

@@ -1,0 +1,737 @@
+// Renderer エントリー: 3列レイアウト + 縦横スプリッター + ペインD&D入替 + Stream
+
+import { setLocale, t, getLocale, type Locale } from "../shared/i18n.js"
+import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
+import type { GridSlot } from "./layout-manager.js"
+import { normalizeState } from "./state-normalizer.js"
+import type { PaneInput } from "./state-normalizer.js"
+import { initFilesystemPane } from "./filesystem-pane.js"
+import { initCanvasPane } from "./canvas-pane.js"
+import type { CanvasPaneController } from "./canvas-pane.js"
+import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
+
+import type {
+  FsListArgs,
+  FsReadArgs,
+  FsWriteArgs,
+  FsMutateArgs,
+  FsListResult,
+  FsReadResult,
+  FsWriteResult,
+  FsMutateResult,
+} from "../shared/fs-schema.js"
+import type {
+  TerminalExecArgs,
+  TerminalStdinArgs,
+  TerminalStopArgs,
+  TerminalResizeArgs,
+  TerminalSnapshot,
+} from "../shared/terminal-schema.js"
+
+declare global {
+  interface Window {
+    fieldApi: {
+      attach: () => void
+      detach: () => void
+      postStream: (text: string, correlationId: string) => void
+      terminate: () => void
+      fsRootName: () => Promise<string>
+      fsList: (args: FsListArgs) => Promise<FsListResult>
+      fsRead: (args: FsReadArgs) => Promise<FsReadResult>
+      fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
+      fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
+      terminalExec: (args: TerminalExecArgs) => Promise<{ accepted: boolean; reason?: string }>
+      terminalStdin: (args: TerminalStdinArgs) => Promise<{ ok: boolean; reason?: string }>
+      terminalStop: (args: TerminalStopArgs) => Promise<{ ok: boolean; reason?: string }>
+      terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
+      terminalSnapshot: () => Promise<TerminalSnapshot>
+      onFieldState: (cb: (data: unknown) => void) => void
+      onStreamReply: (cb: (data: unknown) => void) => void
+      onIntegrityAlert: (cb: (data: unknown) => void) => void
+      onObservation: (cb: (data: unknown) => void) => void
+      onTerminalOutput: (cb: (data: unknown) => void) => void
+      onTerminalLifecycle: (cb: (data: unknown) => void) => void
+      onTerminalSnapshot: (cb: (data: unknown) => void) => void
+      onToolApprovalRequest: (cb: (data: unknown) => void) => void
+      respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
+      onThemeChange: (cb: (theme: string) => void) => void
+      onLocaleChange: (cb: (locale: string) => void) => void
+    }
+  }
+}
+
+// ロケール初期化（localStorage → 同期読み込み。MainからのIPC到着前にt()を使えるようにする）
+const savedLocale = localStorage.getItem("aui-locale") as Locale | null
+if (savedLocale) setLocale(savedLocale)
+
+// === DOM参照 ===
+const consoleEl = document.getElementById("console") as HTMLDivElement
+const statusEl = document.getElementById("field-status") as HTMLSpanElement
+const alertBar = document.getElementById("alert-bar") as HTMLDivElement
+const messagesEl = document.getElementById("stream-messages") as HTMLDivElement
+const formEl = document.getElementById("stream-form") as HTMLFormElement
+const inputEl = document.getElementById("stream-input") as HTMLInputElement
+const streamPane = document.getElementById("pane-stream") as HTMLDivElement
+const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
+const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
+const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
+
+// === Canvasペイン初期化 ===
+const canvas: CanvasPaneController = initCanvasPane()
+let spaceInitialized = false
+
+// === Terminalペイン初期化 ===
+initTerminalPane()
+
+// === レイアウト管理 ===
+let currentLayout: GridSlot[][] = DEFAULT_LAYOUT.map((row) => [...row])
+
+// ペイン要素マップ（slot名 → DOM要素）
+const paneElements = new Map<GridSlot, HTMLElement>()
+for (const slot of GRID_SLOTS) {
+  paneElements.set(slot, document.querySelector(`[data-slot="${slot}"]`)!)
+}
+
+// 列コンテナ + 列内スプリッター
+const columns = [
+  document.getElementById("col-0")!,
+  document.getElementById("col-1")!,
+  document.getElementById("col-2")!,
+]
+const columnSplitters = columns.map((col) => col.querySelector(".splitter-h")! as HTMLElement)
+
+// 列幅比率 [left, center, right] — 初期 15:42:43
+const colRatios = [15, 42, 43]
+// 列ごとの行比率 [top, bottom] — 各列独立
+const rowRatios: [number, number][] = [
+  [30, 70], // 左列: Avatar小 / Space大
+  [65, 35], // 中央列: Canvas大 / Roblox小
+  [65, 35], // 右列: Stream大 / Terminal小
+]
+
+const SPLITTER_WIDTH = 4
+const MIN_TRACK_PX = 100
+
+function applyColumnWidths(): void {
+  consoleEl.style.gridTemplateColumns =
+    `${colRatios[0]}fr ${SPLITTER_WIDTH}px ${colRatios[1]}fr ${SPLITTER_WIDTH}px ${colRatios[2]}fr`
+}
+
+// 列ごとのペイン高さ比率を適用
+function applyRowRatios(): void {
+  for (let c = 0; c < 3; c++) {
+    const col = columns[c]
+    const topPane = col.children[0] as HTMLElement
+    const bottomPane = col.children[2] as HTMLElement
+    topPane.style.flex = String(rowRatios[c][0])
+    bottomPane.style.flex = String(rowRatios[c][1])
+  }
+}
+
+// レイアウト配列に従ってペインDOMを列に配置
+function renderLayout(): void {
+  for (let c = 0; c < 3; c++) {
+    const col = columns[c]
+    const topSlot = currentLayout[0][c]
+    const bottomSlot = currentLayout[1][c]
+    const topPane = paneElements.get(topSlot)!
+    const bottomPane = paneElements.get(bottomSlot)!
+
+    // appendChildはDOMノードを移動する（イベントリスナー保持）
+    col.appendChild(topPane)
+    col.appendChild(columnSplitters[c])
+    col.appendChild(bottomPane)
+  }
+  applyRowRatios()
+}
+
+// 初期レイアウト適用
+applyColumnWidths()
+applyRowRatios()
+
+// === 縦スプリッタードラッグ（列幅変更） ===
+const splitterV1 = document.getElementById("splitter-v1") as HTMLDivElement
+const splitterV2 = document.getElementById("splitter-v2") as HTMLDivElement
+
+function initColumnSplitter(
+  splitter: HTMLDivElement,
+  leftIdx: number,
+  rightIdx: number,
+): void {
+  splitter.addEventListener("mousedown", (e: MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const totalContentWidth = consoleEl.clientWidth - 2 * SPLITTER_WIDTH
+    const ratioSum = colRatios[0] + colRatios[1] + colRatios[2]
+    const startLeftPx = (colRatios[leftIdx] / ratioSum) * totalContentWidth
+    const startRightPx = (colRatios[rightIdx] / ratioSum) * totalContentWidth
+
+    splitter.classList.add("dragging")
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+
+    function onMouseMove(ev: MouseEvent): void {
+      const dx = ev.clientX - startX
+      const combined = startLeftPx + startRightPx
+      const newLeftPx = Math.max(MIN_TRACK_PX, Math.min(startLeftPx + dx, combined - MIN_TRACK_PX))
+      const newRightPx = combined - newLeftPx
+
+      colRatios[leftIdx] = (newLeftPx / totalContentWidth) * ratioSum
+      colRatios[rightIdx] = (newRightPx / totalContentWidth) * ratioSum
+      applyColumnWidths()
+    }
+
+    function onMouseUp(): void {
+      splitter.classList.remove("dragging")
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
+  })
+}
+
+initColumnSplitter(splitterV1, 0, 1)
+initColumnSplitter(splitterV2, 1, 2)
+
+// === 横スプリッタードラッグ（列ごとの行高さ変更） ===
+function initRowSplitter(col: HTMLElement, colIdx: number, splitter: HTMLElement): void {
+  splitter.addEventListener("mousedown", (e: MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const topPane = col.children[0] as HTMLElement
+    const bottomPane = col.children[2] as HTMLElement
+    const startTopH = topPane.getBoundingClientRect().height
+    const startBottomH = bottomPane.getBoundingClientRect().height
+
+    splitter.classList.add("dragging")
+    document.body.style.cursor = "row-resize"
+    document.body.style.userSelect = "none"
+
+    function onMouseMove(ev: MouseEvent): void {
+      const dy = ev.clientY - startY
+      const combined = startTopH + startBottomH
+      const newTopH = Math.max(MIN_TRACK_PX, Math.min(startTopH + dy, combined - MIN_TRACK_PX))
+      const newBottomH = combined - newTopH
+
+      rowRatios[colIdx] = [newTopH / combined, newBottomH / combined]
+      topPane.style.flex = String(rowRatios[colIdx][0])
+      bottomPane.style.flex = String(rowRatios[colIdx][1])
+    }
+
+    function onMouseUp(): void {
+      splitter.classList.remove("dragging")
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
+  })
+}
+
+for (let c = 0; c < 3; c++) {
+  initRowSplitter(columns[c], c, columnSplitters[c])
+}
+
+// === ペインD&D入替 ===
+function initPaneDragAndDrop(): void {
+  const allPanes = consoleEl.querySelectorAll<HTMLDivElement>(".pane")
+
+  for (const pane of allPanes) {
+    const header = pane.querySelector(".pane-header") as HTMLElement
+
+    header.addEventListener("dragstart", (e: DragEvent) => {
+      const slot = pane.dataset.slot
+      if (!slot || !e.dataTransfer) return
+      e.dataTransfer.setData("text/plain", slot)
+      e.dataTransfer.effectAllowed = "move"
+    })
+
+    pane.addEventListener("dragover", (e: DragEvent) => {
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
+      pane.classList.add("drag-over")
+    })
+
+    pane.addEventListener("dragleave", () => {
+      pane.classList.remove("drag-over")
+    })
+
+    pane.addEventListener("drop", (e: DragEvent) => {
+      e.preventDefault()
+      pane.classList.remove("drag-over")
+      const fromSlot = e.dataTransfer?.getData("text/plain") as GridSlot | undefined
+      const toSlot = pane.dataset.slot as GridSlot | undefined
+      if (!fromSlot || !toSlot || fromSlot === toSlot) return
+
+      currentLayout = swapPanes(currentLayout, fromSlot, toSlot)
+      renderLayout()
+    })
+
+    pane.addEventListener("dragend", () => {
+      for (const p of allPanes) {
+        p.classList.remove("drag-over")
+      }
+    })
+  }
+}
+
+initPaneDragAndDrop()
+
+// === テキストSE + リップシンク ===
+const CHAR_DELAY_MS = 28
+const BLIP_FREQ_HZ = 880
+const BLIP_DURATION_MS = 25
+const BLIP_VOLUME = 0.03
+const LIP_SYNC_INTERVAL_MS = 80
+
+let audioCtx: AudioContext | null = null
+let lipSyncActive = false
+let lipSyncOn = false
+let lipSyncTimer: ReturnType<typeof setTimeout> | null = null
+let streamingAbort: (() => void) | null = null
+
+function initAudioCtx(): AudioContext | null {
+  if (audioCtx) return audioCtx
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  if (!Ctx) return null
+  audioCtx = new Ctx()
+  return audioCtx
+}
+
+function playBlip(): void {
+  const ctx = initAudioCtx()
+  if (!ctx) return
+  if (ctx.state === "suspended") void ctx.resume()
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = "square"
+  osc.frequency.value = BLIP_FREQ_HZ
+  osc.connect(gain).connect(ctx.destination)
+  const t = ctx.currentTime
+  const dur = BLIP_DURATION_MS / 1000
+  gain.gain.setValueAtTime(BLIP_VOLUME, t)
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur)
+  osc.start(t)
+  osc.stop(t + dur + 0.01)
+}
+
+function applyLipSync(): void {
+  avatarImg.src = lipSyncActive && lipSyncOn ? "./talk.png" : "./idle.png"
+}
+
+function scheduleLipSync(): void {
+  if (!lipSyncActive) return
+  lipSyncOn = !lipSyncOn
+  applyLipSync()
+  lipSyncTimer = setTimeout(scheduleLipSync, LIP_SYNC_INTERVAL_MS)
+}
+
+function startLipSync(): void {
+  if (lipSyncActive) return
+  lipSyncActive = true
+  scheduleLipSync()
+}
+
+function stopLipSync(): void {
+  lipSyncActive = false
+  if (lipSyncTimer) { clearTimeout(lipSyncTimer); lipSyncTimer = null }
+  lipSyncOn = false
+  applyLipSync()
+}
+
+// 擬似ストリーム: 完成テキストを1文字ずつ流し込む
+function streamText(textNode: Text, text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!text) { resolve(); return }
+    let i = 0
+    let cancelled = false
+    streamingAbort = () => { cancelled = true; textNode.textContent = text; resolve() }
+    const step = (): void => {
+      if (cancelled) return
+      if (i >= text.length) { streamingAbort = null; resolve(); return }
+      const ch = text.charAt(i++)
+      textNode.textContent += ch
+      messagesEl.scrollTop = messagesEl.scrollHeight
+      if (!/\s/.test(ch)) playBlip()
+      setTimeout(step, CHAR_DELAY_MS)
+    }
+    step()
+  })
+}
+
+// thinkingインジケータ
+let thinkingEl: HTMLDivElement | null = null
+
+function showThinking(): void {
+  if (thinkingEl) return
+  thinkingEl = document.createElement("div")
+  thinkingEl.className = "message message-ai thinking"
+  const label = document.createElement("span")
+  label.className = "label"
+  label.textContent = avatarLabel
+  const dots = document.createElement("span")
+  dots.className = "thinking-dots"
+  dots.textContent = "..."
+  thinkingEl.appendChild(label)
+  thinkingEl.appendChild(dots)
+  messagesEl.appendChild(thinkingEl)
+  messagesEl.scrollTop = messagesEl.scrollHeight
+}
+
+function removeThinking(): void {
+  if (thinkingEl) { thinkingEl.remove(); thinkingEl = null }
+}
+
+// === 設定（field.stateから受信） ===
+let avatarLabel = "avatar>"
+let userLabel = "user>"
+
+// === 状態管理 ===
+let streamPaneInput: PaneInput = { ipcEvents: [], hasFocus: false }
+
+function updateStreamPaneVisual(): void {
+  const visual = normalizeState(streamPaneInput)
+  streamPane.dataset.state = visual.level
+
+  const badgeEl = streamPane.querySelector(".pane-header .badge") as HTMLSpanElement
+  if (badgeEl) {
+    badgeEl.textContent = visual.badge ?? ""
+  }
+
+  if (visual.showAlertBar) {
+    alertBar.style.display = "block"
+  } else {
+    alertBar.style.display = "none"
+  }
+}
+
+streamPane.addEventListener("focusin", () => {
+  streamPaneInput.hasFocus = true
+  updateStreamPaneVisual()
+})
+streamPane.addEventListener("focusout", () => {
+  streamPaneInput.hasFocus = false
+  updateStreamPaneVisual()
+})
+
+// === ストリームUI ===
+type ToolCallDisplay = { name: string; args: Record<string, unknown>; result: string }
+let enableStream = true // 履歴復元中はfalse
+
+function appendMessage(
+  actor: string,
+  rawText: string,
+  source?: string,
+  toolCalls?: ToolCallDisplay[],
+): void {
+  // リテラル \n を実際の改行に変換（Grokがエスケープ済み文字列を返す場合がある）
+  const text = rawText.replace(/\\n/g, "\n")
+  const div = document.createElement("div")
+  div.className = `message message-${actor}`
+  if (source && actor === "ai") {
+    div.classList.add(`source-${source}`)
+  }
+
+  if (toolCalls && toolCalls.length > 0) {
+    for (const tc of toolCalls) {
+      const toolEl = document.createElement("div")
+      toolEl.className = "tool-call"
+      const nameEl = document.createElement("span")
+      nameEl.className = "tool-call-name"
+      nameEl.textContent = `${tc.name}`
+
+      const argsStr = Object.entries(tc.args)
+        .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+        .join(" ")
+      const argsEl = document.createElement("span")
+      argsEl.className = "tool-call-args"
+      argsEl.textContent = argsStr ? ` ${argsStr}` : ""
+
+      const resultEl = document.createElement("div")
+      resultEl.className = "tool-call-result"
+      try {
+        const parsed = JSON.parse(tc.result) as Record<string, unknown>
+        resultEl.textContent = `  └ ${parsed.status ?? tc.result}`
+      } catch {
+        resultEl.textContent = `  └ ${tc.result.substring(0, 80)}`
+      }
+
+      toolEl.appendChild(nameEl)
+      toolEl.appendChild(argsEl)
+      toolEl.appendChild(resultEl)
+      div.appendChild(toolEl)
+    }
+  }
+
+  const label = document.createElement("span")
+  label.className = "label"
+  if (actor === "human" && source === "observation") {
+    label.textContent = "[roblox]"
+  } else if (actor === "human" && source === "pulse") {
+    label.textContent = "[pulse]"
+  } else if (actor === "human") {
+    label.textContent = userLabel
+  } else if (source === "pulse") {
+    label.textContent = `[pulse] ${avatarLabel}`
+  } else if (source === "observation") {
+    label.textContent = `[roblox] ${avatarLabel}`
+  } else {
+    label.textContent = avatarLabel
+  }
+  div.appendChild(label)
+
+  // AI応答は擬似ストリーム表示（履歴復元時は即表示）
+  if (actor === "ai" && text && enableStream) {
+    const textNode = document.createTextNode("")
+    div.appendChild(textNode)
+    messagesEl.appendChild(div)
+    messagesEl.scrollTop = messagesEl.scrollHeight
+    startLipSync()
+    void streamText(textNode, text).then(() => stopLipSync())
+  } else {
+    div.appendChild(document.createTextNode(text))
+    messagesEl.appendChild(div)
+    messagesEl.scrollTop = messagesEl.scrollHeight
+  }
+}
+
+// === IPC接続 ===
+window.fieldApi.attach()
+
+window.fieldApi.onFieldState((data) => {
+  const msg = data as {
+    state: string
+    avatarName: string
+    userName: string
+    lastMessages?: Array<{
+      actor: string
+      text: string
+      source?: string
+      toolCalls?: ToolCallDisplay[]
+    }>
+  }
+  statusEl.textContent = msg.state
+  avatarLabel = `${msg.avatarName.toLowerCase()}>`
+  userLabel = `${msg.userName.toLowerCase()}>`
+
+  // Avatarペインのヘッダーとalt属性を更新
+  const avatarPaneHeader = document.querySelector("#pane-avatar .pane-header span")
+  if (avatarPaneHeader) avatarPaneHeader.textContent = msg.avatarName
+  avatarImg.alt = msg.avatarName
+
+  streamPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
+  updateStreamPaneVisual()
+
+  if (msg.lastMessages && msg.lastMessages.length > 0) {
+    enableStream = false
+    if (streamingAbort) streamingAbort()
+    messagesEl.innerHTML = ""
+    for (const m of msg.lastMessages) {
+      appendMessage(m.actor, m.text, m.source, m.toolCalls)
+    }
+    enableStream = true
+  }
+
+  // Spaceペイン初期化（場がアクティブ時）+ Canvas連携
+  if (msg.state === "active" && !spaceInitialized) {
+    spaceInitialized = true
+    initFilesystemPane({
+      onFileOpen: (path) => {
+        canvas.openFile({ path, actor: "human", origin: "space" }).catch(() => {})
+      },
+    }).catch(() => { spaceInitialized = false })
+  }
+})
+
+window.fieldApi.onStreamReply((data) => {
+  const reply = data as {
+    actor: string
+    text: string
+    source?: string
+    toolCalls?: ToolCallDisplay[]
+  }
+  removeThinking()
+  appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls)
+
+  if (!reply.source || reply.source === "user") {
+    inputEl.disabled = false
+    formEl.querySelector("button")!.disabled = false
+  }
+
+  if (!streamPaneInput.hasFocus) {
+    streamPaneInput.ipcEvents = [
+      ...streamPaneInput.ipcEvents.filter((e) => e.type !== "stream.reply"),
+      { type: "stream.reply" },
+    ]
+    updateStreamPaneVisual()
+  }
+})
+
+window.fieldApi.onIntegrityAlert((data) => {
+  const alert = data as { code: string; message: string }
+  alertBar.textContent = `${alert.code}: ${alert.message}`
+  streamPaneInput.ipcEvents = [{ type: "integrity.alert", code: alert.code, message: alert.message }]
+  updateStreamPaneVisual()
+
+  // 凍結: 入力を無効化（復帰は再起動）
+  inputEl.disabled = true
+  formEl.querySelector("button")!.disabled = true
+})
+
+// === Roblox Monitorペイン ===
+const MAX_OBSERVATION_ENTRIES = 50
+
+function appendObservation(eventType: string, formatted: string, timestamp: string): void {
+  const placeholder = robloxBody.querySelector(".pane-placeholder")
+  if (placeholder) placeholder.remove()
+
+  const entry = document.createElement("div")
+  entry.className = "observation-entry"
+
+  const time = document.createElement("span")
+  time.className = "observation-time"
+  const d = new Date(timestamp)
+  time.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
+
+  const tag = document.createElement("span")
+  tag.className = `observation-tag observation-tag-${eventType}`
+  tag.textContent = eventType
+
+  const text = document.createElement("span")
+  text.className = "observation-text"
+  text.textContent = formatted
+
+  entry.appendChild(time)
+  entry.appendChild(tag)
+  entry.appendChild(text)
+
+  robloxBody.appendChild(entry)
+
+  while (robloxBody.children.length > MAX_OBSERVATION_ENTRIES) {
+    robloxBody.removeChild(robloxBody.firstChild!)
+  }
+
+  robloxBody.scrollTop = robloxBody.scrollHeight
+}
+
+window.fieldApi.onObservation((data) => {
+  const obs = data as { eventType: string; formatted: string; timestamp: string }
+  appendObservation(obs.eventType, obs.formatted, obs.timestamp)
+
+  robloxPane.dataset.state = "active"
+  setTimeout(() => {
+    robloxPane.dataset.state = "normal"
+  }, 3000)
+})
+
+// === ツール承認リクエスト ===
+window.fieldApi.onToolApprovalRequest((data) => {
+  const req = data as {
+    requestId: string
+    toolName: string
+    args: Record<string, unknown>
+  }
+
+  const div = document.createElement("div")
+  div.className = "tool-call-approval"
+
+  const nameEl = document.createElement("span")
+  nameEl.className = "tool-call-name"
+  nameEl.textContent = req.toolName
+
+  const argsStr = Object.entries(req.args)
+    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join(" ")
+  const argsEl = document.createElement("span")
+  argsEl.className = "tool-call-args"
+  argsEl.textContent = argsStr ? ` ${argsStr}` : ""
+
+  const actionsEl = document.createElement("div")
+  actionsEl.className = "tool-call-approval-actions"
+
+  const approveBtn = document.createElement("button")
+  approveBtn.className = "btn-approve"
+  approveBtn.textContent = t("approve")
+
+  const denyBtn = document.createElement("button")
+  denyBtn.className = "btn-deny"
+  denyBtn.textContent = t("deny")
+
+  function respond(decision: "approve" | "deny"): void {
+    approveBtn.disabled = true
+    denyBtn.disabled = true
+    div.classList.add("resolved")
+
+    const resultEl = document.createElement("div")
+    resultEl.className = "tool-call-result"
+    resultEl.textContent = decision === "approve" ? t("approved_result") : t("denied_result")
+    div.appendChild(resultEl)
+
+    window.fieldApi.respondToolApproval({ requestId: req.requestId, decision })
+  }
+
+  approveBtn.addEventListener("click", () => respond("approve"))
+  denyBtn.addEventListener("click", () => respond("deny"))
+
+  actionsEl.appendChild(approveBtn)
+  actionsEl.appendChild(denyBtn)
+  div.appendChild(nameEl)
+  div.appendChild(argsEl)
+  div.appendChild(actionsEl)
+  messagesEl.appendChild(div)
+  messagesEl.scrollTop = messagesEl.scrollHeight
+})
+
+formEl.addEventListener("submit", (e) => {
+  e.preventDefault()
+  const text = inputEl.value.trim()
+  if (!text) return
+
+  const correlationId = crypto.randomUUID()
+  appendMessage("human", text)
+  inputEl.value = ""
+  inputEl.disabled = true
+  formEl.querySelector("button")!.disabled = true
+
+  streamPaneInput.ipcEvents = streamPaneInput.ipcEvents.filter((ev) => ev.type !== "stream.reply")
+  updateStreamPaneVisual()
+
+  showThinking()
+  window.fieldApi.postStream(text, correlationId)
+})
+
+// === テーマ変更（メニューからのIPC） ===
+window.fieldApi.onThemeChange((theme) => {
+  if (theme === "classic") {
+    document.documentElement.dataset.theme = "classic"
+  } else {
+    delete document.documentElement.dataset.theme
+  }
+  localStorage.setItem("aui-theme", theme)
+  applyTermTheme()
+})
+
+// === 言語変更（メニューからのIPC） ===
+window.fieldApi.onLocaleChange((locale) => {
+  const current = localStorage.getItem("aui-locale")
+  localStorage.setItem("aui-locale", locale)
+  if (locale !== current) {
+    location.reload()
+  }
+})
+
+window.addEventListener("beforeunload", () => {
+  window.fieldApi.detach()
+})
+
+// HTMLのテキストをロケールに合わせて設定
+inputEl.placeholder = t("inputPlaceholder")
+formEl.querySelector("button")!.textContent = t("send")
+statusEl.textContent = t("connecting")
