@@ -62,11 +62,11 @@ Complete rewrite from Python/FastAPI to TypeScript/Electron. v0.2 code is retire
 
 - Electron 40, TypeScript 5.9, Vitest 4, Zod 4, xterm.js 6, OpenAI SDK 6 (xAI-compatible)
 
-### OSS readiness
+### Customization
 
-- All Spectra-specific hardcoding removed and generalized
-- `BEING.example.md` / `PULSE.example.md` templates
-- `Config.example.luau` for Roblox setup
+- `BEING.example.md` — define your avatar's identity and personality
+- `PULSE.example.md` — define autonomous behavior patterns
+- `Config.example.luau` — Roblox connection settings
 
 ## v0.2.0 — Autonomous Agent (2025)
 
