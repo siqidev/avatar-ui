@@ -6,6 +6,7 @@ import type {
 } from "openai/resources/responses/responses"
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
+import { getSettings } from "../main/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
   robloxActionToolDef,
@@ -43,6 +44,7 @@ import { appendMemory, readRecentMemories } from "../memory/memory-log-repositor
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
 import { appendIntent } from "../roblox/intent-log.js"
 import { projectIntent } from "../roblox/projector.js"
+import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
 // ツール呼び出し情報（UIに表示するための構造化データ）
@@ -117,6 +119,8 @@ export async function sendMessage(
   forceSystemPrompt = false,
 ): Promise<SendMessageResult> {
   const config = getConfig()
+  // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
+  const model = getSettings().model
   const lastResponseId = state.participant.lastResponseId
 
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
@@ -133,7 +137,7 @@ export async function sendMessage(
   let response: Response
   try {
     response = await client.responses.create({
-      model: config.model,
+      model,
       input,
       tools,
       store: true,
@@ -155,7 +159,7 @@ export async function sendMessage(
         userInput,
       )
       response = await client.responses.create({
-        model: config.model,
+        model,
         input: recoveryInput,
         tools,
         store: true,
@@ -208,7 +212,7 @@ export async function sendMessage(
     }
 
     response = await client.responses.create({
-      model: config.model,
+      model,
       input: toolResults,
       tools,
       store: true,
@@ -218,7 +222,7 @@ export async function sendMessage(
   }
 
   return {
-    text: response.output_text ?? "(応答なし)",
+    text: response.output_text ?? t("noResponse"),
     toolCalls: allToolCalls,
   }
 }
@@ -343,7 +347,7 @@ async function handleSaveMemory(
     })
   }
 
-  return JSON.stringify({ status: "ローカルに保存しました", id: record.id })
+  return JSON.stringify({ status: t("memorySaved"), id: record.id })
 }
 
 // roblox_actionツール v2 の実行（IntentLog記録 → Projector投影）
@@ -379,7 +383,7 @@ async function handleRobloxAction(
     )
   }
 
-  return JSON.stringify({ status: "記録・投影完了", id: intent.id, category, ops_count: ops.length })
+  return JSON.stringify({ status: t("intentProjected"), id: intent.id, category, ops_count: ops.length })
 }
 
 // fs_listツールの実行

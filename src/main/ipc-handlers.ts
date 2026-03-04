@@ -19,6 +19,7 @@ import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
 import { initApprovalService, resolveApproval, cancelAllPending } from "./tool-approval-service.js"
 import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { getConfig } from "../config.js"
+import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
 // 場の状態（モジュールスコープで保持、field-runtimeの永続化状態と同期）
@@ -78,11 +79,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     startPulse(
       (result, correlationId) => {
         // Streamペインにコンテキスト行（Pulse発火）
-        recordMessage("human", "定期確認", "pulse")
+        recordMessage("human", t("pulseCheck"), "pulse")
         projection.sendStreamReply({
           actor: "human",
           correlationId,
-          text: "定期確認",
+          text: t("pulseCheck"),
           source: "pulse",
           toolCalls: [],
         })

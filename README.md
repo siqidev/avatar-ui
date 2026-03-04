@@ -133,6 +133,7 @@ In Studio: Plugins tab > Rojo > Connect. File changes sync automatically.
 
 - Columns are resizable via splitter drag
 - Panes can be swapped via drag & drop on headers
+- AUI menu: Theme (Modern / Classic), Model (runtime switch), Language (日本語 / English)
 
 ## Architecture
 

@@ -1,5 +1,8 @@
 /* === デザイントークン（TUI-in-GUI） === */
+
+/* --- Modern テーマ（デフォルト） --- */
 :root {
+  /* テーマカラー（テーマ切り替え対象） */
   --bg-app: #0a0d12;
   --bg-pane: #0c1118;
   --bg-pane-alt: #0d1420;
@@ -12,6 +15,21 @@
   --state-ok: #34d399;
   --state-warn: #f59e0b;
   --state-critical: #f43f5e;
+
+  /* 拡張子別カラー（5カテゴリ） */
+  --file-ext-script: #f5d67b;
+  --file-ext-image: #c792ea;
+  --file-ext-lua: #5d8aee;
+  --file-ext-css: #42a5f5;
+  --file-ext-html: #ef5350;
+
+  /* xterm連動（Terminal ペイン） */
+  --term-bg: #0c1118;
+  --term-fg: #d3dde6;
+  --term-cursor: #3dd6f5;
+  --term-selection: #1e2a38;
+
+  /* レイアウト定数（テーマ非依存） */
   --border-width: 1px;
   --border-radius: 0;
   --font-mono: "Iosevka Term", "JetBrains Mono", "Cascadia Mono", monospace;
@@ -19,6 +37,33 @@
   --line-height: 1.45;
   --splitter-width: 4px;
   --pane-header-height: 28px;
+}
+
+/* --- Classic テーマ（レトロターミナル風） --- */
+[data-theme="classic"] {
+  --bg-app: #080a0f;
+  --bg-pane: #0a0e14;
+  --bg-pane-alt: #0e1219;
+  --fg-main: #b8c4b8;
+  --fg-muted: #7a8a7a;
+  --fg-dim: #4a5a4a;
+  --line-default: #1a2a1a;
+  --line-focus: #00ff41;
+  --state-info: #00ff41;
+  --state-ok: #39ff14;
+  --state-warn: #ffb000;
+  --state-critical: #ff2020;
+
+  --file-ext-script: #c8e6c8;
+  --file-ext-image: #d0a0e0;
+  --file-ext-lua: #7878e6;
+  --file-ext-css: #5090e0;
+  --file-ext-html: #e05050;
+
+  --term-bg: #0a0e14;
+  --term-fg: #b8c4b8;
+  --term-cursor: #00ff41;
+  --term-selection: #1a2a1a;
 }
 
 /* === リセット + ベース === */
@@ -556,7 +601,7 @@ body {
   padding: 2px 12px;
   border: 1px solid var(--line-default);
   background: var(--bg-pane);
-  color: var(--fg-default);
+  color: var(--fg-main);
   cursor: pointer;
 }
 .tool-call-approval-actions .btn-approve {
@@ -708,12 +753,12 @@ body {
   outline-offset: -1px;
 }
 
-/* === Spaceペイン — 拡張子別カラー === */
+/* === Spaceペイン — 拡張子別カラー（CSS変数でテーマ連動） === */
 [data-ext=".ts"] > .fs-entry-row .fs-name,
 [data-ext=".tsx"] > .fs-entry-row .fs-name,
 [data-ext=".js"] > .fs-entry-row .fs-name,
 [data-ext=".jsx"] > .fs-entry-row .fs-name {
-  color: #f5d67b;
+  color: var(--file-ext-script);
 }
 
 [data-ext=".json"] > .fs-entry-row .fs-name,
@@ -732,20 +777,20 @@ body {
 [data-ext=".jpg"] > .fs-entry-row .fs-name,
 [data-ext=".gif"] > .fs-entry-row .fs-name,
 [data-ext=".svg"] > .fs-entry-row .fs-name {
-  color: #c792ea;
+  color: var(--file-ext-image);
 }
 
 [data-ext=".luau"] > .fs-entry-row .fs-name,
 [data-ext=".lua"] > .fs-entry-row .fs-name {
-  color: #5d8aee;
+  color: var(--file-ext-lua);
 }
 
 [data-ext=".css"] > .fs-entry-row .fs-name {
-  color: #42a5f5;
+  color: var(--file-ext-css);
 }
 
 [data-ext=".html"] > .fs-entry-row .fs-name {
-  color: #ef5350;
+  color: var(--file-ext-html);
 }
 
 /* === Terminalペイン === */

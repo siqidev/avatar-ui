@@ -1,5 +1,6 @@
 {
   "name": "avatar-ui",
+  "productName": "AUI",
   "version": "0.3.0",
   "description": "AUI reference implementation",
   "scripts": {

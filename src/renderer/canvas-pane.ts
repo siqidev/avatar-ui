@@ -1,5 +1,6 @@
 // Canvasペイン — ファイル内容表示 + 画像昇格表示
 
+import { t } from "../shared/i18n.js"
 import {
   createCanvasFocusState,
   pushFocus,
@@ -92,7 +93,7 @@ function renderImage(url: string, alt: string): void {
     contentEl.innerHTML = ""
     const err = document.createElement("div")
     err.className = "canvas-error"
-    err.textContent = `画像読み込みエラー: ${url}`
+    err.textContent = `${t("imageLoadError")}: ${url}`
     contentEl.appendChild(err)
   }
 
@@ -133,7 +134,7 @@ export function initCanvasPane(): CanvasPaneController {
         titleEl.textContent = req.path
         const errEl = document.createElement("div")
         errEl.className = "canvas-error"
-        errEl.textContent = err instanceof Error ? err.message : "読み込みエラー"
+        errEl.textContent = err instanceof Error ? err.message : t("loadError")
         contentEl.appendChild(errEl)
       }
     },

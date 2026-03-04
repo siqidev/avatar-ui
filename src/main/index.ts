@@ -8,6 +8,9 @@ import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
 import { dispose as disposeTerminal } from "./terminal-service.js"
 import { stopRuntime } from "./field-runtime.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
+import { loadSettings, getSettings } from "./settings-store.js"
+import { setLocale } from "../shared/i18n.js"
+import { buildAppMenu } from "./menu.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
@@ -33,6 +36,13 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"))
   }
 
+  // ページロード完了後、Mainの正本設定をRendererへ送信（SSOT: settings.json → localStorage同期）
+  mainWindow.webContents.on("did-finish-load", () => {
+    const s = getSettings()
+    mainWindow?.webContents.send("settings.theme", s.theme)
+    mainWindow?.webContents.send("settings.locale", s.locale)
+  })
+
   // ウィンドウ閉じ → safeDetach（場の状態を永続化）
   mainWindow.on("close", () => {
     safeDetach()
@@ -53,6 +63,21 @@ app.whenReady().then(() => {
   // fail-fast: config初期化（.envのZodバリデーション）
   const config = getConfig()
   ensureDirectories(config)
+
+  // 設定ストア初期化（テーマ・モデル・言語永続化）
+  loadSettings(config.dataDir, config.model)
+  setLocale(getSettings().locale)
+
+  // Aboutパネル（version: "" でElectronビルド番号の括弧表示を抑制）
+  app.setAboutPanelOptions({
+    applicationName: "Avatar UI",
+    applicationVersion: "0.3.0",
+    version: "",
+    copyright: `© ${new Date().getFullYear()} siqidev`,
+  })
+
+  // カスタムメニュー（テーマ・モデル・言語）
+  buildAppMenu(() => mainWindow)
 
   // cloudflaredトンネル起動（トークン設定時のみ）
   if (config.cloudflaredToken) {

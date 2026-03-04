@@ -23,7 +23,7 @@
 - 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
 
 ### 開発状況
-Console UI全ペイン実装済み + Roblox双方向接続動作中 + 設定管理一元化済み + ⑥健全性管理実装済み（検知+通知+凍結+修復ポリシー宣言） + セッション永続化実装済み（場状態・会話履歴・チェーンID永続化+チェーン断裂自動回復+1世代バックアップ+.prevフォールバック） + 受入シナリオS1-S5テスト実装済み + Rojo導入済み（Studio自動同期+Modules独立化）。テスト243件。docs/PLAN.md必須バックログ全完了。詳細はdocs/PLAN.mdの開発進捗とdocs/architecture.mdを参照。
+Console UI全ペイン実装済み + Roblox双方向接続動作中 + 設定管理一元化済み + ⑥健全性管理実装済み（検知+通知+凍結+修復ポリシー宣言） + セッション永続化実装済み（場状態・会話履歴・チェーンID永続化+チェーン断裂自動回復+1世代バックアップ+.prevフォールバック） + 受入シナリオS1-S5テスト実装済み + Rojo導入済み（Studio自動同期+Modules独立化） + テーマ切り替え+Electronカスタムメニュー実装済み（Modern/Classic 2テーマ、AUIメニュー、ランタイムモデル切り替え）。テスト243件。docs/PLAN.md必須バックログ全完了。詳細はdocs/PLAN.mdの開発進捗とdocs/architecture.mdを参照。
 
 ### 次のアクション
 docs/PLAN.md「実装バックログ」の必須タスクを参照。
@@ -75,6 +75,8 @@ docs/PLAN.md「実装バックログ」の必須タスクを参照。
 | src/main/index.ts | Electron Mainエントリーポイント |
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
+| src/main/settings-store.ts | ランタイム設定（テーマ・モデル → data/settings.json） |
+| src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |
 | src/tools/ | Grokツール定義 |
 | roblox/ | Roblox Studio用スクリプト群 |

@@ -1,5 +1,6 @@
 // Terminalペイン — xterm.js + per-command spawn IPC
 
+import { t } from "../shared/i18n.js"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
@@ -14,22 +15,34 @@ import type {
 
 const containerEl = document.getElementById("terminal-container") as HTMLDivElement
 
+// --- CSS変数からxtermテーマを読み取る ---
+
+function readTermTheme(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
+  const s = getComputedStyle(document.documentElement)
+  return {
+    background: s.getPropertyValue("--term-bg").trim() || "#0c1118",
+    foreground: s.getPropertyValue("--term-fg").trim() || "#d3dde6",
+    cursor: s.getPropertyValue("--term-cursor").trim() || "#3dd6f5",
+    selectionBackground: s.getPropertyValue("--term-selection").trim() || "#1e2a38",
+  }
+}
+
 // --- xterm初期化 ---
 
 const term = new Terminal({
   fontFamily: "'Iosevka Term', 'JetBrains Mono', 'Cascadia Mono', monospace",
   fontSize: 13,
   lineHeight: 1.45,
-  theme: {
-    background: "#0c1118",
-    foreground: "#d3dde6",
-    cursor: "#3dd6f5",
-    selectionBackground: "#1e2a38",
-  },
+  theme: readTermTheme(),
   cursorBlink: true,
   scrollback: 500,
   convertEol: true,
 })
+
+/** テーマ変更時にxtermの色を再適用する */
+export function applyTermTheme(): void {
+  term.options.theme = readTermTheme()
+}
 
 const fitAddon = new FitAddon()
 term.loadAddon(fitAddon)
@@ -96,7 +109,7 @@ export function initTerminalPane(): void {
         cmd,
       }).then((result) => {
         if (!result.accepted) {
-          term.write(`\x1b[31m${result.reason ?? "実行不可"}\x1b[0m\r\n`)
+          term.write(`\x1b[31m${result.reason ?? t("rejected")}\x1b[0m\r\n`)
           busy = false
           writePrompt()
         }

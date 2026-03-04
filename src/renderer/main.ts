@@ -1,5 +1,6 @@
 // Renderer エントリー: 3列レイアウト + 縦横スプリッター + ペインD&D入替 + Stream
 
+import { setLocale, t, getLocale, type Locale } from "../shared/i18n.js"
 import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
 import type { GridSlot } from "./layout-manager.js"
 import { normalizeState } from "./state-normalizer.js"
@@ -7,7 +8,7 @@ import type { PaneInput } from "./state-normalizer.js"
 import { initFilesystemPane } from "./filesystem-pane.js"
 import { initCanvasPane } from "./canvas-pane.js"
 import type { CanvasPaneController } from "./canvas-pane.js"
-import { initTerminalPane } from "./terminal-pane.js"
+import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
 
 import type {
   FsListArgs,
@@ -53,9 +54,15 @@ declare global {
       onTerminalSnapshot: (cb: (data: unknown) => void) => void
       onToolApprovalRequest: (cb: (data: unknown) => void) => void
       respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
+      onThemeChange: (cb: (theme: string) => void) => void
+      onLocaleChange: (cb: (locale: string) => void) => void
     }
   }
 }
+
+// ロケール初期化（localStorage → 同期読み込み。MainからのIPC到着前にt()を使えるようにする）
+const savedLocale = localStorage.getItem("aui-locale") as Locale | null
+if (savedLocale) setLocale(savedLocale)
 
 // === DOM参照 ===
 const consoleEl = document.getElementById("console") as HTMLDivElement
@@ -651,11 +658,11 @@ window.fieldApi.onToolApprovalRequest((data) => {
 
   const approveBtn = document.createElement("button")
   approveBtn.className = "btn-approve"
-  approveBtn.textContent = "許可"
+  approveBtn.textContent = t("approve")
 
   const denyBtn = document.createElement("button")
   denyBtn.className = "btn-deny"
-  denyBtn.textContent = "拒否"
+  denyBtn.textContent = t("deny")
 
   function respond(decision: "approve" | "deny"): void {
     approveBtn.disabled = true
@@ -664,7 +671,7 @@ window.fieldApi.onToolApprovalRequest((data) => {
 
     const resultEl = document.createElement("div")
     resultEl.className = "tool-call-result"
-    resultEl.textContent = decision === "approve" ? "  └ 許可" : "  └ 拒否"
+    resultEl.textContent = decision === "approve" ? t("approved_result") : t("denied_result")
     div.appendChild(resultEl)
 
     window.fieldApi.respondToolApproval({ requestId: req.requestId, decision })
@@ -700,8 +707,31 @@ formEl.addEventListener("submit", (e) => {
   window.fieldApi.postStream(text, correlationId)
 })
 
+// === テーマ変更（メニューからのIPC） ===
+window.fieldApi.onThemeChange((theme) => {
+  if (theme === "classic") {
+    document.documentElement.dataset.theme = "classic"
+  } else {
+    delete document.documentElement.dataset.theme
+  }
+  localStorage.setItem("aui-theme", theme)
+  applyTermTheme()
+})
+
+// === 言語変更（メニューからのIPC） ===
+window.fieldApi.onLocaleChange((locale) => {
+  const current = localStorage.getItem("aui-locale")
+  localStorage.setItem("aui-locale", locale)
+  if (locale !== current) {
+    location.reload()
+  }
+})
+
 window.addEventListener("beforeunload", () => {
   window.fieldApi.detach()
 })
 
-statusEl.textContent = "接続中..."
+// HTMLのテキストをロケールに合わせて設定
+inputEl.placeholder = t("inputPlaceholder")
+formEl.querySelector("button")!.textContent = t("send")
+statusEl.textContent = t("connecting")

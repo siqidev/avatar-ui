@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { report, warn, setAlertSink, isFrozen, _resetForTest, RECOVERY_POLICY } from "./integrity-manager.js"
+import { report, warn, setAlertSink, isFrozen, _resetForTest } from "./integrity-manager.js"
+import { t } from "../shared/i18n.js"
 import { _resetConfigForTest } from "../config.js"
 
 describe("integrity-manager", () => {
@@ -9,7 +10,7 @@ describe("integrity-manager", () => {
   })
 
   describe("report", () => {
-    it("sinkが設定済みなら呼ばれる（userMessageを使用）", () => {
+    it("sinkが設定済みなら呼ばれる（i18n翻訳メッセージを使用）", () => {
       const sink = vi.fn()
       setAlertSink(sink)
 
@@ -18,7 +19,7 @@ describe("integrity-manager", () => {
       expect(sink).toHaveBeenCalledOnce()
       expect(sink).toHaveBeenCalledWith(
         "RECIPROCITY_STREAM_ERROR",
-        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+        t("alert.RECIPROCITY_STREAM_ERROR"),
       )
     })
 
@@ -42,11 +43,11 @@ describe("integrity-manager", () => {
       expect(sink).toHaveBeenCalledTimes(2)
       expect(sink).toHaveBeenNthCalledWith(1,
         "RECIPROCITY_STREAM_ERROR",
-        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+        t("alert.RECIPROCITY_STREAM_ERROR"),
       )
       expect(sink).toHaveBeenNthCalledWith(2,
         "RECIPROCITY_PULSE_ERROR",
-        RECOVERY_POLICY.RECIPROCITY_PULSE_ERROR.userMessage,
+        t("alert.RECIPROCITY_PULSE_ERROR"),
       )
     })
   })
@@ -61,7 +62,7 @@ describe("integrity-manager", () => {
       expect(sink).toHaveBeenCalledOnce()
       expect(sink).toHaveBeenCalledWith(
         "RECIPROCITY_STREAM_ERROR",
-        RECOVERY_POLICY.RECIPROCITY_STREAM_ERROR.userMessage,
+        t("alert.RECIPROCITY_STREAM_ERROR"),
       )
       expect(isFrozen()).toBe(false)
     })

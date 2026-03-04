@@ -313,3 +313,12 @@ export function stopRuntime(): void {
 export function getLastResponseId(): string | null {
   return state?.participant?.lastResponseId ?? null
 }
+
+// モデル切替時にチェーンをリセットする（previous_response_idはモデル間で共有不可）
+export function resetChainForModelSwitch(): void {
+  if (!initialized) return // メニュー操作がruntime初期化前に起きた場合はno-op
+  log.info("[RUNTIME] モデル変更 → チェーンリセット")
+  state.participant.lastResponseId = null
+  state.participant.lastResponseAt = null
+  persistState()
+}

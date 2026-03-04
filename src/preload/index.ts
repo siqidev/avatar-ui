@@ -72,4 +72,10 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("terminal.snapshot", (_e, data) => cb(data)),
   onToolApprovalRequest: (cb: (data: unknown) => void) =>
     ipcRenderer.on("tool.approval.request", (_e, data) => cb(data)),
+
+  // Main → Renderer（設定変更）
+  onThemeChange: (cb: (theme: string) => void) =>
+    ipcRenderer.on("settings.theme", (_e, theme) => cb(theme)),
+  onLocaleChange: (cb: (locale: string) => void) =>
+    ipcRenderer.on("settings.locale", (_e, locale) => cb(locale)),
 })

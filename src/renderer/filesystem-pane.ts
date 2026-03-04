@@ -1,5 +1,6 @@
 // Spaceペイン — Avatar Spaceのツリー表示と操作
 
+import { t } from "../shared/i18n.js"
 import type { FsEntry, FsListResult, FsReadResult } from "../shared/fs-schema.js"
 
 export type FilesystemPaneOptions = {
@@ -68,7 +69,7 @@ async function loadDir(dirPath: string): Promise<FsListResult | null> {
     const result = await window.fieldApi.fsList({ path: dirPath })
     return result
   } catch (err) {
-    errorEl.textContent = err instanceof Error ? err.message : "読み込みエラー"
+    errorEl.textContent = err instanceof Error ? err.message : t("loadError")
     return null
   }
 }
@@ -188,11 +189,11 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
 
   if (entry.type === "directory") {
     items.push({
-      label: "新規ファイル",
+      label: t("newFile"),
       action: async () => {
         const entryEl = treeEl.querySelector(`[data-path="${CSS.escape(entryPath)}"]`)
         if (!entryEl) return
-        const name = await showInlineInput(entryEl as HTMLElement, "ファイル名")
+        const name = await showInlineInput(entryEl as HTMLElement, t("fileName"))
         if (!name) return
         const filePath = `${entryPath}/${name}`
         await window.fieldApi.fsWrite({ path: filePath, content: "" })
@@ -200,11 +201,11 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
       },
     })
     items.push({
-      label: "新規フォルダ",
+      label: t("newFolder"),
       action: async () => {
         const entryEl = treeEl.querySelector(`[data-path="${CSS.escape(entryPath)}"]`)
         if (!entryEl) return
-        const name = await showInlineInput(entryEl as HTMLElement, "フォルダ名")
+        const name = await showInlineInput(entryEl as HTMLElement, t("folderName"))
         if (!name) return
         await window.fieldApi.fsMutate({ op: "mkdir", path: `${entryPath}/${name}` })
         await refreshTree()
@@ -213,11 +214,11 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
   }
 
   items.push({
-    label: "リネーム",
+    label: t("rename"),
     action: async () => {
       const entryEl = treeEl.querySelector(`[data-path="${CSS.escape(entryPath)}"]`)
       if (!entryEl) return
-      const newName = await showInlineInput(entryEl as HTMLElement, "新しい名前", entry.name)
+      const newName = await showInlineInput(entryEl as HTMLElement, t("newName"), entry.name)
       if (!newName || newName === entry.name) return
       const parentDir = entryPath.includes("/") ? entryPath.substring(0, entryPath.lastIndexOf("/")) : "."
       const newPath = parentDir === "." ? newName : `${parentDir}/${newName}`
@@ -227,7 +228,7 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
   })
 
   items.push({
-    label: "削除",
+    label: t("delete"),
     action: async () => {
       // confirm()代替: メニュー内に確認ボタンを表示
       await window.fieldApi.fsMutate({ op: "delete", path: entryPath })
@@ -245,7 +246,7 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
       try {
         await item.action()
       } catch (err) {
-        errorEl.textContent = err instanceof Error ? err.message : "操作エラー"
+        errorEl.textContent = err instanceof Error ? err.message : t("operationError")
       }
     })
     menu.appendChild(itemEl)
@@ -316,7 +317,7 @@ function triggerRename(): void {
     ? focusedPath.substring(focusedPath.lastIndexOf("/") + 1)
     : focusedPath
   const fp = focusedPath
-  showInlineInput(el, "新しい名前", currentName).then(async (newName) => {
+  showInlineInput(el, t("newName"), currentName).then(async (newName) => {
     if (!newName || newName === currentName) return
     const parentDir = fp.includes("/") ? fp.substring(0, fp.lastIndexOf("/")) : "."
     const newPath = parentDir === "." ? newName : `${parentDir}/${newName}`
@@ -325,7 +326,7 @@ function triggerRename(): void {
       focusedPath = null
       await refreshTree()
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : "リネームエラー"
+      errorEl.textContent = err instanceof Error ? err.message : t("renameError")
     }
   })
 }
@@ -396,7 +397,7 @@ function handleTreeKeydown(e: KeyboardEvent): void {
           return refreshTree()
         })
         .catch((err: unknown) => {
-          errorEl.textContent = err instanceof Error ? err.message : "削除エラー"
+          errorEl.textContent = err instanceof Error ? err.message : t("deleteError")
         })
       break
     }
@@ -413,7 +414,7 @@ function handleTreeKeydown(e: KeyboardEvent): void {
           return refreshTree()
         })
         .catch((err: unknown) => {
-          errorEl.textContent = err instanceof Error ? err.message : "削除エラー"
+          errorEl.textContent = err instanceof Error ? err.message : t("deleteError")
         })
       break
     }
@@ -444,14 +445,14 @@ export async function initFilesystemPane(options?: FilesystemPaneOptions): Promi
     const targetDir = getTargetDir()
     const container = targetDir === "." ? treeEl : getEntryContainer(targetDir)
     if (!container) return
-    const name = await showInlineInput(container, "ファイル名")
+    const name = await showInlineInput(container, t("fileName"))
     if (!name) return
     const filePath = targetDir === "." ? name : `${targetDir}/${name}`
     try {
       await window.fieldApi.fsWrite({ path: filePath, content: "" })
       await refreshTree()
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : "作成エラー"
+      errorEl.textContent = err instanceof Error ? err.message : t("createError")
     }
   })
 
@@ -459,14 +460,14 @@ export async function initFilesystemPane(options?: FilesystemPaneOptions): Promi
     const targetDir = getTargetDir()
     const container = targetDir === "." ? treeEl : getEntryContainer(targetDir)
     if (!container) return
-    const name = await showInlineInput(container, "フォルダ名")
+    const name = await showInlineInput(container, t("folderName"))
     if (!name) return
     const dirPath = targetDir === "." ? name : `${targetDir}/${name}`
     try {
       await window.fieldApi.fsMutate({ op: "mkdir", path: dirPath })
       await refreshTree()
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : "作成エラー"
+      errorEl.textContent = err instanceof Error ? err.message : t("createError")
     }
   })
 

@@ -38,6 +38,8 @@
 - ⑤共存記録: v0.3充足（previous_response_id + save_memory + intents.jsonl）
 - ⑥健全性管理（検知+通知+凍結: AlertCode enum + IntegrityManager + 凍結ラッチ + RECOVERY_POLICY宣言）
 - セッション永続化（場状態+会話履歴+チェーンID永続化、safeDetach、起動時補正、チェーン断裂自動回復、1世代バックアップ+.prevフォールバック）
+- テーマ切り替え + Electronカスタムメニュー（Modern/Classic 2テーマ、AUIメニューにTheme/Model/Language radio、About Avatar UI、ランタイムモデル切り替え、settings-store永続化）
+- i18n（日本語/英語切り替え: 辞書ベースt()関数、settings-store永続化、Languageメニュー有効化、Renderer localStorage同期+リロード方式）
 
 ## 実装バックログ
 
@@ -52,7 +54,11 @@
   - ~~④Pulse/観測同時発火の確認~~ — 確認済み（enqueue() Promise chain直列化で十分。JSシングルスレッド+イベントループにより安全）
   - ~~②媒体投影の散在整理~~ — 完了（ChannelProjection + MessageRecorder分離。docs/architecture.md参照）
 - ~~受入シナリオのテスト実装~~ — 完了（S1-S5受入テスト34件。enqueue凍結スキップ時のPromise未解決バグも修正。docs/architecture.md参照）
-- ~~不変条件の検知＋修復フロー~~ — 完了（RECOVERY_POLICY宣言 + state.json 1世代バックアップ + .prevフォールバック + warn/report分離 + userMessage。RuntimeCoordinatorはv0.4。docs/architecture.md参照）
+- ~~不変条件の検知＋修復フロー~~ — 完了（RECOVERY_POLICY宣言 + state.json 1世代バックアップ + .prevフォールバック + warn/report分離 + i18n対応メッセージ。RuntimeCoordinatorはv0.4。docs/architecture.md参照）
+
+### 必須（未解決）
+
+- **Pulse fs_readエラー** — Pulse発火時にAIがfs_readツールでPULSE.mdを読もうとするが、fs_readはAVATAR_SPACEスコープのためENOENT。loadPulse()はプロジェクトルートから正常に読めているが、AIが追加でfs_readを呼ぶ。解決法は要議論
 
 ### 拡張（到達状態は満たすが品質・体験を向上）
 
@@ -66,6 +72,7 @@
 - **場モデル要素の網羅的検証** — ギャップセクションの項目を含む、帰納的検証の完全版
 - **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）
 - **ファイル操作サンドボックス** — Dockerコンテナ隔離によるTOCTOU脆弱性の根本排除
+- **デスクトップアプリ パッケージ化** — electron-builder等で.appビルド（macOSメニューバー名「AUI」表示、アプリアイコン設定、productName反映）。dev時はElectronバイナリ直接使用のためメニューバー名変更不可
 
 ### ギャップ（帰納的検証で発見、将来の検討材料）
 
