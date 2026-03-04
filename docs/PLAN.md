@@ -38,7 +38,7 @@
 - ⑤共存記録: v0.3充足（previous_response_id + save_memory + intents.jsonl）
 - ⑥健全性管理（検知+通知+凍結: AlertCode enum + IntegrityManager + 凍結ラッチ + RECOVERY_POLICY宣言）
 - セッション永続化（場状態+会話履歴+チェーンID永続化、safeDetach、起動時補正、チェーン断裂自動回復、1世代バックアップ+.prevフォールバック）
-- テーマ切り替え + Electronカスタムメニュー（Modern/Classic 2テーマ、AUIメニューにTheme/Model/Language radio、About Avatar UI、ランタイムモデル切り替え、settings-store永続化）
+- テーマ切り替え + Electronカスタムメニュー（Modern/Classic 2テーマ、AUIメニューにTheme/Model/Language radio、About Avatar UI、ランタイムモデル切り替え、settings-store永続化）+ Classic TUIスタイル（背景統一、透明ヘッダー、スプリッター透明化。罫線タイトル埋め込みは拡張バックログ）
 - i18n（日本語/英語切り替え: 辞書ベースt()関数、settings-store永続化、Languageメニュー有効化、Renderer localStorage同期+リロード方式）
 - Pulse内容注入（PULSE.mdをsystem prompt経由でAIに直接注入。fs_readでの再読込不要化）
 
@@ -71,6 +71,8 @@
 - **参与文脈の完全独立コンポーネント化** — 最小実装から完全版へ
 - **建築品質の根本改善** — プリファブ方式導入（Part単位→機能付きModel）、BuildOps内でPart/Prefab振り分け
 - **場モデル要素の網羅的検証** — ギャップセクションの項目を含む、帰納的検証の完全版
+- **Classic テーマ: 罫線タイトル埋め込み** — ヘッダーのタイトルをペインの上辺罫線に埋め込む表示（fieldset/legend風）。レイアウトをModernと同一に保つ制約あり（`overflow: hidden` 等）
+- **Classic テーマ: 色の意味限定使用** — 装飾的な色分けを排除し、色は「データの意味」にだけ使う設計原則をClassicで徹底。有効であればModernにも拡張
 - **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）
 - **ファイル操作サンドボックス** — Dockerコンテナ隔離によるTOCTOU脆弱性の根本排除
 - **デスクトップアプリ パッケージ化** — electron-builder等で.appビルド（macOSメニューバー名「AUI」表示、アプリアイコン設定、productName反映）。dev時はElectronバイナリ直接使用のためメニューバー名変更不可

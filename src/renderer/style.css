@@ -39,9 +39,9 @@
   --pane-header-height: 28px;
 }
 
-/* --- Classic テーマ（レトロターミナル風） --- */
+/* --- Classic テーマ（TUIスタイル） --- */
 [data-theme="classic"] {
-  --bg-app: #080a0f;
+  --bg-app: #0a0e14;
   --bg-pane: #0a0e14;
   --bg-pane-alt: #0e1219;
   --fg-main: #b8c4b8;
@@ -808,4 +808,40 @@ body {
 .terminal-container .xterm {
   height: 100%;
   padding: 4px 0 0 4px;
+}
+
+/* === Classic テーマ構造スタイル === */
+/* レイアウト変更なし（Modernと完全同一）。色・背景のみ変更 */
+
+/* ヘッダー: 透明背景 + 境界線除去（フレーム内にタイトル配置） */
+[data-theme="classic"] .pane-header {
+  background: transparent;
+  border-bottom: none;
+}
+
+/* スプリッター: 透明（ペイン罫線で視覚的区切り） */
+[data-theme="classic"] .splitter-v,
+[data-theme="classic"] .splitter-h {
+  background: transparent;
+}
+
+/* 背景統一: 装飾的な背景色差を除去 */
+[data-theme="classic"] .avatar-display {
+  background: var(--bg-pane);
+}
+
+[data-theme="classic"] .canvas-image-wrap {
+  background: var(--bg-pane);
+}
+
+[data-theme="classic"] .stream-form input,
+[data-theme="classic"] .stream-form button {
+  background: var(--bg-pane);
+}
+
+/* hover: line-defaultで視認性を確保（bg-pane-altとの差が微小なため） */
+[data-theme="classic"] .fs-entry-row:hover,
+[data-theme="classic"] .canvas-code-row:hover,
+[data-theme="classic"] .observation-entry:hover {
+  background: var(--line-default);
 }
