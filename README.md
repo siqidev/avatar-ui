@@ -5,7 +5,7 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js 18+](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
 A coexistence interface for physical beings and information beings.
 
@@ -24,7 +24,7 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - [xAI API key](https://console.x.ai/)
 
 ### 1. Clone and install
@@ -105,6 +105,9 @@ AVATAR UI uses [Rojo](https://rojo.space/) to sync Luau scripts from `roblox/` i
 
 ### First time setup
 
+0. Place an NPC model in Workspace
+   - A character model with Humanoid is required ([NPC creation guide](https://create.roblox.com/docs/characters/npc))
+   - The model name must match `npcName` in `Config.luau` (default: `AvatarNpc`)
 1. Install [Rokit](https://github.com/rojo-rbx/rokit) and run `rokit install` in the project root
 2. Install the Studio plugin: `rojo plugin install`
 3. In Roblox Studio, enable **HttpService** and **Studio Access to API Services** (Game Settings > Security)
