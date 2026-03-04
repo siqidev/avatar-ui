@@ -184,4 +184,4 @@ docs/                 PROJECT.md, PLAN.md, architecture.md
 
 [MIT License](LICENSE)
 
-(c) 2025 [SIQI](https://siqi.jp) (Sito Sikino)
+(c) 2025-2026 [SIQI](https://siqi.jp) (Sito Sikino)
