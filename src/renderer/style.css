@@ -458,6 +458,7 @@ body {
   margin-bottom: 8px;
   line-height: var(--line-height);
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .message-human {

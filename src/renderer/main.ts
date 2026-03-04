@@ -420,10 +420,12 @@ let enableStream = true // 履歴復元中はfalse
 
 function appendMessage(
   actor: string,
-  text: string,
+  rawText: string,
   source?: string,
   toolCalls?: ToolCallDisplay[],
 ): void {
+  // リテラル \n を実際の改行に変換（Grokがエスケープ済み文字列を返す場合がある）
+  const text = rawText.replace(/\\n/g, "\n")
   const div = document.createElement("div")
   div.className = `message message-${actor}`
   if (source && actor === "ai") {

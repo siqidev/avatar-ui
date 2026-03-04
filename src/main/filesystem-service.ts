@@ -96,7 +96,9 @@ export async function fsWrite(args: FsWriteArgs): Promise<FsWriteResult> {
 
   // 親ディレクトリの自動作成
   await fs.mkdir(path.dirname(resolved), { recursive: true })
-  await fs.writeFile(resolved, args.content, "utf-8")
+  // AIがリテラル \n / \t を送る場合があるため実際の制御文字に変換
+  const normalized = args.content.replace(/\\n/g, "\n").replace(/\\t/g, "\t")
+  await fs.writeFile(resolved, normalized, "utf-8")
   const stat = await fs.stat(resolved)
 
   return { path: args.path, bytes: stat.size, mtimeMs: stat.mtimeMs }
