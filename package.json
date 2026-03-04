@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "electron-vite build",
+    "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
