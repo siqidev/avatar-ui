@@ -100,7 +100,6 @@ export type AppConfig = {
   // Pulse
   pulseCron: string
   pulseFile: string
-  pulsePrompt: string
   pulseOkPrefix: string
 
   // ネットワーク
@@ -174,7 +173,6 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // Pulse
     pulseCron: env.PULSE_CRON,
     pulseFile: "PULSE.md",
-    pulsePrompt: "PULSE.mdの指示に従え。対応不要ならPULSE_OKと返答。",
     pulseOkPrefix: "PULSE_OK",
 
     // ネットワーク

@@ -40,6 +40,7 @@
 - セッション永続化（場状態+会話履歴+チェーンID永続化、safeDetach、起動時補正、チェーン断裂自動回復、1世代バックアップ+.prevフォールバック）
 - テーマ切り替え + Electronカスタムメニュー（Modern/Classic 2テーマ、AUIメニューにTheme/Model/Language radio、About Avatar UI、ランタイムモデル切り替え、settings-store永続化）
 - i18n（日本語/英語切り替え: 辞書ベースt()関数、settings-store永続化、Languageメニュー有効化、Renderer localStorage同期+リロード方式）
+- Pulse内容注入（PULSE.mdをsystem prompt経由でAIに直接注入。fs_readでの再読込不要化）
 
 ## 実装バックログ
 
@@ -58,7 +59,7 @@
 
 ### 必須（未解決）
 
-- **Pulse fs_readエラー** — Pulse発火時にAIがfs_readツールでPULSE.mdを読もうとするが、fs_readはAVATAR_SPACEスコープのためENOENT。loadPulse()はプロジェクトルートから正常に読めているが、AIが追加でfs_readを呼ぶ。解決法は要議論
+なし（必須バックログ全完了）
 
 ### 拡張（到達状態は満たすが品質・体験を向上）
 

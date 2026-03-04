@@ -219,11 +219,12 @@ export function startPulse(
     log.info(`[PULSE] 発火 (${correlationId})`)
     enqueue(async () => {
       try {
+        const pulseInput = `${pulseContent}\n\n${config.pulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client,
           state,
           beingPrompt,
-          config.pulsePrompt,
+          pulseInput,
           true, // forceSystemPrompt
         )
         updateParticipantChain(state.participant.lastResponseId)
