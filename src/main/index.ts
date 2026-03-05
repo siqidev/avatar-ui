@@ -11,6 +11,7 @@ import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import { loadSettings, getSettings } from "./settings-store.js"
 import { setLocale } from "../shared/i18n.js"
 import { buildAppMenu } from "./menu.js"
+import { registerDemoIpcHandlers } from "./demo-ipc-handlers.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
@@ -87,6 +88,7 @@ app.whenReady().then(() => {
   registerIpcHandlers(() => mainWindow)
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
+  registerDemoIpcHandlers(app.getAppPath())
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
 })

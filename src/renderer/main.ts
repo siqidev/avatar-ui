@@ -9,6 +9,7 @@ import { initFilesystemPane } from "./filesystem-pane.js"
 import { initCanvasPane } from "./canvas-pane.js"
 import type { CanvasPaneController } from "./canvas-pane.js"
 import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
+import { DemoPlayer } from "./demo-player.js"
 
 import type {
   FsListArgs,
@@ -27,6 +28,7 @@ import type {
   TerminalResizeArgs,
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
+import type { DemoScript } from "../shared/demo-script-schema.js"
 
 declare global {
   interface Window {
@@ -56,6 +58,7 @@ declare global {
       respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
       onThemeChange: (cb: (theme: string) => void) => void
       onLocaleChange: (cb: (locale: string) => void) => void
+      loadDemoScript: () => Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }>
     }
   }
 }
@@ -689,11 +692,8 @@ window.fieldApi.onToolApprovalRequest((data) => {
   messagesEl.scrollTop = messagesEl.scrollHeight
 })
 
-formEl.addEventListener("submit", (e) => {
-  e.preventDefault()
-  const text = inputEl.value.trim()
-  if (!text) return
-
+// 送信ロジック（手入力・デモモード共用）
+function submitMessage(text: string): string {
   const correlationId = crypto.randomUUID()
   appendMessage("human", text)
   inputEl.value = ""
@@ -705,6 +705,14 @@ formEl.addEventListener("submit", (e) => {
 
   showThinking()
   window.fieldApi.postStream(text, correlationId)
+  return correlationId
+}
+
+formEl.addEventListener("submit", (e) => {
+  e.preventDefault()
+  const text = inputEl.value.trim()
+  if (!text) return
+  submitMessage(text)
 })
 
 // === テーマ変更（メニューからのIPC） ===
@@ -726,6 +734,45 @@ window.fieldApi.onLocaleChange((locale) => {
     location.reload()
   }
 })
+
+// === デモモード（F5で開始/キャンセル） ===
+let streamEndCallback: ((correlationId: string) => void) | null = null
+
+const demoPlayer = new DemoPlayer({
+  inputEl,
+  sendMessage: (text) => submitMessage(text),
+  onStreamEnd: (cb) => { streamEndCallback = cb },
+  offStreamEnd: () => { streamEndCallback = null },
+})
+
+// stream.replyでAI応答完了を検知 → デモプレイヤーに通知
+window.fieldApi.onStreamReply((data) => {
+  const reply = data as { actor: string; correlationId?: string }
+  if (reply.actor === "ai" && reply.correlationId && streamEndCallback) {
+    streamEndCallback(reply.correlationId)
+  }
+})
+
+document.addEventListener("keydown", async (e) => {
+  if (e.key !== "F5") return
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (demoPlayer.isRunning) {
+    demoPlayer.cancel()
+    inputEl.disabled = false
+    formEl.querySelector("button")!.disabled = false
+    return
+  }
+
+  const result = await window.fieldApi.loadDemoScript()
+  if (!result.ok) {
+    appendMessage("human", `[demo] ${result.error}`)
+    return
+  }
+
+  demoPlayer.start(result.lines)
+}, true) // captureフェーズ（Electronのリロードを抑止）
 
 window.addEventListener("beforeunload", () => {
   window.fieldApi.detach()
