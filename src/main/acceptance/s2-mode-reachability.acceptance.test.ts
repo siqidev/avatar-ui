@@ -271,17 +271,17 @@ describe("S2: モード可達性", () => {
 
   // --- roblox_logはAI未送信 ---
 
-  it("roblox_log: onEventのみ（enqueue/sendMessageされない）", async () => {
+  it("roblox_log: devMode=off時はRenderer非送信・AI非送信", async () => {
     observationHandler({
       type: "roblox_log",
       payload: { message: "Server started" },
     })
     await flushQueue()
 
-    // sendObservationEventが呼ばれる（表示用）
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalled()
+    // devMode=offではRenderer表示もスキップ
+    expect(mockProjection.sendObservationEvent).not.toHaveBeenCalled()
 
-    // sendMessageは呼ばれない（AIに送らない）
+    // AIには送らない
     expect(mockSendMessage).not.toHaveBeenCalled()
   })
 })

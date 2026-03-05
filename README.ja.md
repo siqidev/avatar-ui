@@ -99,7 +99,7 @@ npm run dev
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
-| `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
+| `DEV_MODE` | | `off` | 開発者モード（`on` = 詳細ログ + Roblox Monitor全表示） |
 
 ### オプション: 長期記憶（Collections API）
 

@@ -266,19 +266,24 @@ export function startObservation(
     (event: ObservationEvent) => {
       const correlationId = generateCorrelationId("observation")
       const formatted = formatObservation(event, config.robloxOwnerDisplayName)
+      const shouldForward = shouldForwardToAI(event)
 
-      // roblox_log: 表示+ログのみ、AIには送らない
+      // roblox_log: ログ出力、devMode時のみRenderer表示
       if (event.type === "roblox_log") {
         log.info(`[ROBLOX] ${formatted}`)
-        onEvent(event, formatted, correlationId)
+        if (config.devMode) {
+          onEvent(event, formatted, correlationId)
+        }
         return
       }
 
-      // 全イベントをRenderer表示（Roblox Monitorペイン）
-      onEvent(event, formatted, correlationId)
+      // Renderer表示: devMode=全表示、通常=重要イベントのみ
+      if (config.devMode || shouldForward) {
+        onEvent(event, formatted, correlationId)
+      }
 
       // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
-      if (!shouldForwardToAI(event)) {
+      if (!shouldForward) {
         log.info(`[OBSERVATION] AI転送スキップ: ${event.type} ${formatted.substring(0, 80)}`)
         return
       }

@@ -59,11 +59,11 @@ const envSchema = z.object({
       return names
     }),
 
-  // --- ログ ---
-  LOG_VERBOSE: z
+  // --- 開発者向け ---
+  DEV_MODE: z
     .string()
-    .default("false")
-    .transform((v) => v === "true"),
+    .default("off")
+    .transform((v) => v.toLowerCase() === "on"),
 })
 
 // アプリケーション設定（config.tsのみがprocess.envの入口）
@@ -113,8 +113,8 @@ export type AppConfig = {
   // ツール承認
   toolAutoApprove: string[]
 
-  // ログ
-  logVerbose: boolean
+  // 開発者向け
+  devMode: boolean
 }
 
 /** 環境変数からAppConfigを生成する（純粋関数） */
@@ -186,8 +186,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // ツール承認
     toolAutoApprove: env.TOOL_AUTO_APPROVE,
 
-    // ログ
-    logVerbose: env.LOG_VERBOSE,
+    // 開発者向け
+    devMode: env.DEV_MODE,
   }
 }
 
