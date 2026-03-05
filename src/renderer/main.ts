@@ -427,6 +427,7 @@ streamPane.addEventListener("focusout", () => {
 // === ストリームUI ===
 type ToolCallDisplay = { name: string; args: Record<string, unknown>; result: string }
 let enableStream = true // 履歴復元中はfalse
+let currentStreamingPromise: Promise<void> = Promise.resolve()
 
 function appendMessage(
   actor: string,
@@ -497,7 +498,9 @@ function appendMessage(
     messagesEl.appendChild(div)
     messagesEl.scrollTop = messagesEl.scrollHeight
     startLipSync()
-    void streamText(textNode, text).then(() => stopLipSync())
+    const p = streamText(textNode, text).then(() => stopLipSync())
+    currentStreamingPromise = p
+    void p
   } else {
     div.appendChild(document.createTextNode(text))
     messagesEl.appendChild(div)
@@ -745,11 +748,14 @@ const demoPlayer = new DemoPlayer({
   offStreamEnd: () => { streamEndCallback = null },
 })
 
-// stream.replyでAI応答完了を検知 → デモプレイヤーに通知
+// stream.replyでAI応答完了を検知 → ストリーミング表示完了後にデモプレイヤーに通知
 window.fieldApi.onStreamReply((data) => {
   const reply = data as { actor: string; correlationId?: string }
   if (reply.actor === "ai" && reply.correlationId && streamEndCallback) {
-    streamEndCallback(reply.correlationId)
+    const cid = reply.correlationId
+    void currentStreamingPromise.then(() => {
+      streamEndCallback?.(cid)
+    })
   }
 })
 

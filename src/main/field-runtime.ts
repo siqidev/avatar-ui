@@ -11,6 +11,7 @@ import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
+import { shouldForwardToAI } from "../roblox/observation-forwarding-policy.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
@@ -263,12 +264,22 @@ export function startObservation(
 
   observationServer = startObservationServer(
     (event: ObservationEvent) => {
+      const correlationId = generateCorrelationId("observation")
+      const formatted = formatObservation(event, config.robloxOwnerDisplayName)
+
       // roblox_log: 表示+ログのみ、AIには送らない
       if (event.type === "roblox_log") {
-        const formatted = formatObservation(event, config.robloxOwnerDisplayName)
         log.info(`[ROBLOX] ${formatted}`)
-        const correlationId = generateCorrelationId("observation")
         onEvent(event, formatted, correlationId)
+        return
+      }
+
+      // 全イベントをRenderer表示（Roblox Monitorペイン）
+      onEvent(event, formatted, correlationId)
+
+      // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
+      if (!shouldForwardToAI(event)) {
+        log.info(`[OBSERVATION] AI転送スキップ: ${event.type} ${formatted.substring(0, 80)}`)
         return
       }
 
@@ -276,11 +287,6 @@ export function startObservation(
         log.info("[OBSERVATION] 場が非アクティブ — スキップ")
         return
       }
-
-      // correlationIdを1回だけ生成し、onEventとonReplyで同一IDを使う
-      const correlationId = generateCorrelationId("observation")
-      const formatted = formatObservation(event, config.robloxOwnerDisplayName)
-      onEvent(event, formatted, correlationId)
 
       enqueue(async () => {
         try {
