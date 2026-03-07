@@ -121,6 +121,19 @@ npm run dev
 | `ROBLOX_OBSERVATION_PORT` | 観測サーバーポート（デフォルト: `3000`） |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnelトークン（Electronが自動管理） |
 
+### オプション: Cloudflare Tunnel（Roblox観測用）
+
+Robloxは観測イベント（プレイヤーの接近、チャット、コマンド結果）をHTTPでローカルマシンに送信します。
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)を使って、ローカルの観測サーバーをインターネットに公開し、Robloxからアクセスできるようにします。
+
+1. `cloudflared`をインストール: `brew install cloudflared`（macOS）または[ダウンロード](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+2. [Cloudflare Zero Trustダッシュボード](https://one.dash.cloudflare.com/) → Networks → Tunnels → トンネルを作成
+3. トンネルの転送先を `http://localhost:3000`（または `ROBLOX_OBSERVATION_PORT` のポート）に設定
+4. トンネルトークンをコピーし、`.env` の `CLOUDFLARED_TOKEN` に設定
+5. トンネルURLを `roblox/modules/Config.luau` の `observationUrl` に設定
+
+AVATAR UIはElectronアプリと一緒に `cloudflared` を自動的に起動/停止します。別プロセスの管理は不要です。
+
 ## Robloxセットアップ
 
 AVATAR UIは[Rojo](https://rojo.space/)を使って `roblox/` のLuauスクリプトをRoblox Studioに同期します。

@@ -121,6 +121,19 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed by Electron) |
 
+### Optional: Cloudflare Tunnel (for Roblox observation)
+
+Roblox sends observation events (player proximity, chat, command results) to your local machine via HTTP.
+A [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) exposes your local observation server to the internet so Roblox can reach it.
+
+1. Install `cloudflared`: `brew install cloudflared` (macOS) or [download](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+2. Create a tunnel in the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/) → Networks → Tunnels → Create a tunnel
+3. Configure the tunnel to route your hostname to `http://localhost:3000` (or your `ROBLOX_OBSERVATION_PORT`)
+4. Copy the tunnel token and set `CLOUDFLARED_TOKEN` in `.env`
+5. Set the tunnel URL in `roblox/modules/Config.luau` as `observationUrl`
+
+AVATAR UI automatically starts/stops `cloudflared` with the Electron app. No separate process needed.
+
 ## Roblox Setup
 
 AVATAR UI uses [Rojo](https://rojo.space/) to sync Luau scripts from `roblox/` into Roblox Studio.
