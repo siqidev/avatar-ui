@@ -14,7 +14,11 @@ vi.mock("electron", () => ({
 
 vi.mock("../field-runtime.js", () => ({
   initRuntime: vi.fn(),
-  processStream: vi.fn().mockResolvedValue({ text: "応答", toolCalls: [] }),
+  processStream: vi.fn().mockResolvedValue({
+    text: "応答",
+    displayText: "応答",
+    toolCalls: [],
+  }),
   startPulse: vi.fn(),
   startObservation: vi.fn(),
   getState: vi.fn(() => mockDefaultState()),

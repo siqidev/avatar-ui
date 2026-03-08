@@ -92,7 +92,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
-          text: result.text,
+          text: result.displayText,
           source: "pulse",
           toolCalls: result.toolCalls,
         })
@@ -124,7 +124,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
-          text: result.text,
+          text: result.displayText,
           source: "observation",
           toolCalls: result.toolCalls,
         })
@@ -204,7 +204,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       projection.sendStreamReply({
         actor: "ai",
         correlationId,
-        text: streamResult.text,
+        text: streamResult.displayText,
         source: "user",
         toolCalls: streamResult.toolCalls,
       })

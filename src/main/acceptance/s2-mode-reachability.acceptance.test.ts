@@ -26,7 +26,11 @@ vi.mock("node-cron", () => ({
 }))
 
 vi.mock("../../services/chat-session-service.js", () => ({
-  sendMessage: vi.fn().mockResolvedValue({ text: "AI応答", toolCalls: [] }),
+  sendMessage: vi.fn().mockResolvedValue({
+    text: "AI応答",
+    displayText: "AI応答",
+    toolCalls: [],
+  }),
 }))
 
 vi.mock("../../roblox/observation-server.js", () => ({
@@ -133,6 +137,12 @@ describe("S2: モード可達性", () => {
   // --- human起点: stream.post ---
 
   it("human起点: stream.post → processStream → sendStreamReply(source='user')", async () => {
+    mockSendMessage.mockResolvedValueOnce({
+      text: "*Avatar says in Roblox chat:* \"やあ Sito！\"",
+      displayText: "やあ Sito！",
+      toolCalls: [],
+    })
+
     fire("stream.post", {
       type: "stream.post",
       actor: "human",
@@ -152,12 +162,18 @@ describe("S2: モード可達性", () => {
     expect(replyCall).toBeDefined()
     expect(replyCall![0].source).toBe("user")
     expect(replyCall![0].correlationId).toBe("user-test-123")
+    expect(replyCall![0].text).toBe("やあ Sito！")
   })
 
   // --- ai起点: Pulse ---
 
   it("ai起点: Pulse応答 → sendStreamReply(source='pulse')", async () => {
     expect(cronCallback).toBeDefined()
+    mockSendMessage.mockResolvedValueOnce({
+      text: "Pulse内部応答",
+      displayText: "Pulse表示文",
+      toolCalls: [],
+    })
 
     cronCallback()
     await flushQueue()
@@ -178,12 +194,18 @@ describe("S2: モード可達性", () => {
     )
     expect(humanPulse).toBeDefined()
     expect(aiPulse).toBeDefined()
+    expect(aiPulse![0].text).toBe("Pulse表示文")
   })
 
   // --- ai起点: 観測 ---
 
   it("ai起点: 観測応答 → sendStreamReply(source='observation') + sendObservationEvent", async () => {
     expect(observationHandler).toBeDefined()
+    mockSendMessage.mockResolvedValueOnce({
+      text: "観測内部応答",
+      displayText: "観測表示文",
+      toolCalls: [],
+    })
 
     observationHandler({
       type: "player_chat",
@@ -196,9 +218,13 @@ describe("S2: モード可達性", () => {
 
     // sendStreamReplyがsource="observation"で呼ばれる
     const obsReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).source === "observation",
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "ai"
+      },
     )
     expect(obsReply).toBeDefined()
+    expect(obsReply![0].text).toBe("観測表示文")
   })
 
   // --- correlationId形式の区別 ---
@@ -254,7 +280,11 @@ describe("S2: モード可達性", () => {
   // --- Pulse PULSE_OK抑制 ---
 
   it("Pulse PULSE_OK抑制: 応答がPULSE_OK接頭辞ならonReplyが呼ばれない", async () => {
-    mockSendMessage.mockResolvedValueOnce({ text: "PULSE_OK: 異常なし", toolCalls: [] })
+    mockSendMessage.mockResolvedValueOnce({
+      text: "PULSE_OK: 異常なし",
+      displayText: "PULSE_OK: 異常なし",
+      toolCalls: [],
+    })
 
     cronCallback()
     await flushQueue()

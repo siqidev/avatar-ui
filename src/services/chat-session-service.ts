@@ -54,10 +54,33 @@ export type ToolCallInfo = {
   result: string
 }
 
-// sendMessage()の戻り値（テキスト + ツール呼び出し情報）
+// sendMessage()の戻り値（元テキスト + UI表示テキスト + ツール呼び出し情報）
 export type SendMessageResult = {
   text: string
+  displayText: string
   toolCalls: ToolCallInfo[]
+}
+
+export function resolveDisplayText(
+  text: string,
+  toolCalls: ToolCallInfo[],
+): string {
+  const sayTexts = toolCalls.flatMap(extractAvatarSayTexts)
+  return sayTexts.length > 0 ? sayTexts.join("\n") : text
+}
+
+function extractAvatarSayTexts(call: ToolCallInfo): string[] {
+  if (call.name !== "roblox_act") return []
+
+  const validation = robloxActArgsSchema.safeParse(call.args)
+  if (!validation.success || validation.data.channel !== "avatar") {
+    return []
+  }
+
+  return validation.data.ops.flatMap((op) => {
+    if (op.op !== "say") return []
+    return typeof op.text === "string" ? [op.text] : []
+  })
 }
 
 // チェーン断裂エラーかどうか判定する（400/404 = レスポンスID無効/期限切れ）
@@ -221,8 +244,11 @@ export async function sendMessage(
     state.participant.lastResponseId = response.id
   }
 
+  const text = response.output_text ?? t("noResponse")
+
   return {
-    text: response.output_text ?? t("noResponse"),
+    text,
+    displayText: resolveDisplayText(text, allToolCalls),
     toolCalls: allToolCalls,
   }
 }
