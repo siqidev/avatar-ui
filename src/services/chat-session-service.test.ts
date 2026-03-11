@@ -5,12 +5,12 @@ import {
 } from "./chat-session-service.js"
 
 describe("resolveDisplayText", () => {
-  it("roblox_act avatar sayがあれば発話テキストを返す", () => {
+  it("roblox_action npc sayがあれば発話テキストを返す", () => {
     const toolCalls: ToolCallInfo[] = [
       {
-        name: "roblox_act",
+        name: "roblox_action",
         args: {
-          channel: "avatar",
+          category: "npc",
           ops: [
             { op: "say", text: "やあ Sito！" },
             { op: "emote", name: "wave" },
@@ -24,13 +24,13 @@ describe("resolveDisplayText", () => {
     expect(resolveDisplayText("メタ記述", toolCalls)).toBe("やあ Sito！")
   })
 
-  it("avatar sayがなければ元テキストを返す", () => {
+  it("npc sayがなければ元テキストを返す", () => {
     const toolCalls: ToolCallInfo[] = [
       {
-        name: "roblox_act",
+        name: "roblox_action",
         args: {
-          channel: "world",
-          ops: [{ op: "part.create", name: "Cube" }],
+          category: "part",
+          ops: [{ op: "create", name: "Cube" }],
           reason: "オブジェクトを置くため",
         },
         result: "{\"status\":\"ok\"}",
@@ -40,12 +40,12 @@ describe("resolveDisplayText", () => {
     expect(resolveDisplayText("従来テキスト", toolCalls)).toBe("従来テキスト")
   })
 
-  it("複数のavatar sayがあれば改行結合する", () => {
+  it("複数のnpc sayがあれば改行結合する", () => {
     const toolCalls: ToolCallInfo[] = [
       {
-        name: "roblox_act",
+        name: "roblox_action",
         args: {
-          channel: "avatar",
+          category: "npc",
           ops: [
             { op: "say", text: "こんにちは" },
             { op: "say", text: "またね" },
@@ -55,9 +55,9 @@ describe("resolveDisplayText", () => {
         result: "{\"status\":\"ok\"}",
       },
       {
-        name: "roblox_act",
+        name: "roblox_action",
         args: {
-          channel: "avatar",
+          category: "npc",
           ops: [{ op: "say", text: "気をつけて" }],
           reason: "見送るため",
         },

@@ -9,24 +9,18 @@
 2. docs/PLAN.md — 計画・受入シナリオ・実装バックログ（バージョン固有）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-02）
+## 現在の状況（2026-03-11）
 
 ### ブランチ戦略
-- **main** = v0.2系の公開最新（v0.2コード + v0.3設計ドキュメント）
-- **dev** = v0.3新規開発（現在のブランチ）。TypeScript実装はここで行う
-- v0.3.0ブランチ = 旧AG-UI/ADK構成の遺物。無視してよい
-
-### v0.3方針
-- v0.2のコードは捨てる（参照用に凍結。mainに残存）
-- TypeScriptで新規実装（グリーンフィールド）
-- OpenClawを参照アーキテクチャとする（踏襲粒度は段階的に精査）
-- 設計の主語: v0.2「タスク実行」→ v0.3「場の継続＋往復維持」
+- **main**: リリース済みの安定版（v0.3.0タグ）
+- **dev**: 開発ブランチ。mainから分岐し、安定したらmainにマージ
+- ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-Console UI全ペイン実装済み + Roblox双方向接続動作中 + 設定管理一元化済み + ⑥健全性管理実装済み（検知+通知+凍結+修復ポリシー宣言） + セッション永続化実装済み（場状態・会話履歴・チェーンID永続化+チェーン断裂自動回復+1世代バックアップ+.prevフォールバック） + 受入シナリオS1-S5テスト実装済み + Rojo導入済み（Studio自動同期+Modules独立化） + テーマ切り替え+Electronカスタムメニュー+i18n実装済み + Pulse内容注入修正済み。テスト243件。docs/PLAN.md必須バックログ全完了。詳細はdocs/PLAN.mdの開発進捗とdocs/architecture.mdを参照。
+v0.3.0ベース + 良質な改善8件をcherry-pick済み。Roblox媒体の不変条件12項を確定（avatar-ui-project.mdに記録）。12条件に基づくRoblox媒体設計の刷新を開始する段階。詳細はdocs/PLAN.mdの開発進捗とdocs/architecture.mdを参照。
 
 ### 次のアクション
-docs/PLAN.md「実装バックログ」の必須タスクを参照。
+Roblox媒体の不変条件12項に基づく最小実装設計の導出と段階的実装。docs/PLAN.md参照。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 

@@ -70,14 +70,12 @@ export function resolveDisplayText(
 }
 
 function extractAvatarSayTexts(call: ToolCallInfo): string[] {
-  if (call.name !== "roblox_act") return []
+  if (call.name !== "roblox_action") return []
 
-  const validation = robloxActArgsSchema.safeParse(call.args)
-  if (!validation.success || validation.data.channel !== "avatar") {
-    return []
-  }
+  const args = call.args
+  if (args.category !== "npc" || !Array.isArray(args.ops)) return []
 
-  return validation.data.ops.flatMap((op) => {
+  return (args.ops as Record<string, unknown>[]).flatMap((op) => {
     if (op.op !== "say") return []
     return typeof op.text === "string" ? [op.text] : []
   })
