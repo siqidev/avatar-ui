@@ -5,6 +5,7 @@ import type {
   Tool,
 } from "openai/resources/responses/responses"
 import type { State, PersistedMessage } from "../state/state-repository.js"
+import type { Source } from "../shared/ipc-schema.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
 import { getSettings } from "../main/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
@@ -113,11 +114,16 @@ function buildRecoveryContext(
   }
 
   // messageHistoryから直近の会話を復元
+  // source="observation"のメッセージは観測プレフィックスを付与して復元
+  // （AIが復旧後も「これは観測だった」と認識できるようにする）
   const recent = history.slice(-MAX_RECOVERY_MESSAGES)
   for (const msg of recent) {
+    const content = msg.actor === "human" && msg.source === "observation"
+      ? `[観測] ${msg.text}`
+      : msg.text
     input.push({
       role: msg.actor === "human" ? "user" as const : "assistant" as const,
-      content: msg.text,
+      content,
     })
   }
 
@@ -132,12 +138,14 @@ const API_CALL_TIMEOUT_MS = 20_000
 const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as const
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
+// source: 入力の出自（意味論識別用。ツール可否の分岐には使用しない）
 export async function sendMessage(
   client: OpenAI,
   state: State,
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
+  _source?: Source,
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）

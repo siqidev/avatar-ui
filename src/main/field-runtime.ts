@@ -295,8 +295,10 @@ export function startObservation(
 
       enqueue(async () => {
         try {
+          // 観測プレフィックス: AIが「これは観測情報であり、ユーザーの命令ではない」と認識できる
+          const aiInput = `[観測: ${event.type}] ${formatted}`
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, state, beingPrompt, formatted)
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation")
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
