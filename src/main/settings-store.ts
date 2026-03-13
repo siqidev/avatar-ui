@@ -11,6 +11,7 @@ export type Settings = {
   theme: Theme
   model: string
   locale: Locale
+  resonance: boolean
 }
 
 // モデルカタログ（正本）: メニュー・バリデーション・設定復元すべてここを参照
@@ -34,9 +35,9 @@ function isValidLocale(v: unknown): v is Locale {
   return v === "ja" || v === "en"
 }
 
-export function loadSettings(dataDir: string, defaultModel: string): Settings {
+export function loadSettings(dataDir: string, defaultModel: string, defaultResonance = false): Settings {
   settingsPath = join(dataDir, "settings.json")
-  const defaults: Settings = { theme: "modern", model: defaultModel, locale: "ja" }
+  const defaults: Settings = { theme: "modern", model: defaultModel, locale: "ja", resonance: defaultResonance }
 
   try {
     const raw = readFileSync(settingsPath, "utf-8")
@@ -45,6 +46,7 @@ export function loadSettings(dataDir: string, defaultModel: string): Settings {
       theme: parsed.theme === "classic" ? "classic" : "modern",
       model: isValidModel(parsed.model) ? parsed.model : defaultModel,
       locale: isValidLocale(parsed.locale) ? parsed.locale : "ja",
+      resonance: typeof parsed.resonance === "boolean" ? parsed.resonance : defaultResonance,
     }
   } catch (err: unknown) {
     // ファイル未存在は正常（初回起動）、それ以外はfail-fast

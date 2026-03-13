@@ -3,6 +3,7 @@ import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled } from "../config.js"
+import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage } from "../state/state-repository.js"
 import type { State, PersistedMessage } from "../state/state-repository.js"
@@ -281,6 +282,12 @@ export function startObservation(
       // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
       if (!shouldForward) {
         log.info(`[OBSERVATION] AI転送スキップ: ${event.type} ${formatted.substring(0, 80)}`)
+        return
+      }
+
+      // 共振ゲート: off時は注意+表出を停止（知覚は常時ON）
+      if (!getSettings().resonance) {
+        log.info(`[OBSERVATION] 共振OFF — AI転送スキップ: ${event.type}`)
         return
       }
 

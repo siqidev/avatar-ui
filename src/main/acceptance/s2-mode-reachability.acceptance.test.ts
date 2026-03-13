@@ -94,6 +94,10 @@ describe("S2: モード可達性", () => {
       stateFile: path.join(tempDir, "state.json"),
     })
 
+    // settings-store初期化（共振=on: 既存テストはAI転送を前提とする）
+    const settingsStore = await import("../settings-store.js")
+    settingsStore.loadSettings(tempDir, "grok-4-1-fast-non-reasoning", true)
+
     const integrity = await import("../integrity-manager.js")
     integrity._resetForTest()
 
@@ -309,6 +313,34 @@ describe("S2: モード可達性", () => {
       (c) => (c[0] as Record<string, unknown>).source === "pulse",
     )
     expect(pulseReply).toBeUndefined()
+  })
+
+  // --- 共振ゲート ---
+
+  it("共振OFF: 観測はMonitorに表示されるがAIには転送されない", async () => {
+    // 共振をoffに切替
+    const settingsStore = await import("../settings-store.js")
+    settingsStore.updateSettings({ resonance: false })
+
+    observationHandler({
+      type: "player_chat",
+      payload: { player: "Alice", message: "hello" },
+    })
+    await flushQueue()
+
+    // Monitorには表示（知覚は常時ON）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "player_chat" }),
+    )
+
+    // AIには転送しない（注意+表出は停止）
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    // Streamにも出ない
+    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+
+    // 元に戻す
+    settingsStore.updateSettings({ resonance: true })
   })
 
   // --- roblox_logはAI未送信 ---

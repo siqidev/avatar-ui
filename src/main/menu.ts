@@ -65,6 +65,14 @@ export function buildAppMenu(getMainWindow: () => BrowserWindow | null): void {
             },
           ],
         },
+        // 共振（観測→AI転送→応答生成）
+        { type: "separator" },
+        {
+          label: "Resonance",
+          type: "checkbox",
+          checked: settings.resonance,
+          click: (menuItem) => onResonanceChange(menuItem.checked),
+        },
         { type: "separator" },
         { role: "hide" },
         { role: "hideOthers" },
@@ -121,6 +129,11 @@ function onThemeChange(theme: Theme, getMainWindow: () => BrowserWindow | null):
     win.webContents.send("settings.theme", theme)
   }
   log.info(`[MENU] テーマ変更: ${theme}`)
+}
+
+function onResonanceChange(enabled: boolean): void {
+  updateSettings({ resonance: enabled })
+  log.info(`[MENU] 共振モード変更: ${enabled ? "on" : "off"}`)
 }
 
 function onModelChange(model: string): void {
