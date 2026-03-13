@@ -342,7 +342,6 @@ go_to_player/follow_player実行中のplayer_proximityイベントはAI転送を
 - **抑制解除**: field-runtime.tsが以下のイベントを検知時に`endSuppression()`
   - `command_ack`（op: go_to_player / follow_player）
   - `npc_follow_event`（state: stopped / lost）
-- **タイムアウト**: 30秒（ACK遅延・喪失時の安全弁。cloudflareトンネル経由で4分以上のACK遅延実績あり）
 - **スコープ**: player_proximityのみ。player_chat等の他の観測は抑制しない
 
 ### 通信契約
@@ -360,7 +359,7 @@ go_to_player/follow_player実行中のplayer_proximityイベントはAI転送を
 | observation-server.ts | 観測受信HTTPサーバー（Express） |
 | observation-formatter.ts | ACK+観測イベントの表示文字列整形 |
 | observation-forwarding-policy.ts | AI転送ポリシー（shouldForwardToAI判定） |
-| motion-state.ts | 移動中proximity抑制（インメモリ状態+30秒タイムアウト） |
+| motion-state.ts | 移動中proximity抑制（インメモリ状態） |
 | roblox-messaging.ts | Open Cloud Messaging API呼出（x-api-key認証、20秒タイムアウト） |
 
 ### Luauモジュール構成（16ファイル）

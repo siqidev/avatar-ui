@@ -12,21 +12,11 @@
 
 import * as log from "../logger.js"
 
-// タイムアウト上限（ACK遅延時のフォールバック。ログ実績: ACK 4分超遅延あり）
-const SUPPRESSION_TIMEOUT_MS = 30_000
-
 let active = false
-let timeoutId: ReturnType<typeof setTimeout> | null = null
 
 /** npc_motion投影成功時に呼ぶ。proximity AI転送を抑制開始 */
 export function startSuppression(): void {
   active = true
-  if (timeoutId) clearTimeout(timeoutId)
-  timeoutId = setTimeout(() => {
-    log.info("[MOTION] proximity抑制タイムアウト（30秒）— 自動解除")
-    active = false
-    timeoutId = null
-  }, SUPPRESSION_TIMEOUT_MS)
   log.info("[MOTION] proximity抑制開始")
 }
 
@@ -34,10 +24,6 @@ export function startSuppression(): void {
 export function endSuppression(): void {
   if (!active) return
   active = false
-  if (timeoutId) {
-    clearTimeout(timeoutId)
-    timeoutId = null
-  }
   log.info("[MOTION] proximity抑制解除")
 }
 
@@ -49,8 +35,4 @@ export function isProximitySuppressed(): boolean {
 /** テスト用リセット */
 export function _resetForTest(): void {
   active = false
-  if (timeoutId) {
-    clearTimeout(timeoutId)
-    timeoutId = null
-  }
 }
