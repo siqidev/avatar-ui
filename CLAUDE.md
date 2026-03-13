@@ -9,18 +9,18 @@
 2. docs/PLAN.md — 計画・受入シナリオ・実装バックログ（バージョン固有）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-11）
+## 現在の状況（2026-03-13）
 
 ### ブランチ戦略
 - **main**: リリース済みの安定版（v0.3.0タグ）
-- **dev**: 開発ブランチ。mainから分岐し、安定したらmainにマージ
+- **dev**: v0.3.1開発ブランチ。mainから分岐し、安定したらmainにマージ
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.0ベース + 良質な改善8件をcherry-pick済み。Roblox媒体の不変条件12項を確定（avatar-ui-project.mdに記録）。12条件に基づくRoblox媒体設計の刷新を開始する段階。詳細はdocs/PLAN.mdの開発進捗とdocs/architecture.mdを参照。
+v0.3.0リリース済み。v0.3.1をdevで構想・設計・実装中。主な進捗: 観測パイプライン再設計（完了）、共振機構の場レベル設計（完了、RESONANCE_MODE実装は未着手）。詳細はdocs/PLAN.mdの実装バックログを参照。
 
 ### 次のアクション
-Roblox媒体の不変条件12項に基づく最小実装設計の導出と段階的実装。docs/PLAN.md参照。
+docs/PLAN.mdの拡張バックログから優先度を判断し、v0.3.1に含める項目を実装。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 

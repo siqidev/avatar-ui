@@ -1,6 +1,6 @@
-# PLAN v0.3
+# PLAN v0.3.x
 
-> 本文書はv0.3の計画専用。実装完了した項目は正本（PROJECT.md / architecture.md）に反映し、本文書から削除する。
+> 本文書はv0.3.x系列の計画。実装完了した項目は正本（PROJECT.md / architecture.md）に反映し、本文書から削除する。
 
 ## v0.2 現状サマリ
 
