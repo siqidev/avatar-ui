@@ -364,4 +364,57 @@ describe("S2: モード可達性", () => {
     // AIには送らない
     expect(mockSendMessage).not.toHaveBeenCalled()
   })
+
+  // --- 移動中proximity抑制 ---
+
+  it("移動中proximity抑制: npc_motion中のplayer_proximityはAIに転送されない", async () => {
+    // motion-stateを直接操作してnpc_motion実行中を模擬
+    const motionState = await import("../../roblox/motion-state.js")
+    motionState.startSuppression()
+
+    observationHandler({
+      type: "player_proximity",
+      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+    })
+    await flushQueue()
+
+    // Monitorには表示（知覚は常時ON）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "player_proximity" }),
+    )
+
+    // AIには転送しない（自己起因）
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    // クリーンアップ
+    motionState.endSuppression()
+  })
+
+  it("移動完了後のproximityは通常通りAIに転送される", async () => {
+    const motionState = await import("../../roblox/motion-state.js")
+    motionState.startSuppression()
+
+    // go_to_player ACK到着 → 抑制解除
+    observationHandler({
+      type: "command_ack",
+      payload: { intent_id: "test-intent", op_index: 0, op: "go_to_player", success: true, schema_version: "3", category: "", data: {} },
+    })
+    await flushQueue()
+
+    // 抑制解除後のproximity
+    mockSendMessage.mockResolvedValueOnce({
+      text: "挨拶",
+      displayText: "挨拶",
+      toolCalls: [],
+    })
+
+    observationHandler({
+      type: "player_proximity",
+      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+    })
+    await flushQueue()
+
+    // AIに転送される（新規の観測）
+    expect(mockSendMessage).toHaveBeenCalledOnce()
+  })
 })

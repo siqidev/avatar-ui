@@ -47,6 +47,8 @@ src/
     intent-log.ts             投影ログ（roblox-intents.jsonl）
     observation-server.ts     観測受信HTTPサーバー
     observation-formatter.ts  観測イベント→表示文字列整形
+    observation-forwarding-policy.ts  AI転送ポリシー（shouldForwardToAI判定）
+    motion-state.ts           移動中proximity抑制（startSuppression/endSuppression/isProximitySuppressed）
     roblox-messaging.ts       Open Cloud Messaging API呼出
   tools/
     filesystem-tool.ts        LLMツール: fs_list/fs_read/fs_write/fs_mutate
@@ -319,7 +321,9 @@ AIへの転送は異常対応に必要な信号のみに限定する（フィー
 
 | イベント | 条件 | AI転送（共振ON時） | Monitor表示 |
 |---------|------|-------------------|------------|
-| `player_chat` / `player_proximity` | 常時 | する | する |
+| `player_chat` | 常時 | する | する |
+| `player_proximity` | 移動中でない | する | する |
+| `player_proximity` | npc_motion実行中 | しない（自己起因抑制） | する |
 | `command_ack` | `success===true` | しない | する |
 | `command_ack` | 失敗 | する | する |
 | `npc_follow_event` | `started` / `stopped` | しない | する |
@@ -329,6 +333,17 @@ AIへの転送は異常対応に必要な信号のみに限定する（フィー
 | `roblox_log` | 常時 | しない | する |
 
 共振モードがOFFの場合、AI転送列はすべて「しない」になる（知覚は常時ON、注意+表出のみ停止）。
+
+#### 自己起因proximity抑制（motion-state.ts）
+
+go_to_player/follow_player実行中のplayer_proximityイベントはAI転送をスキップする（自分の移動で発生した接近を「新規プレイヤー接近」と誤認してAIが二重応答するのを防止）。
+
+- **抑制開始**: chat-session-service.tsがnpc_motionカテゴリのintent投影成功時に`startSuppression()`
+- **抑制解除**: field-runtime.tsが以下のイベントを検知時に`endSuppression()`
+  - `command_ack`（op: go_to_player / follow_player）
+  - `npc_follow_event`（state: stopped / lost）
+- **タイムアウト**: 30秒（ACK遅延・喪失時の安全弁。cloudflareトンネル経由で4分以上のACK遅延実績あり）
+- **スコープ**: player_proximityのみ。player_chat等の他の観測は抑制しない
 
 ### 通信契約
 
@@ -345,6 +360,7 @@ AIへの転送は異常対応に必要な信号のみに限定する（フィー
 | observation-server.ts | 観測受信HTTPサーバー（Express） |
 | observation-formatter.ts | ACK+観測イベントの表示文字列整形 |
 | observation-forwarding-policy.ts | AI転送ポリシー（shouldForwardToAI判定） |
+| motion-state.ts | 移動中proximity抑制（インメモリ状態+30秒タイムアウト） |
 | roblox-messaging.ts | Open Cloud Messaging API呼出（x-api-key認証、20秒タイムアウト） |
 
 ### Luauモジュール構成（16ファイル）
@@ -673,7 +689,7 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze" }>
 | ファイル | シナリオ | 検証対象 | テスト数 |
 |---------|---------|---------|---------|
 | s1-field-contract | S1: 場契約整合性 | ipc-handlers + field-fsm + integrity-manager | 11 |
-| s2-mode-reachability | S2: モード可達性 | 3入力経路の区別と投影 | 7 |
+| s2-mode-reachability | S2: モード可達性 | 3入力経路の区別と投影 + 移動中proximity抑制 | 9 |
 | s3-reciprocity-linkage | S3: 往復連接性 | enqueue直列化 + エラー耐性 | 5 |
 | s4-coexistence-continuity | S4: 共存連続性 | state-repository + field-runtime の永続化・復元 | 6 |
 | s5-lifecycle | S5: ライフサイクル完走 | 全遷移の統合テスト | 5 |

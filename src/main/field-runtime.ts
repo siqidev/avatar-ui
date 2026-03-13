@@ -13,6 +13,7 @@ import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
 import { shouldForwardToAI } from "../roblox/observation-forwarding-policy.js"
+import { endSuppression as endMotionSuppression, isProximitySuppressed } from "../roblox/motion-state.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
@@ -279,9 +280,29 @@ export function startObservation(
       // Monitorに全観測を表示（ペインの役割: Roblox世界の全入出力）
       onEvent(event, formatted, correlationId)
 
+      // 移動完了検知: 自己起因proximity抑制を解除
+      // ACK/stoppedが来たら、以降のproximityは「新規の観測」として扱う
+      if (event.type === "command_ack") {
+        const p = event.payload as Record<string, unknown>
+        if (p.op === "go_to_player" || p.op === "follow_player") {
+          endMotionSuppression()
+        }
+      } else if (event.type === "npc_follow_event") {
+        const p = event.payload as Record<string, unknown>
+        if (p.state === "stopped" || p.state === "lost") {
+          endMotionSuppression()
+        }
+      }
+
       // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
       if (!shouldForward) {
         log.info(`[OBSERVATION] AI転送スキップ: ${event.type} ${formatted.substring(0, 80)}`)
+        return
+      }
+
+      // 自己起因proximity抑制: npc_motion実行中のplayer_proximityをスキップ
+      if (event.type === "player_proximity" && isProximitySuppressed()) {
+        log.info(`[OBSERVATION] 移動中proximity抑制: ${formatted.substring(0, 80)}`)
         return
       }
 

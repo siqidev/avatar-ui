@@ -45,6 +45,7 @@ import { appendMemory, readRecentMemories } from "../memory/memory-log-repositor
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
 import { appendIntent } from "../roblox/intent-log.js"
 import { projectIntent } from "../roblox/projector.js"
+import { startSuppression as startMotionSuppression } from "../roblox/motion-state.js"
 import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
@@ -413,6 +414,12 @@ async function handleRobloxAction(
     throw new Error(
       `Roblox投影失敗（意図は記録済み: ${intent.id}）`,
     )
+  }
+
+  // ③ npc_motion投影成功: 自己起因のproximityを抑制開始
+  // go_to_player/follow_playerの移動結果としてproximity enterが発火するのを防ぐ
+  if (category === "npc_motion") {
+    startMotionSuppression()
   }
 
   return JSON.stringify({ status: t("intentProjected"), id: intent.id, category, ops_count: ops.length })
