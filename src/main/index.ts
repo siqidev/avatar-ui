@@ -65,8 +65,8 @@ app.whenReady().then(() => {
   const config = getConfig()
   ensureDirectories(config)
 
-  // 設定ストア初期化（テーマ・モデル・言語・共振モード永続化）
-  loadSettings(config.dataDir, config.model, config.resonanceMode)
+  // 設定ストア初期化（ユーザー嗜好: テーマ・モデル・言語・共振モード）
+  loadSettings(config.dataDir)
   setLocale(getSettings().locale)
 
   // Aboutパネル（version: "" でElectronビルド番号の括弧表示を抑制）

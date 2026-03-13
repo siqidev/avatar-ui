@@ -96,7 +96,8 @@ describe("S2: モード可達性", () => {
 
     // settings-store初期化（共振=on: 既存テストはAI転送を前提とする）
     const settingsStore = await import("../settings-store.js")
-    settingsStore.loadSettings(tempDir, "grok-4-1-fast-non-reasoning", true)
+    settingsStore.loadSettings(tempDir)
+    settingsStore.updateSettings({ resonance: true })
 
     const integrity = await import("../integrity-manager.js")
     integrity._resetForTest()

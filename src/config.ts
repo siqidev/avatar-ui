@@ -22,9 +22,6 @@ const envSchema = z.object({
   AVATAR_NAME: z.string().min(1).default("Avatar"),
   USER_NAME: z.string().min(1).default("User"),
 
-  // --- モデル ---
-  GROK_MODEL: z.string().min(1).default("grok-4-1-fast-non-reasoning"),
-
   // --- パス ---
   AVATAR_SPACE: z.string().min(1).default(join(homedir(), "Avatar", "space")),
 
@@ -59,15 +56,6 @@ const envSchema = z.object({
       return names
     }),
 
-  // --- 共振 ---
-  // 共振モード（on/off）。観測→AI転送→応答生成の制御
-  // on: 観測をAIに転送し、AIが自発的に応答する
-  // off: 観測はMonitorに表示・履歴記録するが、AIには転送しない
-  RESONANCE_MODE: z
-    .string()
-    .default("off")
-    .transform((v) => v.toLowerCase() === "on"),
-
   // --- 開発者向け ---
   DEV_MODE: z
     .string()
@@ -91,8 +79,7 @@ export type AppConfig = {
   avatarName: string
   userName: string
 
-  // モデル・API
-  model: string
+  // API
   apiBaseUrl: string
   managementApiBaseUrl: string
 
@@ -121,9 +108,6 @@ export type AppConfig = {
 
   // ツール承認
   toolAutoApprove: string[]
-
-  // 共振（.envの初期値。ランタイムはsettings-storeが正本）
-  resonanceMode: boolean
 
   // 開発者向け
   devMode: boolean
@@ -167,8 +151,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     avatarName: env.AVATAR_NAME,
     userName: env.USER_NAME,
 
-    // モデル・API（URL定数はコード管理）
-    model: env.GROK_MODEL,
+    // API（URL定数はコード管理）
     apiBaseUrl: "https://api.x.ai/v1",
     managementApiBaseUrl: "https://management-api.x.ai/v1",
 
@@ -197,9 +180,6 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // ツール承認
     toolAutoApprove: env.TOOL_AUTO_APPROVE,
-
-    // 共振
-    resonanceMode: env.RESONANCE_MODE,
 
     // 開発者向け
     devMode: env.DEV_MODE,

@@ -27,7 +27,6 @@ describe("types/result", () => {
 describe("config", () => {
   it("buildConfigがデフォルト値で正しい定数を持つ", () => {
     const config = buildConfig(BASE_ENV)
-    expect(config.model).toBe("grok-4-1-fast-non-reasoning")
     expect(config.beingFile).toBe("BEING.md")
     expect(config.dataDir).toBe("data")
     expect(config.avatarName).toBe("Avatar")
