@@ -683,7 +683,7 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze" }>
 
 ## 受入テスト（S1-S5）
 
-`src/main/acceptance/` に5シナリオ34テスト。モジュール間の統合動作を検証する。
+`src/main/acceptance/` に5シナリオ36テスト。モジュール間の統合動作を検証する。
 
 | ファイル | シナリオ | 検証対象 | テスト数 |
 |---------|---------|---------|---------|
