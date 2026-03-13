@@ -199,7 +199,7 @@ describe("S2: モード可達性", () => {
 
   // --- ai起点: 観測 ---
 
-  it("ai起点: 観測応答 → sendStreamReply(source='observation') + sendObservationEvent", async () => {
+  it("ai起点: 観測 → Monitor表示 + AI応答はStreamへ（観測入力はStream非表示）", async () => {
     expect(observationHandler).toBeDefined()
     mockSendMessage.mockResolvedValueOnce({
       text: "観測内部応答",
@@ -213,18 +213,27 @@ describe("S2: モード可達性", () => {
     })
     await flushQueue()
 
-    // sendObservationEventが呼ばれる
+    // Monitorに観測イベント表示
     expect(mockProjection.sendObservationEvent).toHaveBeenCalled()
 
-    // sendStreamReplyがsource="observation"で呼ばれる
-    const obsReply = mockProjection.sendStreamReply.mock.calls.find(
+    // 観測入力はStreamに出ない（Monitorの役割）
+    const humanObs = mockProjection.sendStreamReply.mock.calls.find(
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "human"
+      },
+    )
+    expect(humanObs).toBeUndefined()
+
+    // AI応答はStreamに出る（対話の役割）
+    const aiObs = mockProjection.sendStreamReply.mock.calls.find(
       (c) => {
         const o = c[0] as Record<string, unknown>
         return o.source === "observation" && o.actor === "ai"
       },
     )
-    expect(obsReply).toBeDefined()
-    expect(obsReply![0].text).toBe("観測表示文")
+    expect(aiObs).toBeDefined()
+    expect(aiObs![0].text).toBe("観測表示文")
   })
 
   // --- correlationId形式の区別 ---
@@ -240,7 +249,7 @@ describe("S2: モード可達性", () => {
     expect(pulseReply).toBeDefined()
     expect(pulseReply![0].correlationId).toMatch(/^pulse-\d+$/)
 
-    // 観測
+    // 観測（AI応答のcorrelationIdで確認）
     vi.mocked(mockSendMessage).mockClear()
     mockProjection.sendStreamReply.mockClear()
 
@@ -251,7 +260,10 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     const obsReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).source === "observation",
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "ai"
+      },
     )
     expect(obsReply).toBeDefined()
     expect(obsReply![0].correlationId).toMatch(/^obs-\d+$/)
@@ -301,15 +313,20 @@ describe("S2: モード可達性", () => {
 
   // --- roblox_logはAI未送信 ---
 
-  it("roblox_log: devMode=off時はRenderer非送信・AI非送信", async () => {
+  it("roblox_log: Monitorに表示・Streamには非表示・AI非送信", async () => {
     observationHandler({
       type: "roblox_log",
       payload: { message: "Server started" },
     })
     await flushQueue()
 
-    // devMode=offではRenderer表示もスキップ
-    expect(mockProjection.sendObservationEvent).not.toHaveBeenCalled()
+    // Monitorに表示（Roblox世界のログ）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "roblox_log" }),
+    )
+
+    // Streamには送らない（対話ではない）
+    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
 
     // AIには送らない
     expect(mockSendMessage).not.toHaveBeenCalled()

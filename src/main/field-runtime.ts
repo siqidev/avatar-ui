@@ -268,19 +268,15 @@ export function startObservation(
       const formatted = formatObservation(event, config.robloxOwnerDisplayName)
       const shouldForward = shouldForwardToAI(event)
 
-      // roblox_log: ログ出力、devMode時のみRenderer表示
+      // roblox_log: Monitorに表示、AIには送らない
       if (event.type === "roblox_log") {
         log.info(`[ROBLOX] ${formatted}`)
-        if (config.devMode) {
-          onEvent(event, formatted, correlationId)
-        }
+        onEvent(event, formatted, correlationId)
         return
       }
 
-      // Renderer表示: devMode=全表示、通常=重要イベントのみ
-      if (config.devMode || shouldForward) {
-        onEvent(event, formatted, correlationId)
-      }
+      // Monitorに全観測を表示（ペインの役割: Roblox世界の全入出力）
+      onEvent(event, formatted, correlationId)
 
       // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
       if (!shouldForward) {
