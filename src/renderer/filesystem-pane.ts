@@ -11,7 +11,7 @@ export type FilesystemPaneOptions = {
 
 const treeEl = document.getElementById("fs-tree") as HTMLDivElement
 const errorEl = document.getElementById("fs-error") as HTMLDivElement
-const pathDisplay = document.querySelector(".fs-path-display") as HTMLSpanElement
+const spaceLabel = document.getElementById("space-label") as HTMLSpanElement
 const refreshBtn = document.getElementById("fs-refresh") as HTMLButtonElement
 const newFileBtn = document.getElementById("fs-new-file") as HTMLButtonElement
 const newFolderBtn = document.getElementById("fs-new-folder") as HTMLButtonElement
@@ -102,15 +102,8 @@ function createEntryEl(entry: FsEntry, parentPath: string): HTMLDivElement {
   name.className = "fs-name"
   name.textContent = entry.name
 
-  const size = document.createElement("span")
-  size.className = "fs-size"
-  if (entry.type === "file") {
-    size.textContent = formatSize(entry.size)
-  }
-
   row.appendChild(icon)
   row.appendChild(name)
-  row.appendChild(size)
   el.appendChild(row)
 
   // クリックハンドラ
@@ -168,7 +161,6 @@ async function handleEntryClick(entry: FsEntry, entryPath: string, el: HTMLDivEl
     treeEl.querySelectorAll(".fs-entry-row.selected").forEach((r) => r.classList.remove("selected"))
     const targetRow = el.querySelector(".fs-entry-row")
     if (targetRow) targetRow.classList.add("selected")
-    pathDisplay.textContent = entryPath
     paneOptions.onFileOpen?.(entryPath)
   }
 }
@@ -274,11 +266,6 @@ function closeContextMenu(): void {
 
 // --- ユーティリティ ---
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}K`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}M`
-}
 
 // --- キーボードナビゲーション ---
 
@@ -437,7 +424,7 @@ export async function refreshTree(): Promise<void> {
 export async function initFilesystemPane(options?: FilesystemPaneOptions): Promise<void> {
   if (options) paneOptions = options
   const rootName = await window.fieldApi.fsRootName()
-  pathDisplay.textContent = rootName + "/"
+  spaceLabel.textContent = "/" + rootName
   refreshBtn.addEventListener("click", () => refreshTree())
 
   // ヘッダーボタン: ルートまたはフォーカス中ディレクトリに作成

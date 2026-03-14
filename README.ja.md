@@ -32,6 +32,8 @@ AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有
 ## 特徴
 
 - **Console UI** — 6ペインのElectronインターフェース（Avatar / Space / Canvas / Stream / Terminal / Roblox）
+- **アバターモーション** — アバターのピクセルアート表現（待機モーション＋瞬き＋リップシンク）
+- **共振モード** — アバターが周囲の変化を感知し、自発的に応答する
 - **自発行動（Pulse）** — 人間の入力を待たず、アバターが自発的に動く
 - **長期記憶（RAG）** — アバターは重要だと判断したことを自分で記憶する
 - **Avatar Space** — AIが読み書きできる専用ファイルシステム
@@ -93,13 +95,12 @@ npm run dev
 | `XAI_API_KEY` | Yes | — | xAI APIキー（Grok用） |
 | `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
 | `USER_NAME` | | `User` | ユーザーの表示名 |
-| `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | 使用モデル |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
 | `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
-| `LOG_VERBOSE` | | `false` | INFOログをstderrに出力 |
+| `DEV_MODE` | | `off` | 開発者モード（`on` = 詳細ログ + Roblox Monitor全表示） |
 
 ### オプション: 長期記憶（Collections API）
 
@@ -120,6 +121,19 @@ npm run dev
 | `ROBLOX_OWNER_DISPLAY_NAME` | オーナー表示名（観測フォーマット用） |
 | `ROBLOX_OBSERVATION_PORT` | 観測サーバーポート（デフォルト: `3000`） |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnelトークン（Electronが自動管理） |
+
+### オプション: Cloudflare Tunnel（Roblox観測用）
+
+Robloxは観測イベント（プレイヤーの接近、チャット、コマンド結果）をHTTPでローカルマシンに送信します。
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)を使って、ローカルの観測サーバーをインターネットに公開し、Robloxからアクセスできるようにします。
+
+1. `cloudflared`をインストール: `brew install cloudflared`（macOS）または[ダウンロード](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+2. [Cloudflare Zero Trustダッシュボード](https://one.dash.cloudflare.com/) → Networks → Tunnels → トンネルを作成
+3. トンネルの転送先を `http://localhost:3000`（または `ROBLOX_OBSERVATION_PORT` のポート）に設定
+4. トンネルトークンをコピーし、`.env` の `CLOUDFLARED_TOKEN` に設定
+5. トンネルURLを `roblox/modules/Config.luau` の `observationUrl` に設定
+
+AVATAR UIはElectronアプリと一緒に `cloudflared` を自動的に起動/停止します。別プロセスの管理は不要です。
 
 ## Robloxセットアップ
 
@@ -158,7 +172,26 @@ Studio: Pluginsタブ > Rojo > Connect。ファイル変更は自動同期され
 
 - 列幅はスプリッタードラッグで自由調整
 - ペインヘッダーのドラッグ&ドロップで位置交換
-- AUIメニュー: テーマ（Modern / Classic）、モデル（ランタイム切替）、言語（日本語 / English）
+- AUIメニュー: テーマ（Modern / Classic）、モデル（ランタイム切替）、共振（on/off）、言語（日本語 / English）
+
+## アバターカスタマイズ
+
+### アバターモーション
+
+`src/renderer/public/` にPNG画像を配置するとアバターモーションが有効になります:
+
+| ファイル | 役割 | 必須 |
+|---------|------|------|
+| `idle-00.png` | ベースフレーム（常時表示） | Yes |
+| `idle-01.png` ~ `idle-09.png` | アイドルフレーム（ランダム切替、800-2000ms間隔） | 任意 |
+| `blink.png` | 瞬きフレーム（15%確率、150ms表示） | 任意 |
+| `talk.png` | リップシンクフレーム（AI応答中に表示） | Yes |
+
+起動時に連番ファイルを順番にプローブし（`idle-01`, `idle-02`, ...）、最初の欠番で停止します。`idle-00.png` と `talk.png` だけでも、リップシンク付きの静止画として動作します。
+
+### 共振モード
+
+有効時（AUIメニュー > 共振）、アバターは周囲の変化（例: Robloxでプレイヤーが近づいた）を感知し、人間の明示的な入力なしに自発的に応答します。無効時は直接メッセージにのみ応答します。
 
 ## アーキテクチャ
 

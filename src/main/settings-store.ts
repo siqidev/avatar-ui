@@ -1,5 +1,6 @@
-// 設定ストア: テーマ・モデルの永続化（data/settings.json）
+// 設定ストア: ユーザー嗜好の永続化（data/settings.json）
 // Mainプロセスが正本。Rendererへの反映はIPC経由。
+// デフォルト値はここにハードコード（.envには持たない）
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -11,6 +12,7 @@ export type Settings = {
   theme: Theme
   model: string
   locale: Locale
+  resonance: boolean
 }
 
 // モデルカタログ（正本）: メニュー・バリデーション・設定復元すべてここを参照
@@ -22,34 +24,44 @@ export const MODEL_CATALOG = [
 
 export type ModelId = (typeof MODEL_CATALOG)[number]
 
+// デフォルト設定（ハードコード。.envからは取らない）
+const DEFAULT_MODEL: ModelId = "grok-4-1-fast-non-reasoning"
+
+const DEFAULTS: Settings = {
+  theme: "modern",
+  model: DEFAULT_MODEL,
+  locale: "ja",
+  resonance: false,
+}
+
 function isValidModel(v: unknown): v is ModelId {
   return typeof v === "string" && MODEL_CATALOG.includes(v as ModelId)
+}
+
+function isValidLocale(v: unknown): v is Locale {
+  return v === "ja" || v === "en"
 }
 
 let settings: Settings | null = null
 let settingsPath: string
 
 /** 起動時に1回呼ぶ。dataDir = "data" 等 */
-function isValidLocale(v: unknown): v is Locale {
-  return v === "ja" || v === "en"
-}
-
-export function loadSettings(dataDir: string, defaultModel: string): Settings {
+export function loadSettings(dataDir: string): Settings {
   settingsPath = join(dataDir, "settings.json")
-  const defaults: Settings = { theme: "modern", model: defaultModel, locale: "ja" }
 
   try {
     const raw = readFileSync(settingsPath, "utf-8")
     const parsed = JSON.parse(raw) as Partial<Settings>
     settings = {
-      theme: parsed.theme === "classic" ? "classic" : "modern",
-      model: isValidModel(parsed.model) ? parsed.model : defaultModel,
-      locale: isValidLocale(parsed.locale) ? parsed.locale : "ja",
+      theme: parsed.theme === "classic" ? "classic" : DEFAULTS.theme,
+      model: isValidModel(parsed.model) ? parsed.model : DEFAULTS.model,
+      locale: isValidLocale(parsed.locale) ? parsed.locale : DEFAULTS.locale,
+      resonance: typeof parsed.resonance === "boolean" ? parsed.resonance : DEFAULTS.resonance,
     }
   } catch (err: unknown) {
     // ファイル未存在は正常（初回起動）、それ以外はfail-fast
     if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      settings = defaults
+      settings = { ...DEFAULTS }
     } else {
       throw err
     }

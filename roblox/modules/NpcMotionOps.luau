@@ -171,11 +171,18 @@ local function walkPath(npc: Model, targetPos: Vector3): (boolean, string, numbe
 	local animCtrl = createAnimController(humanoid, rootPart)
 
 	local reached = true
-	for _, waypoint in ipairs(waypoints) do
-		if waypoint.Action == Enum.PathWaypointAction.Jump then
-			humanoid.Jump = true
+	-- WPスキップ: 長い経路では2個おきに歩く（各WPでの減速停止を削減し滑らかに移動）
+	local step = if #waypoints > 6 then 2 else 1
+	local i = 1
+	while i <= #waypoints do
+		-- スキップ区間にジャンプWPがあればジャンプ
+		for j = math.max(1, i - step + 1), i do
+			if waypoints[j] and waypoints[j].Action == Enum.PathWaypointAction.Jump then
+				humanoid.Jump = true
+				break
+			end
 		end
-		humanoid:MoveTo(waypoint.Position)
+		humanoid:MoveTo(waypoints[i].Position)
 		local waypointReached = humanoid.MoveToFinished:Wait()
 		if not waypointReached then
 			-- 8秒タイムアウト: 経路到達失敗
@@ -183,6 +190,7 @@ local function walkPath(npc: Model, targetPos: Vector3): (boolean, string, numbe
 			reached = false
 			break
 		end
+		i += step
 	end
 
 	-- 移動停止 → Runningイベントでidle化 → ウォッチドッグで確認

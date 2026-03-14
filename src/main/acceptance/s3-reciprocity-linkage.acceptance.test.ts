@@ -25,7 +25,11 @@ vi.mock("node-cron", () => ({
 }))
 
 vi.mock("../../services/chat-session-service.js", () => ({
-  sendMessage: vi.fn().mockResolvedValue({ text: "応答", toolCalls: [] }),
+  sendMessage: vi.fn().mockResolvedValue({
+    text: "応答",
+    displayText: "応答",
+    toolCalls: [],
+  }),
 }))
 
 vi.mock("../../roblox/observation-server.js", () => ({
@@ -117,7 +121,11 @@ describe("S3: 往復連接性", () => {
 
   it("直列化: 同時2件投入 → sendMessage呼出が直列（1件目完了後に2件目開始）", async () => {
     const callOrder: string[] = []
-    let resolveFirst!: (value: { text: string; toolCalls: never[] }) => void
+    let resolveFirst!: (value: {
+      text: string
+      displayText: string
+      toolCalls: never[]
+    }) => void
 
     // 1件目: Promiseを手動制御
     mockSendMessage.mockImplementationOnce(() => {
@@ -133,7 +141,11 @@ describe("S3: 往復連接性", () => {
     // 2件目: 即座にresolve
     mockSendMessage.mockImplementationOnce(() => {
       callOrder.push("second-start")
-      return Promise.resolve({ text: "応答2", toolCalls: [] })
+      return Promise.resolve({
+        text: "応答2",
+        displayText: "応答2",
+        toolCalls: [],
+      })
     })
 
     // 同時に2件投入
@@ -145,7 +157,11 @@ describe("S3: 往復連接性", () => {
     expect(callOrder).toEqual(["first-start"]) // 2件目はまだ開始されていない
 
     // 1件目を完了させる
-    resolveFirst({ text: "応答1", toolCalls: [] as never[] })
+    resolveFirst({
+      text: "応答1",
+      displayText: "応答1",
+      toolCalls: [] as never[],
+    })
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // 直列実行: first-start → first-end → second-start
@@ -155,7 +171,11 @@ describe("S3: 往復連接性", () => {
   // --- 凍結遷移時の待機ジョブ完了保証 ---
 
   it("凍結遷移時の待機ジョブ完了保証: キュー待ちのprocessStreamがrejectで完了する", async () => {
-    let resolveFirst!: (value: { text: string; toolCalls: never[] }) => void
+    let resolveFirst!: (value: {
+      text: string
+      displayText: string
+      toolCalls: never[]
+    }) => void
 
     // 1件目: Promiseを手動制御
     mockSendMessage.mockImplementationOnce(() => {
@@ -177,7 +197,11 @@ describe("S3: 往復連接性", () => {
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // 1件目を完了（キューが2件目に移る→凍結チェック→スキップ→reject）
-    resolveFirst({ text: "応答1", toolCalls: [] as never[] })
+    resolveFirst({
+      text: "応答1",
+      displayText: "応答1",
+      toolCalls: [] as never[],
+    })
 
     // 2件目のPromiseがrejectされることを確認（ハングしない）
     await expect(pendingPromise).rejects.toThrow("凍結中")
@@ -190,7 +214,11 @@ describe("S3: 往復連接性", () => {
     mockSendMessage.mockRejectedValueOnce(new Error("API障害"))
 
     // 2件目: 正常応答
-    mockSendMessage.mockResolvedValueOnce({ text: "応答2", toolCalls: [] })
+    mockSendMessage.mockResolvedValueOnce({
+      text: "応答2",
+      displayText: "応答2",
+      toolCalls: [],
+    })
 
     // 同時に2件投入
     fire("stream.post", makeStreamPost("id-1", "テスト1"))
@@ -225,7 +253,11 @@ describe("S3: 往復連接性", () => {
 
   it("ai起点の連接: Pulse発火中にstream.post → 直列化される", async () => {
     const callOrder: string[] = []
-    let resolvePulse!: (value: { text: string; toolCalls: never[] }) => void
+    let resolvePulse!: (value: {
+      text: string
+      displayText: string
+      toolCalls: never[]
+    }) => void
 
     // Pulse用のsendMessage: 手動制御
     mockSendMessage.mockImplementationOnce(() => {
@@ -241,7 +273,11 @@ describe("S3: 往復連接性", () => {
     // stream.post用: 即座にresolve
     mockSendMessage.mockImplementationOnce(() => {
       callOrder.push("user-start")
-      return Promise.resolve({ text: "ユーザー応答", toolCalls: [] })
+      return Promise.resolve({
+        text: "ユーザー応答",
+        displayText: "ユーザー応答",
+        toolCalls: [],
+      })
     })
 
     // Pulse発火（cron.scheduleのコールバック取得）
@@ -259,7 +295,11 @@ describe("S3: 往復連接性", () => {
     expect(callOrder).toEqual(["pulse-start"]) // まだPulse実行中、userは待ち
 
     // Pulseを完了させる
-    resolvePulse({ text: "Pulse応答", toolCalls: [] as never[] })
+    resolvePulse({
+      text: "Pulse応答",
+      displayText: "Pulse応答",
+      toolCalls: [] as never[],
+    })
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // 直列: pulse-start → pulse-end → user-start

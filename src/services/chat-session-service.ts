@@ -5,6 +5,7 @@ import type {
   Tool,
 } from "openai/resources/responses/responses"
 import type { State, PersistedMessage } from "../state/state-repository.js"
+import type { Source } from "../shared/ipc-schema.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
 import { getSettings } from "../main/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
@@ -44,6 +45,7 @@ import { appendMemory, readRecentMemories } from "../memory/memory-log-repositor
 import { uploadMemoryToCollection } from "../collections/collections-repository.js"
 import { appendIntent } from "../roblox/intent-log.js"
 import { projectIntent } from "../roblox/projector.js"
+import { startSuppression as startMotionSuppression } from "../roblox/motion-state.js"
 import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
@@ -54,10 +56,31 @@ export type ToolCallInfo = {
   result: string
 }
 
-// sendMessage()の戻り値（テキスト + ツール呼び出し情報）
+// sendMessage()の戻り値（元テキスト + UI表示テキスト + ツール呼び出し情報）
 export type SendMessageResult = {
   text: string
+  displayText: string
   toolCalls: ToolCallInfo[]
+}
+
+export function resolveDisplayText(
+  text: string,
+  toolCalls: ToolCallInfo[],
+): string {
+  const sayTexts = toolCalls.flatMap(extractAvatarSayTexts)
+  return sayTexts.length > 0 ? sayTexts.join("\n") : text
+}
+
+function extractAvatarSayTexts(call: ToolCallInfo): string[] {
+  if (call.name !== "roblox_action") return []
+
+  const args = call.args
+  if (args.category !== "npc" || !Array.isArray(args.ops)) return []
+
+  return (args.ops as Record<string, unknown>[]).flatMap((op) => {
+    if (op.op !== "say") return []
+    return typeof op.text === "string" ? [op.text] : []
+  })
 }
 
 // チェーン断裂エラーかどうか判定する（400/404 = レスポンスID無効/期限切れ）
@@ -92,11 +115,16 @@ function buildRecoveryContext(
   }
 
   // messageHistoryから直近の会話を復元
+  // source="observation"のメッセージは観測プレフィックスを付与して復元
+  // （AIが復旧後も「これは観測だった」と認識できるようにする）
   const recent = history.slice(-MAX_RECOVERY_MESSAGES)
   for (const msg of recent) {
+    const content = msg.actor === "human" && msg.source === "observation"
+      ? `[観測] ${msg.text}`
+      : msg.text
     input.push({
       role: msg.actor === "human" ? "user" as const : "assistant" as const,
-      content: msg.text,
+      content,
     })
   }
 
@@ -111,12 +139,14 @@ const API_CALL_TIMEOUT_MS = 20_000
 const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as const
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
+// source: 入力の出自（意味論識別用。ツール可否の分岐には使用しない）
 export async function sendMessage(
   client: OpenAI,
   state: State,
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
+  _source?: Source,
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
@@ -221,8 +251,11 @@ export async function sendMessage(
     state.participant.lastResponseId = response.id
   }
 
+  const text = response.output_text ?? t("noResponse")
+
   return {
-    text: response.output_text ?? t("noResponse"),
+    text,
+    displayText: resolveDisplayText(text, allToolCalls),
     toolCalls: allToolCalls,
   }
 }
@@ -381,6 +414,12 @@ async function handleRobloxAction(
     throw new Error(
       `Roblox投影失敗（意図は記録済み: ${intent.id}）`,
     )
+  }
+
+  // ③ npc_motion投影成功: 自己起因のproximityを抑制開始
+  // go_to_player/follow_playerの移動結果としてproximity enterが発火するのを防ぐ
+  if (category === "npc_motion") {
+    startMotionSuppression()
   }
 
   return JSON.stringify({ status: t("intentProjected"), id: intent.id, category, ops_count: ops.length })

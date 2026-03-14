@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.3.1 — Observation Pipeline + Avatar Motion (2026-03-14)
+
+### Observation pipeline
+
+- **Observation semantic separation** — `[観測: eventType]` prefix for AI to distinguish observation from user commands
+- **Forwarding policy** — AI transfer limited to actionable signals only (success ACK/normal transitions filtered)
+- **Self-caused proximity suppression** — go_to/follow motion suppresses proximity events to prevent double-response
+- **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously (`RESONANCE_MODE` in settings). OFF = perception only, ON = perception + autonomous response
+- **Settings 2-layer separation** — `GROK_MODEL`/`RESONANCE_MODE` moved from `.env` to runtime settings (settings.json)
+
+### Console UI
+
+- **Avatar motion** — Pixel art avatar expression (idle-00~03 + blink.png, 800-2000ms interval, 15% blink chance with 150ms display)
+- **Font size unification** — 2-tier system: 14px (body text) / 12px (UI elements)
+- **Space pane header** — Dynamic label showing AVATAR_SPACE directory name
+- **File size display removed** — Cleaner Space pane entries
+
+### Roblox integration
+
+- **NPC chat display name** — Uses `Model.Name` instead of hardcoded "NPC"
+- **Observation display routing** — Monitor = Roblox world events, Stream = conversation context
+- **go_to movement smoothing** — WalkPath waypoint skipping for smoother NPC movement
+
+### Other
+
+- **Demo mode** — F5 key for auto-typing demo script (recording use)
+- **DEV_MODE** — Generalized from `LOG_VERBOSE` for developer features
+- **displayText** — `roblox_act say` text shown in Stream pane
+
+### Testing
+
+- 273 tests (28 test files), up from 243 tests (25 files) in v0.3.0
+
 ## v0.3.0 — Field Persistence (2026-03-04)
 
 Complete rewrite from Python/FastAPI to TypeScript/Electron. v0.2 code is retired.

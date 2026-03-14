@@ -11,16 +11,17 @@ import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import { loadSettings, getSettings } from "./settings-store.js"
 import { setLocale } from "../shared/i18n.js"
 import { buildAppMenu } from "./menu.js"
+import { registerDemoIpcHandlers } from "./demo-ipc-handlers.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1280,
-    minHeight: 800,
+    width: 1920,
+    height: 1080,
+    minWidth: 640,
+    minHeight: 480,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       nodeIntegration: false,
@@ -64,8 +65,8 @@ app.whenReady().then(() => {
   const config = getConfig()
   ensureDirectories(config)
 
-  // 設定ストア初期化（テーマ・モデル・言語永続化）
-  loadSettings(config.dataDir, config.model)
+  // 設定ストア初期化（ユーザー嗜好: テーマ・モデル・言語・共振モード）
+  loadSettings(config.dataDir)
   setLocale(getSettings().locale)
 
   // Aboutパネル（version: "" でElectronビルド番号の括弧表示を抑制）
@@ -87,6 +88,7 @@ app.whenReady().then(() => {
   registerIpcHandlers(() => mainWindow)
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
+  registerDemoIpcHandlers(app.getAppPath())
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
 })

@@ -64,7 +64,7 @@ local function handleSay(op)
 	end
 
 	Chat:Chat(head, text, Enum.ChatColor.Blue)
-	npcChatEvent:FireAllClients(text)
+	npcChatEvent:FireAllClients(text, npc.Name)
 
 	return { success = true, data = { text = text } }
 end

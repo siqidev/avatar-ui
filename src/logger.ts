@@ -8,8 +8,8 @@ function log(level: Level, message: string): void {
   const timestamp = new Date().toISOString()
   const line = `${timestamp} [${level}] ${message}\n`
 
-  // verbose: 全レベル出力、通常: ERROR/FATALのみ
-  if (config.logVerbose || level !== "INFO") {
+  // devMode: 全レベル出力、通常: ERROR/FATALのみ
+  if (config.devMode || level !== "INFO") {
     process.stderr.write(line)
   }
 

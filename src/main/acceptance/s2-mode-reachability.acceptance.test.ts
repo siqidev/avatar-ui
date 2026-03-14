@@ -26,7 +26,11 @@ vi.mock("node-cron", () => ({
 }))
 
 vi.mock("../../services/chat-session-service.js", () => ({
-  sendMessage: vi.fn().mockResolvedValue({ text: "AI応答", toolCalls: [] }),
+  sendMessage: vi.fn().mockResolvedValue({
+    text: "AI応答",
+    displayText: "AI応答",
+    toolCalls: [],
+  }),
 }))
 
 vi.mock("../../roblox/observation-server.js", () => ({
@@ -90,6 +94,11 @@ describe("S2: モード可達性", () => {
       stateFile: path.join(tempDir, "state.json"),
     })
 
+    // settings-store初期化（共振=on: 既存テストはAI転送を前提とする）
+    const settingsStore = await import("../settings-store.js")
+    settingsStore.loadSettings(tempDir)
+    settingsStore.updateSettings({ resonance: true })
+
     const integrity = await import("../integrity-manager.js")
     integrity._resetForTest()
 
@@ -133,6 +142,12 @@ describe("S2: モード可達性", () => {
   // --- human起点: stream.post ---
 
   it("human起点: stream.post → processStream → sendStreamReply(source='user')", async () => {
+    mockSendMessage.mockResolvedValueOnce({
+      text: "*Avatar says in Roblox chat:* \"やあ Sito！\"",
+      displayText: "やあ Sito！",
+      toolCalls: [],
+    })
+
     fire("stream.post", {
       type: "stream.post",
       actor: "human",
@@ -152,12 +167,18 @@ describe("S2: モード可達性", () => {
     expect(replyCall).toBeDefined()
     expect(replyCall![0].source).toBe("user")
     expect(replyCall![0].correlationId).toBe("user-test-123")
+    expect(replyCall![0].text).toBe("やあ Sito！")
   })
 
   // --- ai起点: Pulse ---
 
   it("ai起点: Pulse応答 → sendStreamReply(source='pulse')", async () => {
     expect(cronCallback).toBeDefined()
+    mockSendMessage.mockResolvedValueOnce({
+      text: "Pulse内部応答",
+      displayText: "Pulse表示文",
+      toolCalls: [],
+    })
 
     cronCallback()
     await flushQueue()
@@ -178,12 +199,18 @@ describe("S2: モード可達性", () => {
     )
     expect(humanPulse).toBeDefined()
     expect(aiPulse).toBeDefined()
+    expect(aiPulse![0].text).toBe("Pulse表示文")
   })
 
   // --- ai起点: 観測 ---
 
-  it("ai起点: 観測応答 → sendStreamReply(source='observation') + sendObservationEvent", async () => {
+  it("ai起点: 観測 → Monitor表示 + AI応答はStreamへ（観測入力はStream非表示）", async () => {
     expect(observationHandler).toBeDefined()
+    mockSendMessage.mockResolvedValueOnce({
+      text: "観測内部応答",
+      displayText: "観測表示文",
+      toolCalls: [],
+    })
 
     observationHandler({
       type: "player_chat",
@@ -191,14 +218,27 @@ describe("S2: モード可達性", () => {
     })
     await flushQueue()
 
-    // sendObservationEventが呼ばれる
+    // Monitorに観測イベント表示
     expect(mockProjection.sendObservationEvent).toHaveBeenCalled()
 
-    // sendStreamReplyがsource="observation"で呼ばれる
-    const obsReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).source === "observation",
+    // 観測入力はStreamに出ない（Monitorの役割）
+    const humanObs = mockProjection.sendStreamReply.mock.calls.find(
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "human"
+      },
     )
-    expect(obsReply).toBeDefined()
+    expect(humanObs).toBeUndefined()
+
+    // AI応答はStreamに出る（対話の役割）
+    const aiObs = mockProjection.sendStreamReply.mock.calls.find(
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "ai"
+      },
+    )
+    expect(aiObs).toBeDefined()
+    expect(aiObs![0].text).toBe("観測表示文")
   })
 
   // --- correlationId形式の区別 ---
@@ -214,7 +254,7 @@ describe("S2: モード可達性", () => {
     expect(pulseReply).toBeDefined()
     expect(pulseReply![0].correlationId).toMatch(/^pulse-\d+$/)
 
-    // 観測
+    // 観測（AI応答のcorrelationIdで確認）
     vi.mocked(mockSendMessage).mockClear()
     mockProjection.sendStreamReply.mockClear()
 
@@ -225,7 +265,10 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     const obsReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).source === "observation",
+      (c) => {
+        const o = c[0] as Record<string, unknown>
+        return o.source === "observation" && o.actor === "ai"
+      },
     )
     expect(obsReply).toBeDefined()
     expect(obsReply![0].correlationId).toMatch(/^obs-\d+$/)
@@ -254,7 +297,11 @@ describe("S2: モード可達性", () => {
   // --- Pulse PULSE_OK抑制 ---
 
   it("Pulse PULSE_OK抑制: 応答がPULSE_OK接頭辞ならonReplyが呼ばれない", async () => {
-    mockSendMessage.mockResolvedValueOnce({ text: "PULSE_OK: 異常なし", toolCalls: [] })
+    mockSendMessage.mockResolvedValueOnce({
+      text: "PULSE_OK: 異常なし",
+      displayText: "PULSE_OK: 異常なし",
+      toolCalls: [],
+    })
 
     cronCallback()
     await flushQueue()
@@ -269,19 +316,105 @@ describe("S2: モード可達性", () => {
     expect(pulseReply).toBeUndefined()
   })
 
+  // --- 共振ゲート ---
+
+  it("共振OFF: 観測はMonitorに表示されるがAIには転送されない", async () => {
+    // 共振をoffに切替
+    const settingsStore = await import("../settings-store.js")
+    settingsStore.updateSettings({ resonance: false })
+
+    observationHandler({
+      type: "player_chat",
+      payload: { player: "Alice", message: "hello" },
+    })
+    await flushQueue()
+
+    // Monitorには表示（知覚は常時ON）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "player_chat" }),
+    )
+
+    // AIには転送しない（注意+表出は停止）
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    // Streamにも出ない
+    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+
+    // 元に戻す
+    settingsStore.updateSettings({ resonance: true })
+  })
+
   // --- roblox_logはAI未送信 ---
 
-  it("roblox_log: onEventのみ（enqueue/sendMessageされない）", async () => {
+  it("roblox_log: Monitorに表示・Streamには非表示・AI非送信", async () => {
     observationHandler({
       type: "roblox_log",
       payload: { message: "Server started" },
     })
     await flushQueue()
 
-    // sendObservationEventが呼ばれる（表示用）
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalled()
+    // Monitorに表示（Roblox世界のログ）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "roblox_log" }),
+    )
 
-    // sendMessageは呼ばれない（AIに送らない）
+    // Streamには送らない（対話ではない）
+    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+
+    // AIには送らない
     expect(mockSendMessage).not.toHaveBeenCalled()
+  })
+
+  // --- 移動中proximity抑制 ---
+
+  it("移動中proximity抑制: npc_motion中のplayer_proximityはAIに転送されない", async () => {
+    // motion-stateを直接操作してnpc_motion実行中を模擬
+    const motionState = await import("../../roblox/motion-state.js")
+    motionState.startSuppression()
+
+    observationHandler({
+      type: "player_proximity",
+      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+    })
+    await flushQueue()
+
+    // Monitorには表示（知覚は常時ON）
+    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "player_proximity" }),
+    )
+
+    // AIには転送しない（自己起因）
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    // クリーンアップ
+    motionState.endSuppression()
+  })
+
+  it("移動完了後のproximityは通常通りAIに転送される", async () => {
+    const motionState = await import("../../roblox/motion-state.js")
+    motionState.startSuppression()
+
+    // go_to_player ACK到着 → 抑制解除
+    observationHandler({
+      type: "command_ack",
+      payload: { intent_id: "test-intent", op_index: 0, op: "go_to_player", success: true, schema_version: "3", category: "", data: {} },
+    })
+    await flushQueue()
+
+    // 抑制解除後のproximity
+    mockSendMessage.mockResolvedValueOnce({
+      text: "挨拶",
+      displayText: "挨拶",
+      toolCalls: [],
+    })
+
+    observationHandler({
+      type: "player_proximity",
+      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+    })
+    await flushQueue()
+
+    // AIに転送される（新規の観測）
+    expect(mockSendMessage).toHaveBeenCalledOnce()
   })
 })

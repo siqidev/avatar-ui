@@ -17,6 +17,7 @@ import type {
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
 import type { ToolApprovalRespond } from "../shared/tool-approval-schema.js"
+import type { DemoScript } from "../shared/demo-script-schema.js"
 
 // Renderer に公開する最小API
 // ipcRendererの直接公開は禁止。1チャネル1メソッドで公開する
@@ -78,4 +79,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("settings.theme", (_e, theme) => cb(theme)),
   onLocaleChange: (cb: (locale: string) => void) =>
     ipcRenderer.on("settings.locale", (_e, locale) => cb(locale)),
+
+  // デモモード
+  loadDemoScript: (): Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("demo.script.load"),
 })

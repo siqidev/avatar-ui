@@ -1,0 +1,6 @@
+[
+  { "msg": "do you know where you are right now?", "postDelay": 5 },
+  { "msg": "scan the area", "postDelay": 7 },
+  { "msg": "come to me", "postDelay": 6 },
+  { "msg": "remember this moment" }
+]

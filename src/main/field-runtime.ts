@@ -3,6 +3,7 @@ import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled } from "../config.js"
+import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage } from "../state/state-repository.js"
 import type { State, PersistedMessage } from "../state/state-repository.js"
@@ -11,6 +12,8 @@ import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
 import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
+import { shouldForwardToAI } from "../roblox/observation-forwarding-policy.js"
+import { endSuppression as endMotionSuppression, isProximitySuppressed } from "../roblox/motion-state.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import * as log from "../logger.js"
@@ -263,12 +266,49 @@ export function startObservation(
 
   observationServer = startObservationServer(
     (event: ObservationEvent) => {
-      // roblox_log: 表示+ログのみ、AIには送らない
+      const correlationId = generateCorrelationId("observation")
+      const formatted = formatObservation(event, config.robloxOwnerDisplayName)
+      const shouldForward = shouldForwardToAI(event)
+
+      // roblox_log: Monitorに表示、AIには送らない
       if (event.type === "roblox_log") {
-        const formatted = formatObservation(event, config.robloxOwnerDisplayName)
         log.info(`[ROBLOX] ${formatted}`)
-        const correlationId = generateCorrelationId("observation")
         onEvent(event, formatted, correlationId)
+        return
+      }
+
+      // Monitorに全観測を表示（ペインの役割: Roblox世界の全入出力）
+      onEvent(event, formatted, correlationId)
+
+      // 移動完了検知: 自己起因proximity抑制を解除
+      // ACK/stoppedが来たら、以降のproximityは「新規の観測」として扱う
+      if (event.type === "command_ack") {
+        const p = event.payload as Record<string, unknown>
+        if (p.op === "go_to_player" || p.op === "follow_player") {
+          endMotionSuppression()
+        }
+      } else if (event.type === "npc_follow_event") {
+        const p = event.payload as Record<string, unknown>
+        if (p.state === "stopped" || p.state === "lost") {
+          endMotionSuppression()
+        }
+      }
+
+      // AI転送ポリシー: 異常対応に必要な信号のみAIに送る
+      if (!shouldForward) {
+        log.info(`[OBSERVATION] AI転送スキップ: ${event.type} ${formatted.substring(0, 80)}`)
+        return
+      }
+
+      // 自己起因proximity抑制: npc_motion実行中のplayer_proximityをスキップ
+      if (event.type === "player_proximity" && isProximitySuppressed()) {
+        log.info(`[OBSERVATION] 移動中proximity抑制: ${formatted.substring(0, 80)}`)
+        return
+      }
+
+      // 共振ゲート: off時は注意+表出を停止（知覚は常時ON）
+      if (!getSettings().resonance) {
+        log.info(`[OBSERVATION] 共振OFF — AI転送スキップ: ${event.type}`)
         return
       }
 
@@ -277,15 +317,12 @@ export function startObservation(
         return
       }
 
-      // correlationIdを1回だけ生成し、onEventとonReplyで同一IDを使う
-      const correlationId = generateCorrelationId("observation")
-      const formatted = formatObservation(event, config.robloxOwnerDisplayName)
-      onEvent(event, formatted, correlationId)
-
       enqueue(async () => {
         try {
+          // 観測プレフィックス: AIが「これは観測情報であり、ユーザーの命令ではない」と認識できる
+          const aiInput = `[観測: ${event.type}] ${formatted}`
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, state, beingPrompt, formatted)
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation")
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)

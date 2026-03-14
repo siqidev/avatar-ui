@@ -32,6 +32,8 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 ## Features
 
 - **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
+- **Avatar motion** — Pixel art avatar expression (idle motion + blink + lip-sync)
+- **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
 - **Long-term memory (RAG)** — The avatar decides what matters and remembers it
 - **Avatar Space** — Dedicated filesystem the AI can read and write
@@ -93,13 +95,12 @@ npm run dev
 | `XAI_API_KEY` | Yes | — | xAI API key for Grok |
 | `AVATAR_NAME` | | `Avatar` | Display name for the avatar |
 | `USER_NAME` | | `User` | Display name for the human |
-| `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | AI model |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
 | `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
-| `LOG_VERBOSE` | | `false` | Show INFO logs on stderr |
+| `DEV_MODE` | | `off` | Developer mode (`on` = verbose logs + full Roblox Monitor) |
 
 ### Optional: Long-term memory (Collections API)
 
@@ -120,6 +121,19 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_OWNER_DISPLAY_NAME` | Owner display name for observation formatting |
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed by Electron) |
+
+### Optional: Cloudflare Tunnel (for Roblox observation)
+
+Roblox sends observation events (player proximity, chat, command results) to your local machine via HTTP.
+A [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) exposes your local observation server to the internet so Roblox can reach it.
+
+1. Install `cloudflared`: `brew install cloudflared` (macOS) or [download](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+2. Create a tunnel in the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/) → Networks → Tunnels → Create a tunnel
+3. Configure the tunnel to route your hostname to `http://localhost:3000` (or your `ROBLOX_OBSERVATION_PORT`)
+4. Copy the tunnel token and set `CLOUDFLARED_TOKEN` in `.env`
+5. Set the tunnel URL in `roblox/modules/Config.luau` as `observationUrl`
+
+AVATAR UI automatically starts/stops `cloudflared` with the Electron app. No separate process needed.
 
 ## Roblox Setup
 
@@ -158,7 +172,26 @@ In Studio: Plugins tab > Rojo > Connect. File changes sync automatically.
 
 - Columns are resizable via splitter drag
 - Panes can be swapped via drag & drop on headers
-- AUI menu: Theme (Modern / Classic), Model (runtime switch), Language (日本語 / English)
+- AUI menu: Theme (Modern / Classic), Model (runtime switch), Resonance (on/off), Language (日本語 / English)
+
+## Avatar Customization
+
+### Avatar motion
+
+Place PNG images in `src/renderer/public/` to enable avatar motion:
+
+| File | Role | Required |
+|------|------|----------|
+| `idle-00.png` | Base frame (always shown) | Yes |
+| `idle-01.png` ~ `idle-09.png` | Idle frames (random switching, 800-2000ms interval) | Optional |
+| `blink.png` | Blink frame (15% chance, 150ms display) | Optional |
+| `talk.png` | Lip-sync frame (shown during AI response) | Yes |
+
+The app probes sequential files at startup (`idle-01`, `idle-02`, ...) and stops at the first missing number. With only `idle-00.png` and `talk.png`, the avatar works as a static image with lip-sync.
+
+### Resonance mode
+
+When enabled (AUI menu > Resonance), the avatar senses changes in its surroundings (e.g., a player approaching in Roblox) and responds autonomously without explicit human input. When disabled, the avatar only responds to direct messages.
 
 ## Architecture
 

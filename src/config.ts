@@ -22,9 +22,6 @@ const envSchema = z.object({
   AVATAR_NAME: z.string().min(1).default("Avatar"),
   USER_NAME: z.string().min(1).default("User"),
 
-  // --- モデル ---
-  GROK_MODEL: z.string().min(1).default("grok-4-1-fast-non-reasoning"),
-
   // --- パス ---
   AVATAR_SPACE: z.string().min(1).default(join(homedir(), "Avatar", "space")),
 
@@ -59,11 +56,11 @@ const envSchema = z.object({
       return names
     }),
 
-  // --- ログ ---
-  LOG_VERBOSE: z
+  // --- 開発者向け ---
+  DEV_MODE: z
     .string()
-    .default("false")
-    .transform((v) => v === "true"),
+    .default("off")
+    .transform((v) => v.toLowerCase() === "on"),
 })
 
 // アプリケーション設定（config.tsのみがprocess.envの入口）
@@ -82,8 +79,7 @@ export type AppConfig = {
   avatarName: string
   userName: string
 
-  // モデル・API
-  model: string
+  // API
   apiBaseUrl: string
   managementApiBaseUrl: string
 
@@ -113,8 +109,8 @@ export type AppConfig = {
   // ツール承認
   toolAutoApprove: string[]
 
-  // ログ
-  logVerbose: boolean
+  // 開発者向け
+  devMode: boolean
 }
 
 /** 環境変数からAppConfigを生成する（純粋関数） */
@@ -155,8 +151,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     avatarName: env.AVATAR_NAME,
     userName: env.USER_NAME,
 
-    // モデル・API（URL定数はコード管理）
-    model: env.GROK_MODEL,
+    // API（URL定数はコード管理）
     apiBaseUrl: "https://api.x.ai/v1",
     managementApiBaseUrl: "https://management-api.x.ai/v1",
 
@@ -186,8 +181,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // ツール承認
     toolAutoApprove: env.TOOL_AUTO_APPROVE,
 
-    // ログ
-    logVerbose: env.LOG_VERBOSE,
+    // 開発者向け
+    devMode: env.DEV_MODE,
   }
 }
 

@@ -25,7 +25,11 @@ vi.mock("node-cron", () => ({
 }))
 
 vi.mock("../../services/chat-session-service.js", () => ({
-  sendMessage: vi.fn().mockResolvedValue({ text: "AI応答", toolCalls: [] }),
+  sendMessage: vi.fn().mockResolvedValue({
+    text: "AI応答",
+    displayText: "AI応答",
+    toolCalls: [],
+  }),
 }))
 
 vi.mock("../../roblox/observation-server.js", () => ({

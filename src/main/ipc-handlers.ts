@@ -92,7 +92,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
-          text: result.text,
+          text: result.displayText,
           source: "pulse",
           toolCalls: result.toolCalls,
         })
@@ -102,29 +102,24 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
     // 観測サーバー起動（Roblox連携有効時のみ）
     startObservation(
-      (event, formatted, correlationId) => {
-        // Roblox Monitorペインへ
+      (event, formatted) => {
+        // Roblox Monitorペインへ（ペインの役割: Roblox世界の全入出力）
         projection.sendObservationEvent({
           eventType: event.type,
           payload: event.payload,
           formatted,
         })
-        // Streamペインにも観測入力をコンテキスト表示
+        // roblox_log: Monitorのみ（会話履歴には不要）
+        if (event.type === "roblox_log") return
+        // 会話履歴に記録（AIの文脈維持に必要）
         recordMessage("human", formatted, "observation")
-        projection.sendStreamReply({
-          actor: "human",
-          correlationId,
-          text: formatted,
-          source: "observation",
-          toolCalls: [],
-        })
       },
       (result, correlationId) => {
         recordMessage("ai", result.text, "observation", result.toolCalls)
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
-          text: result.text,
+          text: result.displayText,
           source: "observation",
           toolCalls: result.toolCalls,
         })
@@ -204,7 +199,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       projection.sendStreamReply({
         actor: "ai",
         correlationId,
-        text: streamResult.text,
+        text: streamResult.displayText,
         source: "user",
         toolCalls: streamResult.toolCalls,
       })
