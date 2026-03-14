@@ -16,6 +16,7 @@ import { shouldForwardToAI } from "../roblox/observation-forwarding-policy.js"
 import { endSuppression as endMotionSuppression, isProximitySuppressed } from "../roblox/motion-state.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
+import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
 // FieldRuntime: 場のロジックを統合する（Electron Main向け）
@@ -320,7 +321,7 @@ export function startObservation(
       enqueue(async () => {
         try {
           // 観測プレフィックス: AIが「これは観測情報であり、ユーザーの命令ではない」と認識できる
-          const aiInput = `[観測: ${event.type}] ${formatted}`
+          const aiInput = t("obs.aiPrefix", event.type, formatted)
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation")
           updateParticipantChain(state.participant.lastResponseId)

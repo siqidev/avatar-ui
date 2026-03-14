@@ -81,6 +81,16 @@ const dictionary: Record<string, Record<Locale, string>> = {
     en: "Failed to save session state. Check disk space and restart.",
   },
 
+  // --- Main: field-runtime (観測→AIプレフィックス) ---
+  "obs.aiPrefix": {
+    ja: "[観測: {0}] {1}",
+    en: "[Observation: {0}] {1}",
+  },
+  "obs.recoveryPrefix": {
+    ja: "[観測] {0}",
+    en: "[Observation] {0}",
+  },
+
   // --- Main: chat-session-service ---
   "noResponse": { ja: "(応答なし)", en: "(no response)" },
   "memorySaved": { ja: "ローカルに保存しました", en: "Saved locally" },
