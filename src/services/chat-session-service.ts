@@ -120,7 +120,7 @@ function buildRecoveryContext(
   const recent = history.slice(-MAX_RECOVERY_MESSAGES)
   for (const msg of recent) {
     const content = msg.actor === "human" && msg.source === "observation"
-      ? `[観測] ${msg.text}`
+      ? t("obs.recoveryPrefix", msg.text)
       : msg.text
     input.push({
       role: msg.actor === "human" ? "user" as const : "assistant" as const,
