@@ -181,7 +181,7 @@ Zod discriminated unionで定義。
 
 | ペイン | slug | 機能 | 読み/書き |
 |---|---|---|---|
-| Avatar | avatar | 視覚的存在提示（アイドルアニメーション・リップシンク・瞬き） | 読み取り専用 |
+| Avatar | avatar | 視覚的存在提示（アバターモーション・リップシンク・瞬き） | 読み取り専用 |
 | Space | space | AIの生命活動空間（Avatar Space）の可視化と操作 | 読み書き |
 | Canvas | canvas | 主作業領域。ファイル内容表示+画像昇格表示 | 読み書き |
 | Stream | stream | 場の全入出力の統合ストリーム（human↔AI対話 + Pulse + 観測 + ツール可視化） | 読み書き |

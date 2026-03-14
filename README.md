@@ -32,8 +32,8 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 ## Features
 
 - **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
-- **Idle animation** — Tamagotchi-style random frame switching with blink (customizable avatar sprites)
-- **Resonance mode** — Field-level attention gate: the avatar notices and responds to world events autonomously
+- **Avatar motion** — Pixel art avatar expression (idle motion + blink + lip-sync)
+- **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
 - **Long-term memory (RAG)** — The avatar decides what matters and remembers it
 - **Avatar Space** — Dedicated filesystem the AI can read and write
@@ -176,9 +176,9 @@ In Studio: Plugins tab > Rojo > Connect. File changes sync automatically.
 
 ## Avatar Customization
 
-### Idle animation
+### Avatar motion
 
-Place PNG images in `src/renderer/public/` to enable idle animation:
+Place PNG images in `src/renderer/public/` to enable avatar motion:
 
 | File | Role | Required |
 |------|------|----------|
@@ -191,7 +191,7 @@ The app probes sequential files at startup (`idle-01`, `idle-02`, ...) and stops
 
 ### Resonance mode
 
-When enabled (AUI menu > Resonance), the avatar notices and responds to world events (e.g., a player approaching in Roblox) without explicit human input. When disabled, the avatar only responds to direct messages.
+When enabled (AUI menu > Resonance), the avatar senses changes in its surroundings (e.g., a player approaching in Roblox) and responds autonomously without explicit human input. When disabled, the avatar only responds to direct messages.
 
 ## Architecture
 
