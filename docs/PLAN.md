@@ -1,34 +1,21 @@
-# PLAN v0.3.x
+# PLAN
 
-> 本文書はv0.3.x系列の計画。実装完了した項目は正本（PROJECT.md / architecture.md）に反映し、本文書から削除する。
+> 本文書はavatar-uiの計画。到達状態はリリースごとに上書き（差分はCHANGELOG.mdが担う）。
 
-## v0.3.0 現状サマリ
+## 到達状態（v0.3.1, 2026-03-14）
 
-v0.2（Python/FastAPI）を捨て、TypeScript/Electronでグリーンフィールド新規実装。場モデル6要素を実装し、以下を達成:
+v0.2（Python/FastAPI）を捨て、TypeScript/Electronでグリーンフィールド新規実装。場モデル6要素を実装:
 
 - Console会話基盤 + 6ペインUI + テーマ/i18n
-- Roblox連携v2（双方向: 投影+観測パイプライン + cloudflaredトンネル）
+- Roblox連携（双方向: 投影+観測パイプライン + cloudflaredトンネル）
 - セッション永続化 + チェーン断裂自動回復
-- 健全性管理（検知+通知+凍結）+ 受入テスト36件
-- 観測→AI意味論分離（`[観測: eventType]`プレフィックス）
-- 自己起因proximity抑制（motion-state.ts: go_to/follow中のproximity二重応答防止）
-- go_to移動スムーズ化（NpcMotionOps walkPath WPスキップ）
+- 健全性管理（検知+通知+凍結）
+- 観測パイプライン（意味論分離 + 転送ポリシー + 自己起因proximity抑制 + 共振モード）
+- アバターモーション（待機モーション＋瞬き＋リップシンク）
 - OSS汎用化 + README + CHANGELOG
+- テスト273件（28ファイル）
 
 詳細はdocs/architecture.mdを参照。
-
-## v0.3.1 到達状態
-
-v0.3.0のConsole基盤に対し、観測パイプラインの完成 + アバター表現の強化を達成:
-
-- 観測→AI転送の意味論分離（`[観測: eventType]`プレフィックス）
-- AI転送ポリシー（成功ACK/正常遷移フィルタ）+ 自己起因proximity抑制
-- 共振モード（場レベルの注意ゲート）+ 設定の2層分離
-- アバターモーション（待機モーション＋瞬き＋リップシンク）
-- UI改善（フォント2段構成、Spaceヘッダー動的ラベル）
-- go_to移動スムーズ化 + NPC表示名のModel.Name取得
-- デモモード（F5）+ DEV_MODE + displayText
-- テスト273件（28ファイル）
 
 ## 実装バックログ
 

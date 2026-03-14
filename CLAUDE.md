@@ -6,21 +6,21 @@
 ## SSOT参照順
 
 1. siqi/knowledge/tech/avatar-ui-project.md — プロジェクトの本質・概念設計・戦略・Decision Log（バージョン非依存）
-2. docs/PLAN.md — 計画・受入シナリオ・実装バックログ（バージョン固有）
+2. docs/PLAN.md — 到達状態・実装バックログ・受入シナリオ（リリースごとに上書き）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-13）
+## 現在の状況（2026-03-14）
 
 ### ブランチ戦略
-- **main**: リリース済みの安定版（v0.3.0タグ）
-- **dev**: v0.3.1開発ブランチ。mainから分岐し、安定したらmainにマージ
+- **main**: リリース済みの安定版（v0.3.1タグ）
+- **dev**: 次バージョン開発ブランチ。mainから分岐し、安定したらmainにマージ
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.1リリース準備中。詳細はCHANGELOG.mdおよびdocs/PLAN.mdを参照。
+v0.3.1リリース済み。次バージョンは未定。実装バックログはdocs/PLAN.mdを参照。
 
 ### 次のアクション
-v0.3.1をmainにマージ+タグ打ち後、v0.3.2の計画を策定。
+docs/PLAN.mdの実装バックログから優先度を判断し、次バージョンのスコープを決定。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
