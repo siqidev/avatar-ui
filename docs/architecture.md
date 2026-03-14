@@ -37,7 +37,8 @@ src/
     style.css                 デザイントークン+レイアウト+テーマ定義
     public/
       theme-init.js           FOUC防止+lang属性（CSS前に同期実行、localStorageからテーマ・ロケール適用）
-      idle.png                アバター画像（待機）
+      idle-00〜03.png          アバター画像（待機フレーム、連番プローブ）
+      blink.png               アバター画像（瞬きフレーム、150ms表示）
       talk.png                アバター画像（発話）
   services/
     chat-session-service.ts   Grok Responses API呼出+ツール実行ループ
@@ -180,7 +181,7 @@ Zod discriminated unionで定義。
 
 | ペイン | slug | 機能 | 読み/書き |
 |---|---|---|---|
-| Avatar | avatar | 視覚的存在提示（リップシンク・状態表示） | 読み取り専用 |
+| Avatar | avatar | 視覚的存在提示（アイドルアニメーション・リップシンク・瞬き） | 読み取り専用 |
 | Space | space | AIの生命活動空間（Avatar Space）の可視化と操作 | 読み書き |
 | Canvas | canvas | 主作業領域。ファイル内容表示+画像昇格表示 | 読み書き |
 | Stream | stream | 場の全入出力の統合ストリーム（human↔AI対話 + Pulse + 観測 + ツール可視化） | 読み書き |
@@ -228,7 +229,7 @@ Zod discriminated unionで定義。
 
 **xterm連動変数**: `--term-bg/fg/cursor/selection`（terminal-pane.tsがgetComputedStyleで読み取り、テーマ変更時に再適用）
 
-**レイアウト定数**（テーマ非依存）: `--border-width/radius`, `--font-mono/size`, `--line-height`, `--splitter-width`, `--pane-header-height`
+**レイアウト定数**（テーマ非依存）: `--border-width/radius`, `--font-mono`, `--font-size`(14px), `--line-height`, `--splitter-width`, `--pane-header-height`。フォント2段構成: 本文14px(`--font-size`) / UI部品12px(固定値)
 
 ## LLMツール
 
@@ -683,12 +684,12 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze" }>
 
 ## 受入テスト（S1-S5）
 
-`src/main/acceptance/` に5シナリオ36テスト。モジュール間の統合動作を検証する。
+`src/main/acceptance/` に5シナリオ37テスト。モジュール間の統合動作を検証する。
 
 | ファイル | シナリオ | 検証対象 | テスト数 |
 |---------|---------|---------|---------|
 | s1-field-contract | S1: 場契約整合性 | ipc-handlers + field-fsm + integrity-manager | 11 |
-| s2-mode-reachability | S2: モード可達性 | 3入力経路の区別と投影 + 移動中proximity抑制 | 9 |
+| s2-mode-reachability | S2: モード可達性 | 3入力経路の区別と投影 + 移動中proximity抑制 | 10 |
 | s3-reciprocity-linkage | S3: 往復連接性 | enqueue直列化 + エラー耐性 | 5 |
 | s4-coexistence-continuity | S4: 共存連続性 | state-repository + field-runtime の永続化・復元 | 6 |
 | s5-lifecycle | S5: ライフサイクル完走 | 全遷移の統合テスト | 5 |

@@ -17,10 +17,10 @@
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.0リリース済み。v0.3.1をdevで構想・設計・実装中。主な進捗: 観測パイプライン再設計（完了）、共振機構の場レベル設計+実装（完了）、自己起因proximity抑制（完了）、go_to移動スムーズ化（完了）。詳細はdocs/PLAN.mdの実装バックログを参照。
+v0.3.1リリース準備中。詳細はCHANGELOG.mdおよびdocs/PLAN.mdを参照。
 
 ### 次のアクション
-docs/PLAN.mdの拡張バックログから優先度を判断し、v0.3.1に含める項目を実装。
+v0.3.1をmainにマージ+タグ打ち後、v0.3.2の計画を策定。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
