@@ -32,6 +32,8 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 ## Features
 
 - **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
+- **Idle animation** — Tamagotchi-style random frame switching with blink (customizable avatar sprites)
+- **Resonance mode** — Field-level attention gate: the avatar notices and responds to world events autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
 - **Long-term memory (RAG)** — The avatar decides what matters and remembers it
 - **Avatar Space** — Dedicated filesystem the AI can read and write
@@ -93,7 +95,6 @@ npm run dev
 | `XAI_API_KEY` | Yes | — | xAI API key for Grok |
 | `AVATAR_NAME` | | `Avatar` | Display name for the avatar |
 | `USER_NAME` | | `User` | Display name for the human |
-| `GROK_MODEL` | | `grok-4-1-fast-non-reasoning` | AI model |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
 | `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
@@ -171,7 +172,26 @@ In Studio: Plugins tab > Rojo > Connect. File changes sync automatically.
 
 - Columns are resizable via splitter drag
 - Panes can be swapped via drag & drop on headers
-- AUI menu: Theme (Modern / Classic), Model (runtime switch), Language (日本語 / English)
+- AUI menu: Theme (Modern / Classic), Model (runtime switch), Resonance (on/off), Language (日本語 / English)
+
+## Avatar Customization
+
+### Idle animation
+
+Place PNG images in `src/renderer/public/` to enable idle animation:
+
+| File | Role | Required |
+|------|------|----------|
+| `idle-00.png` | Base frame (always shown) | Yes |
+| `idle-01.png` ~ `idle-09.png` | Idle frames (random switching, 800-2000ms interval) | Optional |
+| `blink.png` | Blink frame (15% chance, 150ms display) | Optional |
+| `talk.png` | Lip-sync frame (shown during AI response) | Yes |
+
+The app probes sequential files at startup (`idle-01`, `idle-02`, ...) and stops at the first missing number. With only `idle-00.png` and `talk.png`, the avatar works as a static image with lip-sync.
+
+### Resonance mode
+
+When enabled (AUI menu > Resonance), the avatar notices and responds to world events (e.g., a player approaching in Roblox) without explicit human input. When disabled, the avatar only responds to direct messages.
 
 ## Architecture
 
