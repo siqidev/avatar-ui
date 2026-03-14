@@ -73,7 +73,7 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 - **X チャネル統合** — 概念設計はPROJECT.md（媒体横断契約表・4モード生起条件）で確定済み。以下は実装プロファイル:
 
   **前提条件:**
-  - X API Basic tier ($200/月) — メンション読取の最低要件
+  - X API Pay-Per-Use（従量制） — メンション読取可能。固定月額不要
   - OAuth 1.0a (ユーザー操作) + OAuth 2.0 Bearer (検索・ストリーム)
   - 非併存運用（Roblox優先。X稼働時はRoblox観測停止）
 
