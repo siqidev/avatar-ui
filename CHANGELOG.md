@@ -4,6 +4,7 @@
 
 ### Observation pipeline
 
+- **Observation semantic separation** — `[Observation: eventType]` prefix for AI to distinguish observation from user commands
 - **Forwarding policy** — AI transfer limited to actionable signals only (success ACK/normal transitions filtered)
 - **Self-caused proximity suppression** — go_to/follow motion suppresses proximity events to prevent double-response
 - **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously (`RESONANCE_MODE` in settings). OFF = perception only, ON = perception + autonomous response
