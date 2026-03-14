@@ -33,7 +33,7 @@
   --border-width: 1px;
   --border-radius: 0;
   --font-mono: "Iosevka Term", "JetBrains Mono", "Cascadia Mono", monospace;
-  --font-size: 13px;
+  --font-size: 14px;
   --line-height: 1.45;
   --splitter-width: 4px;
   --pane-header-height: 28px;
@@ -146,7 +146,7 @@ body {
   padding: 0 10px;
   background: var(--bg-pane-alt);
   border-bottom: var(--border-width) solid var(--line-default);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -161,7 +161,7 @@ body {
 }
 
 .pane-header .badge {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
   margin-left: auto;
 }
@@ -241,7 +241,7 @@ body {
   padding: 4px 10px;
   background: var(--state-critical);
   color: var(--bg-app);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -255,22 +255,13 @@ body {
   overflow-y: auto;
 }
 
-.fs-path-display {
-  font-size: 11px;
-  color: var(--fg-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
 .fs-tree {
   padding: 4px 0;
 }
 
 .fs-entry {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--font-size);
+  line-height: var(--line-height);
 }
 
 .fs-entry-row {
@@ -291,7 +282,7 @@ body {
 
 .fs-icon {
   color: var(--fg-dim);
-  font-size: 10px;
+  font-size: 12px;
   flex-shrink: 0;
   width: 16px;
   white-space: pre;
@@ -308,14 +299,6 @@ body {
   color: var(--state-info);
 }
 
-.fs-size {
-  color: var(--fg-dim);
-  font-size: 10px;
-  margin-left: auto;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
 .fs-children {
   margin-left: 7px;
   padding-left: 11px;
@@ -324,7 +307,7 @@ body {
 
 .fs-error {
   color: var(--state-critical);
-  font-size: 11px;
+  font-size: 12px;
   padding: 4px 10px;
 }
 
@@ -342,7 +325,7 @@ body {
   border: 1px solid var(--line-focus);
   color: var(--fg-main);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   outline: none;
 }
 
@@ -375,7 +358,7 @@ body {
   border: 1px solid var(--line-default);
   z-index: 100;
   min-width: 120px;
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
 }
 
@@ -418,7 +401,7 @@ body {
   justify-content: center;
   height: 100%;
   color: var(--fg-dim);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .canvas-empty[hidden] {
@@ -482,7 +465,7 @@ body {
 /* Canvas: エラー表示 */
 .canvas-error {
   color: var(--state-critical);
-  font-size: 11px;
+  font-size: 12px;
   padding: 10px;
 }
 
@@ -536,7 +519,7 @@ body {
 .message-human.source-observation,
 .message-human.source-pulse {
   color: var(--fg-dim);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .message-human.source-observation .label {
@@ -559,7 +542,7 @@ body {
 
 /* ツール呼び出し表示 */
 .tool-call {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
   padding: 2px 0 2px 12px;
   border-left: 2px solid var(--line-default);
@@ -581,7 +564,7 @@ body {
 }
 
 .tool-call-approval {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
   padding: 4px 0 4px 12px;
   border-left: 2px solid var(--state-warn);
@@ -597,7 +580,7 @@ body {
   gap: 8px;
 }
 .tool-call-approval-actions button {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 12px;
   border: 1px solid var(--line-default);
   background: var(--bg-pane);
@@ -667,12 +650,12 @@ body {
   justify-content: center;
   height: 100%;
   color: var(--fg-dim);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* === ステータス表示 === */
 .pane-header .status-text {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--fg-dim);
 }
 
@@ -704,7 +687,7 @@ body {
   display: flex;
   gap: 8px;
   padding: 2px 10px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   border-bottom: 1px solid var(--line-default);
 }

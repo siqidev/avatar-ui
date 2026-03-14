@@ -294,6 +294,71 @@ const BLIP_DURATION_MS = 25
 const BLIP_VOLUME = 0.03
 const LIP_SYNC_INTERVAL_MS = 80
 
+// === アイドルアニメーション（たまごっち風コマ送り） ===
+const IDLE_FRAME_MIN_MS = 800
+const IDLE_FRAME_MAX_MS = 2000
+const BLINK_DISPLAY_MS = 150
+const BLINK_CHANCE = 0.15 // 各フレーム切替時に瞬きが発生する確率
+
+const IDLE_FRAMES: string[] = ["./idle-00.png"] // 通常フレーム（連番）
+let blinkPath: string | null = null // 瞬きフレーム（別枠）
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+let idleCurrentFrame = 0
+
+// 起動時にidle-01〜09 + blink.pngの存在をプローブ
+;(async () => {
+  for (let i = 1; i <= 9; i++) {
+    const path = `./idle-${String(i).padStart(2, "0")}.png`
+    if (!(await probeImage(path))) break
+    IDLE_FRAMES.push(path)
+  }
+  if (await probeImage("./blink.png")) blinkPath = "./blink.png"
+  // フレームが2枚以上、または瞬きがあればアニメーション開始
+  if (IDLE_FRAMES.length > 1 || blinkPath) startIdleAnimation()
+})()
+
+function probeImage(src: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(true)
+    img.onerror = () => resolve(false)
+    img.src = src
+  })
+}
+
+function startIdleAnimation(): void {
+  if (lipSyncActive || idleTimer) return
+  scheduleNextIdleFrame()
+}
+
+function stopIdleAnimation(): void {
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
+}
+
+function scheduleNextIdleFrame(): void {
+  if (lipSyncActive) return
+  const delay = IDLE_FRAME_MIN_MS + Math.random() * (IDLE_FRAME_MAX_MS - IDLE_FRAME_MIN_MS)
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    // 瞬き判定（blinkがあり、確率に当たった場合）
+    if (blinkPath && Math.random() < BLINK_CHANCE) {
+      avatarImg.src = blinkPath
+      idleTimer = setTimeout(() => {
+        idleTimer = null
+        avatarImg.src = IDLE_FRAMES[idleCurrentFrame]
+        scheduleNextIdleFrame()
+      }, BLINK_DISPLAY_MS)
+      return
+    }
+    // 通常フレーム切替
+    if (IDLE_FRAMES.length > 1) {
+      idleCurrentFrame = Math.floor(Math.random() * IDLE_FRAMES.length)
+      avatarImg.src = IDLE_FRAMES[idleCurrentFrame]
+    }
+    scheduleNextIdleFrame()
+  }, delay)
+}
+
 let audioCtx: AudioContext | null = null
 let lipSyncActive = false
 let lipSyncOn = false
@@ -326,7 +391,7 @@ function playBlip(): void {
 }
 
 function applyLipSync(): void {
-  avatarImg.src = lipSyncActive && lipSyncOn ? "./talk.png" : "./idle.png"
+  avatarImg.src = lipSyncActive && lipSyncOn ? "./talk.png" : IDLE_FRAMES[idleCurrentFrame]
 }
 
 function scheduleLipSync(): void {
@@ -338,6 +403,7 @@ function scheduleLipSync(): void {
 
 function startLipSync(): void {
   if (lipSyncActive) return
+  stopIdleAnimation()
   lipSyncActive = true
   scheduleLipSync()
 }
@@ -347,6 +413,8 @@ function stopLipSync(): void {
   if (lipSyncTimer) { clearTimeout(lipSyncTimer); lipSyncTimer = null }
   lipSyncOn = false
   applyLipSync()
+  // リップシンク終了→アイドルアニメーション再開
+  if (IDLE_FRAMES.length > 1) startIdleAnimation()
 }
 
 // 擬似ストリーム: 完成テキストを1文字ずつ流し込む
