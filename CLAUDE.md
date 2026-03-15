@@ -17,10 +17,7 @@
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.1リリース済み。次バージョンは未定。実装バックログはdocs/PLAN.mdを参照。
-
-### 次のアクション
-docs/PLAN.mdの実装バックログから優先度を判断し、次バージョンのスコープを決定。
+v0.3.1リリース済み。v0.4.0（Xチャネル統合）のスコープ確定、L3設計から着手。詳細はdocs/PLAN.md。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
