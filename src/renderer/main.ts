@@ -51,6 +51,7 @@ declare global {
       onStreamReply: (cb: (data: unknown) => void) => void
       onIntegrityAlert: (cb: (data: unknown) => void) => void
       onObservation: (cb: (data: unknown) => void) => void
+      onXEvent: (cb: (data: unknown) => void) => void
       onTerminalOutput: (cb: (data: unknown) => void) => void
       onTerminalLifecycle: (cb: (data: unknown) => void) => void
       onTerminalSnapshot: (cb: (data: unknown) => void) => void
@@ -77,6 +78,8 @@ const inputEl = document.getElementById("stream-input") as HTMLInputElement
 const streamPane = document.getElementById("pane-stream") as HTMLDivElement
 const robloxPane = document.getElementById("pane-roblox") as HTMLDivElement
 const robloxBody = robloxPane.querySelector(".pane-body") as HTMLDivElement
+const xPane = document.getElementById("pane-x") as HTMLDivElement
+const xBody = xPane.querySelector(".pane-body") as HTMLDivElement
 const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
 
 // === Canvasペイン初期化 ===
@@ -103,13 +106,18 @@ const columns = [
 ]
 const columnSplitters = columns.map((col) => col.querySelector(".splitter-h")! as HTMLElement)
 
+// 中央列の2つ目のスプリッター（Canvas-X間 / X-Roblox間）
+const centerSplitterCX = document.getElementById("splitter-h-cx") as HTMLElement
+const centerSplitterXR = document.getElementById("splitter-h-xr") as HTMLElement
+
 // 列幅比率 [left, center, right] — 初期 15:42:43
 const colRatios = [15, 42, 43]
-// 列ごとの行比率 [top, bottom] — 各列独立
-const rowRatios: [number, number][] = [
-  [30, 70], // 左列: Avatar小 / Space大
-  [65, 35], // 中央列: Canvas大 / Roblox小
-  [65, 35], // 右列: Stream大 / Terminal小
+// 列ごとの行比率 — 各列独立
+// 左列・右列: [top, bottom]、中央列: [canvas, x, roblox]
+const rowRatios: number[][] = [
+  [30, 70],       // 左列: Avatar小 / Space大
+  [50, 20, 30],   // 中央列: Canvas / X / Roblox
+  [65, 35],       // 右列: Stream大 / Terminal小
 ]
 
 const SPLITTER_WIDTH = 4
@@ -124,10 +132,20 @@ function applyColumnWidths(): void {
 function applyRowRatios(): void {
   for (let c = 0; c < 3; c++) {
     const col = columns[c]
-    const topPane = col.children[0] as HTMLElement
-    const bottomPane = col.children[2] as HTMLElement
-    topPane.style.flex = String(rowRatios[c][0])
-    bottomPane.style.flex = String(rowRatios[c][1])
+    if (rowRatios[c].length === 3) {
+      // 中央列: 3ペイン（Canvas / X / Roblox）
+      const pane0 = col.children[0] as HTMLElement
+      const pane1 = col.children[2] as HTMLElement
+      const pane2 = col.children[4] as HTMLElement
+      pane0.style.flex = String(rowRatios[c][0])
+      pane1.style.flex = String(rowRatios[c][1])
+      pane2.style.flex = String(rowRatios[c][2])
+    } else {
+      const topPane = col.children[0] as HTMLElement
+      const bottomPane = col.children[2] as HTMLElement
+      topPane.style.flex = String(rowRatios[c][0])
+      bottomPane.style.flex = String(rowRatios[c][1])
+    }
   }
 }
 
@@ -142,7 +160,14 @@ function renderLayout(): void {
 
     // appendChildはDOMノードを移動する（イベントリスナー保持）
     col.appendChild(topPane)
-    col.appendChild(columnSplitters[c])
+    if (c === 1) {
+      // 中央列: Canvas → splitter → X → splitter → Roblox
+      col.appendChild(centerSplitterCX)
+      col.appendChild(xPane)
+      col.appendChild(centerSplitterXR)
+    } else {
+      col.appendChild(columnSplitters[c])
+    }
     col.appendChild(bottomPane)
   }
   applyRowRatios()
@@ -238,9 +263,63 @@ function initRowSplitter(col: HTMLElement, colIdx: number, splitter: HTMLElement
   })
 }
 
-for (let c = 0; c < 3; c++) {
-  initRowSplitter(columns[c], c, columnSplitters[c])
+// 3ペイン列用の横スプリッター（隣接2ペイン間のドラッグ、3つ目は固定）
+function initRowSplitter3(
+  splitter: HTMLElement,
+  colIdx: number,
+  upperIdx: number,
+  lowerIdx: number,
+  upperChildIdx: number,
+  lowerChildIdx: number,
+): void {
+  const col = columns[colIdx]
+  splitter.addEventListener("mousedown", (e: MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const upperPane = col.children[upperChildIdx] as HTMLElement
+    const lowerPane = col.children[lowerChildIdx] as HTMLElement
+    const startUpperH = upperPane.getBoundingClientRect().height
+    const startLowerH = lowerPane.getBoundingClientRect().height
+
+    splitter.classList.add("dragging")
+    document.body.style.cursor = "row-resize"
+    document.body.style.userSelect = "none"
+
+    function onMouseMove(ev: MouseEvent): void {
+      const dy = ev.clientY - startY
+      const combined = startUpperH + startLowerH
+      const newUpperH = Math.max(MIN_TRACK_PX, Math.min(startUpperH + dy, combined - MIN_TRACK_PX))
+      const newLowerH = combined - newUpperH
+
+      const totalH = startUpperH + startLowerH +
+        (rowRatios[colIdx].reduce((a, b) => a + b, 0) - rowRatios[colIdx][upperIdx] - rowRatios[colIdx][lowerIdx])
+      rowRatios[colIdx][upperIdx] = newUpperH / (totalH || 1)
+      rowRatios[colIdx][lowerIdx] = newLowerH / (totalH || 1)
+      upperPane.style.flex = String(rowRatios[colIdx][upperIdx])
+      lowerPane.style.flex = String(rowRatios[colIdx][lowerIdx])
+    }
+
+    function onMouseUp(): void {
+      splitter.classList.remove("dragging")
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
+  })
 }
+
+// 左列・右列: 2ペインスプリッター
+initRowSplitter(columns[0], 0, columnSplitters[0])
+initRowSplitter(columns[2], 2, columnSplitters[2])
+
+// 中央列: 3ペインスプリッター（Canvas-X間, X-Roblox間）
+// children: [0]=Canvas, [1]=splitter-cx, [2]=X, [3]=splitter-xr, [4]=Roblox
+initRowSplitter3(centerSplitterCX, 1, 0, 1, 0, 2)
+initRowSplitter3(centerSplitterXR, 1, 1, 2, 2, 4)
 
 // === ペインD&D入替 ===
 function initPaneDragAndDrop(): void {
@@ -272,6 +351,9 @@ function initPaneDragAndDrop(): void {
       const fromSlot = e.dataTransfer?.getData("text/plain") as GridSlot | undefined
       const toSlot = pane.dataset.slot as GridSlot | undefined
       if (!fromSlot || !toSlot || fromSlot === toSlot) return
+      // グリッド外スロット（Xペイン等）はD&D入替対象外
+      if (!(GRID_SLOTS as readonly string[]).includes(fromSlot) ||
+          !(GRID_SLOTS as readonly string[]).includes(toSlot)) return
 
       currentLayout = swapPanes(currentLayout, fromSlot, toSlot)
       renderLayout()
@@ -502,6 +584,7 @@ function appendMessage(
   rawText: string,
   source?: string,
   toolCalls?: ToolCallDisplay[],
+  channel?: string,
 ): void {
   // リテラル \n を実際の改行に変換（Grokがエスケープ済み文字列を返す場合がある）
   const text = rawText.replace(/\\n/g, "\n")
@@ -544,7 +627,10 @@ function appendMessage(
 
   const label = document.createElement("span")
   label.className = "label"
-  if (actor === "human" && source === "observation") {
+  const channelTag = channel === "x" ? "x" : channel === "roblox" ? "roblox" : null
+  if (actor === "human" && source === "observation" && channelTag) {
+    label.textContent = `[${channelTag}]`
+  } else if (actor === "human" && source === "observation") {
     label.textContent = "[roblox]"
   } else if (actor === "human" && source === "pulse") {
     label.textContent = "[pulse]"
@@ -552,6 +638,8 @@ function appendMessage(
     label.textContent = userLabel
   } else if (source === "pulse") {
     label.textContent = `[pulse] ${avatarLabel}`
+  } else if (source === "observation" && channelTag) {
+    label.textContent = `[${channelTag}] ${avatarLabel}`
   } else if (source === "observation") {
     label.textContent = `[roblox] ${avatarLabel}`
   } else {
@@ -588,6 +676,7 @@ window.fieldApi.onFieldState((data) => {
       actor: string
       text: string
       source?: string
+      channel?: string
       toolCalls?: ToolCallDisplay[]
     }>
   }
@@ -608,7 +697,7 @@ window.fieldApi.onFieldState((data) => {
     if (streamingAbort) streamingAbort()
     messagesEl.innerHTML = ""
     for (const m of msg.lastMessages) {
-      appendMessage(m.actor, m.text, m.source, m.toolCalls)
+      appendMessage(m.actor, m.text, m.source, m.toolCalls, m.channel)
     }
     enableStream = true
   }
@@ -629,10 +718,11 @@ window.fieldApi.onStreamReply((data) => {
     actor: string
     text: string
     source?: string
+    channel?: string
     toolCalls?: ToolCallDisplay[]
   }
   removeThinking()
-  appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls)
+  appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls, reply.channel)
 
   if (!reply.source || reply.source === "user") {
     inputEl.disabled = false
@@ -702,6 +792,52 @@ window.fieldApi.onObservation((data) => {
   robloxPane.dataset.state = "active"
   setTimeout(() => {
     robloxPane.dataset.state = "normal"
+  }, 3000)
+})
+
+// === X Monitorペイン ===
+const MAX_X_ENTRIES = 50
+
+function appendXEvent(eventType: string, formatted: string, timestamp: string): void {
+  const placeholder = xBody.querySelector(".pane-placeholder")
+  if (placeholder) placeholder.remove()
+
+  const entry = document.createElement("div")
+  entry.className = "observation-entry"
+
+  const time = document.createElement("span")
+  time.className = "observation-time"
+  const d = new Date(timestamp)
+  time.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
+
+  const tag = document.createElement("span")
+  tag.className = `observation-tag observation-tag-${eventType}`
+  tag.textContent = eventType
+
+  const text = document.createElement("span")
+  text.className = "observation-text"
+  text.textContent = formatted
+
+  entry.appendChild(time)
+  entry.appendChild(tag)
+  entry.appendChild(text)
+
+  xBody.appendChild(entry)
+
+  while (xBody.children.length > MAX_X_ENTRIES) {
+    xBody.removeChild(xBody.firstChild!)
+  }
+
+  xBody.scrollTop = xBody.scrollHeight
+}
+
+window.fieldApi.onXEvent((data) => {
+  const ev = data as { eventType: string; formatted: string; timestamp: string }
+  appendXEvent(ev.eventType, ev.formatted, ev.timestamp)
+
+  xPane.dataset.state = "active"
+  setTimeout(() => {
+    xPane.dataset.state = "normal"
   }, 3000)
 })
 

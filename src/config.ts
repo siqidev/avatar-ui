@@ -14,6 +14,12 @@ const envSchema = z.object({
   ROBLOX_UNIVERSE_ID: z.string().min(1).optional(),
   ROBLOX_OBSERVATION_SECRET: z.string().min(1).optional(),
   CLOUDFLARED_TOKEN: z.string().min(1).optional(),
+  X_CONSUMER_KEY: z.string().min(1).optional(),
+  X_CONSUMER_SECRET: z.string().min(1).optional(),
+  X_ACCESS_TOKEN: z.string().min(1).optional(),
+  X_ACCESS_TOKEN_SECRET: z.string().min(1).optional(),
+  X_WEBHOOK_SECRET: z.string().min(1).optional(),
+  X_USER_ID: z.string().min(1).optional(),
 
   // --- 外部ID・名前 ---
   ROBLOX_OWNER_DISPLAY_NAME: z.string().min(1).optional(),
@@ -30,6 +36,16 @@ const envSchema = z.object({
     .string()
     .regex(/^\d+$/, "ROBLOX_OBSERVATION_PORT は数値で指定してください")
     .default("3000"),
+
+  // --- X ---
+  X_WEBHOOK_PORT: z
+    .string()
+    .regex(/^\d+$/, "X_WEBHOOK_PORT は数値で指定してください")
+    .default("3001"),
+  X_REPLY_APPROVED: z
+    .string()
+    .default("off")
+    .transform((v) => v.toLowerCase() === "on"),
 
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
@@ -74,6 +90,12 @@ export type AppConfig = {
   robloxObservationSecret: string | undefined
   robloxOwnerDisplayName: string | undefined
   cloudflaredToken: string | undefined
+  xConsumerKey: string | undefined
+  xConsumerSecret: string | undefined
+  xAccessToken: string | undefined
+  xAccessTokenSecret: string | undefined
+  xWebhookSecret: string | undefined
+  xUserId: string | undefined
 
   // アイデンティティ
   avatarName: string
@@ -101,6 +123,8 @@ export type AppConfig = {
   // ネットワーク
   observationPort: number
   robloxOpenCloudBaseUrl: string
+  xWebhookPort: number
+  xReplyApproved: boolean
 
   // Terminal
   terminalShell: string
@@ -146,6 +170,12 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     robloxObservationSecret: env.ROBLOX_OBSERVATION_SECRET,
     robloxOwnerDisplayName: env.ROBLOX_OWNER_DISPLAY_NAME,
     cloudflaredToken: env.CLOUDFLARED_TOKEN,
+    xConsumerKey: env.X_CONSUMER_KEY,
+    xConsumerSecret: env.X_CONSUMER_SECRET,
+    xAccessToken: env.X_ACCESS_TOKEN,
+    xAccessTokenSecret: env.X_ACCESS_TOKEN_SECRET,
+    xWebhookSecret: env.X_WEBHOOK_SECRET,
+    xUserId: env.X_USER_ID,
 
     // アイデンティティ
     avatarName: env.AVATAR_NAME,
@@ -173,6 +203,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // ネットワーク
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),
     robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
+    xWebhookPort: Number(env.X_WEBHOOK_PORT),
+    xReplyApproved: env.X_REPLY_APPROVED,
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
@@ -227,4 +259,20 @@ export function isCollectionsEnabled(config: AppConfig): boolean {
 // Roblox連携が利用可能か判定
 export function isRobloxEnabled(config: AppConfig): boolean {
   return Boolean(config.robloxApiKey && config.robloxUniverseId)
+}
+
+// X連携が利用可能か判定（OAuth認証4キー + ユーザーID が全て設定されている場合）
+export function isXEnabled(config: AppConfig): boolean {
+  return Boolean(
+    config.xConsumerKey &&
+    config.xConsumerSecret &&
+    config.xAccessToken &&
+    config.xAccessTokenSecret &&
+    config.xUserId,
+  )
+}
+
+// X返信（x_reply）が承認済みか判定（X事前承認取得後にX_REPLY_APPROVED=onで有効化）
+export function isXReplyEnabled(config: AppConfig): boolean {
+  return isXEnabled(config) && config.xReplyApproved
 }

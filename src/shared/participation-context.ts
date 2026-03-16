@@ -1,10 +1,12 @@
 import type { Actor, Source } from "./ipc-schema.js"
+import type { ChannelId } from "./channel.js"
 
 // 参与入力: 全起点共通の構造化された入力
 // ③参与文脈の最小実装（議論合意 2026-02-25）
 export type ParticipationInput = {
   actor: Actor
   source: Source
+  channel: ChannelId
   correlationId: string
   text: string
   timestamp: string
@@ -27,11 +29,13 @@ export function generateCorrelationId(source: Source): string {
 export function createParticipationInput(
   actor: Actor,
   source: Source,
+  channel: ChannelId,
   text: string,
 ): ParticipationInput {
   return {
     actor,
     source,
+    channel,
     correlationId: generateCorrelationId(source),
     text,
     timestamp: new Date().toISOString(),

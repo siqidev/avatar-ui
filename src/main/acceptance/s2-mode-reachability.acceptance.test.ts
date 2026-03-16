@@ -41,12 +41,26 @@ vi.mock("../../roblox/observation-formatter.js", () => ({
   formatObservation: vi.fn().mockReturnValue("[Chat] Alice: hello"),
 }))
 
+vi.mock("../../x/x-webhook-server.js", () => ({
+  startXWebhookServer: vi.fn().mockReturnValue({ close: vi.fn() }),
+}))
+
+vi.mock("../../x/x-event-formatter.js", () => ({
+  formatXEvent: vi.fn().mockReturnValue("[X] @user: hello"),
+  formatXEventForAI: vi.fn().mockReturnValue("[X_MENTION] @user: hello"),
+}))
+
+vi.mock("../../x/x-forwarding-policy.js", () => ({
+  shouldForwardXEventToAI: vi.fn().mockReturnValue(true),
+}))
+
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
     sendStreamReply: vi.fn(),
     sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
     sendObservationEvent: vi.fn(),
+    sendXEvent: vi.fn(),
   })),
 }))
 

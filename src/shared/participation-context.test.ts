@@ -37,11 +37,13 @@ describe("participation-context", () => {
       const input: ParticipationInput = createParticipationInput(
         "human",
         "user",
+        "console",
         "こんにちは",
       )
 
       expect(input.actor).toBe("human")
       expect(input.source).toBe("user")
+      expect(input.channel).toBe("console")
       expect(input.text).toBe("こんにちは")
       expect(input.correlationId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
@@ -50,7 +52,7 @@ describe("participation-context", () => {
     })
 
     it("AI起点のpulseを生成できる", () => {
-      const input = createParticipationInput("ai", "pulse", "定期確認")
+      const input = createParticipationInput("ai", "pulse", "console", "定期確認")
 
       expect(input.actor).toBe("ai")
       expect(input.source).toBe("pulse")
@@ -61,6 +63,7 @@ describe("participation-context", () => {
       const input = createParticipationInput(
         "human",
         "observation",
+        "roblox",
         "[Roblox] PlayerJoined",
       )
 

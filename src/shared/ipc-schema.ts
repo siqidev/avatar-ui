@@ -41,6 +41,8 @@ export type ToMainMessage = z.infer<typeof toMainSchema>
 export const sourceSchema = z.enum(["user", "pulse", "observation"])
 export type Source = z.infer<typeof sourceSchema>
 
+export const channelIdSchema = z.enum(["console", "roblox", "x"])
+
 export const toolCallIpcSchema = z.object({
   name: z.string(),
   args: z.record(z.string(), z.unknown()),
@@ -53,6 +55,7 @@ export const streamReplySchema = z.object({
   correlationId: z.string().min(1),
   text: z.string(),
   source: sourceSchema,
+  channel: channelIdSchema.default("console"),
   toolCalls: z.array(toolCallIpcSchema).default([]),
 })
 
@@ -65,6 +68,7 @@ export const fieldStateSchema = z.object({
     actor: actorSchema,
     text: z.string(),
     source: sourceSchema.optional(),
+    channel: channelIdSchema.optional(),
     toolCalls: z.array(toolCallIpcSchema).optional(),
   })).optional(),
 })
@@ -94,12 +98,21 @@ export const observationEventIpcSchema = z.object({
   timestamp: z.string(),
 })
 
+export const xEventIpcSchema = z.object({
+  type: z.literal("x.event"),
+  eventType: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  formatted: z.string(),
+  timestamp: z.string(),
+})
+
 // Main → Renderer の全メッセージ
 export const toRendererSchema = z.discriminatedUnion("type", [
   streamReplySchema,
   fieldStateSchema,
   integrityAlertSchema,
   observationEventIpcSchema,
+  xEventIpcSchema,
 ])
 
 export type ToRendererMessage = z.infer<typeof toRendererSchema>

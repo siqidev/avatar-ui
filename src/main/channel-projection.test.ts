@@ -31,6 +31,7 @@ describe("channel-projection", () => {
         correlationId: "test-123",
         text: "こんにちは",
         source: "user",
+        channel: "console",
         toolCalls: [],
       })
 
@@ -41,6 +42,7 @@ describe("channel-projection", () => {
         correlationId: "test-123",
         text: "こんにちは",
         source: "user",
+        channel: "console",
         toolCalls: [],
       })
     })
@@ -51,6 +53,7 @@ describe("channel-projection", () => {
         correlationId: "test-456",
         text: "保存しました",
         source: "pulse",
+        channel: "console",
         toolCalls: [{ name: "save_memory", args: {}, result: "ok" }],
       })
 
@@ -95,6 +98,7 @@ describe("channel-projection", () => {
         text: "テスト",
         correlationId: "restored",
         source: undefined,
+        channel: undefined,
         toolCalls: undefined,
       })
       expect(sent.lastMessages[1].toolCalls).toEqual([
@@ -138,6 +142,7 @@ describe("channel-projection", () => {
         correlationId: "x",
         text: "test",
         source: "user",
+        channel: "console",
         toolCalls: [],
       })
       // クラッシュしないことが確認できればOK
@@ -150,6 +155,7 @@ describe("channel-projection", () => {
         correlationId: "x",
         text: "test",
         source: "user",
+        channel: "console",
         toolCalls: [],
       })
       expect(mockWin.webContents.send).not.toHaveBeenCalled()

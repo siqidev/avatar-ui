@@ -21,6 +21,7 @@ vi.mock("../field-runtime.js", () => ({
   }),
   startPulse: vi.fn(),
   startObservation: vi.fn(),
+  startXWebhook: vi.fn(),
   getState: vi.fn(() => mockDefaultState()),
   updateFieldState: vi.fn(),
   resetToNewField: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("../channel-projection.js", () => ({
     sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
     sendObservationEvent: vi.fn(),
+    sendXEvent: vi.fn(),
   })),
 }))
 

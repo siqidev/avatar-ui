@@ -6,7 +6,9 @@ import type {
 } from "openai/resources/responses/responses"
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import type { Source } from "../shared/ipc-schema.js"
-import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
+import type { ChannelId } from "../shared/channel.js"
+import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled, isXReplyEnabled } from "../config.js"
+import { getAllowedTools, isToolAllowed } from "./input-gate.js"
 import { getSettings } from "../main/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
@@ -20,6 +22,9 @@ import {
   fsMutateToolDef,
 } from "../tools/filesystem-tool.js"
 import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
+import { xPostToolDef, xPostArgsSchema } from "../tools/x-post-tool.js"
+import { xReplyToolDef, xReplyArgsSchema } from "../tools/x-reply-tool.js"
+import { createPost, createReply } from "../x/x-api-repository.js"
 import { requestApproval } from "../main/tool-approval-service.js"
 import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
@@ -139,14 +144,15 @@ const API_CALL_TIMEOUT_MS = 20_000
 const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as const
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
-// source: 入力の出自（意味論識別用。ツール可否の分岐には使用しない）
+// source/channel: InputGateでツール権限を制御
 export async function sendMessage(
   client: OpenAI,
   state: State,
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
-  _source?: Source,
+  source: Source = "user",
+  channel: ChannelId = "console",
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
@@ -162,7 +168,7 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(config)
+  const tools = buildTools(config, source, channel)
 
   let response: Response
   try {
@@ -214,6 +220,22 @@ export async function sendMessage(
       log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
       const parsedArgs = JSON.parse(call.args) as Record<string, unknown>
 
+      // InputGate: 入力文脈で許可されていないツールはreject（二重防御の2段目）
+      if (!isToolAllowed(call.name, source, channel)) {
+        const gateResult = JSON.stringify({
+          status: "denied",
+          message: `このツールは${channel}チャネルの${source}入力からは使用できません`,
+        })
+        log.info(`[INPUT_GATE] ${call.name} 拒否: source=${source} channel=${channel}`)
+        allToolCalls.push({ name: call.name, args: parsedArgs, result: gateResult })
+        toolResults.push({
+          type: "function_call_output",
+          call_id: call.callId,
+          output: gateResult,
+        } as ResponseInput[number])
+        continue
+      }
+
       // 承認ゲート: auto-approveリスト外のツールはユーザー承認を待つ
       const approval = await requestApproval(call.name as ToolName, parsedArgs)
       let result: string
@@ -260,28 +282,36 @@ export async function sendMessage(
   }
 }
 
-// ツール定義を組み立てる
-function buildTools(config: import("../config.js").AppConfig): Tool[] {
-  const tools: Tool[] = [
-    saveMemoryToolDef,
-    fsListToolDef,
-    fsReadToolDef,
-    fsWriteToolDef,
-    fsMutateToolDef,
+// ツール定義を組み立てる（InputGateで入力文脈に応じてフィルタリング）
+function buildTools(config: import("../config.js").AppConfig, source: Source, channel: ChannelId): Tool[] {
+  const allowed = getAllowedTools(source, channel)
+
+  // 全ツール定義のマッピング（name → Tool）
+  const allTools: Array<{ name: string; def: Tool; condition: boolean }> = [
+    { name: "save_memory", def: saveMemoryToolDef, condition: true },
+    { name: "fs_list", def: fsListToolDef, condition: true },
+    { name: "fs_read", def: fsReadToolDef, condition: true },
+    { name: "fs_write", def: fsWriteToolDef, condition: true },
+    { name: "fs_mutate", def: fsMutateToolDef, condition: true },
+    { name: "terminal", def: terminalToolDef, condition: config.avatarShell },
+    { name: "roblox_action", def: robloxActionToolDef, condition: isRobloxEnabled(config) },
+    { name: "x_post", def: xPostToolDef, condition: isXEnabled(config) },
+    { name: "x_reply", def: xReplyToolDef, condition: isXReplyEnabled(config) },
   ]
-  // AVATAR_SHELL=on の場合のみAIにterminalツールを提供
-  if (config.avatarShell) {
-    tools.push(terminalToolDef)
-  }
+
+  // InputGateで許可されたツールのみ追加
+  const tools: Tool[] = allTools
+    .filter((t) => t.condition && allowed.includes(t.name as import("../shared/tool-approval-schema.js").ToolName))
+    .map((t) => t.def)
+
+  // file_search（Grok内部ツール、InputGate対象外）
   if (isCollectionsEnabled(config) && config.xaiCollectionId) {
     tools.push({
       type: "file_search",
       vector_store_ids: [config.xaiCollectionId],
     } as Tool)
   }
-  if (isRobloxEnabled(config)) {
-    tools.push(robloxActionToolDef)
-  }
+
   return tools
 }
 
@@ -328,6 +358,12 @@ async function handleToolCall(
   }
   if (call.name === "terminal") {
     return handleTerminal(call.args)
+  }
+  if (call.name === "x_post") {
+    return handleXPost(call.args)
+  }
+  if (call.name === "x_reply") {
+    return handleXReply(call.args)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -531,4 +567,42 @@ async function handleTerminal(argsJson: string): Promise<string> {
     output: output.lines,
     truncated: output.truncated,
   })
+}
+
+// x_postツールの実行
+async function handleXPost(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = xPostArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`x_post引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const result = await createPost(validation.data.text)
+  if (!result.success) {
+    throw new Error(`Xポスト作成失敗: ${result.error}`)
+  }
+
+  return JSON.stringify({ status: "posted", tweet_id: result.tweetId })
+}
+
+// x_replyツールの実行（Phase 2: X_REPLY_APPROVED=on時のみbuildToolsに含まれる）
+// 二重ガード: buildToolsでツール定義を除外しても、万が一呼ばれた場合に備える
+async function handleXReply(argsJson: string): Promise<string> {
+  const config = getConfig()
+  if (!config.xReplyApproved) {
+    return JSON.stringify({ status: "error", reason: "X_REPLY_NOT_APPROVED" })
+  }
+
+  const parsed = JSON.parse(argsJson)
+  const validation = xReplyArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`x_reply引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const result = await createReply(validation.data.text, validation.data.reply_to_tweet_id)
+  if (!result.success) {
+    throw new Error(`X返信作成失敗: ${result.error}`)
+  }
+
+  return JSON.stringify({ status: "replied", tweet_id: result.tweetId, reply_to: validation.data.reply_to_tweet_id })
 }

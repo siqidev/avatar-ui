@@ -8,6 +8,7 @@ import {
   processStream,
   startPulse,
   startObservation,
+  startXWebhook,
   getState,
   updateFieldState,
   resetToNewField,
@@ -20,6 +21,7 @@ import { initApprovalService, resolveApproval, cancelAllPending } from "./tool-a
 import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { getConfig } from "../config.js"
 import { t } from "../shared/i18n.js"
+import type { ToolCallInfo } from "../services/chat-session-service.js"
 import * as log from "../logger.js"
 
 // 場の状態（モジュールスコープで保持、field-runtimeの永続化状態と同期）
@@ -52,6 +54,24 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
   // ChannelProjection: Console（Electron BrowserWindow）チャネルを生成
   const projection: ChannelProjection = createConsoleProjection(getMainWindow)
 
+  // x_post/x_reply成功をXペインに転送
+  function forwardXToolResults(toolCalls: ToolCallInfo[]): void {
+    for (const tc of toolCalls) {
+      if (tc.name !== "x_post" && tc.name !== "x_reply") continue
+      try {
+        const parsed = JSON.parse(tc.result) as Record<string, unknown>
+        if (parsed.status !== "posted") continue
+        const text = (tc.args.text as string) ?? ""
+        const eventType = tc.name === "x_post" ? "post" : "reply"
+        projection.sendXEvent({
+          eventType,
+          payload: { tweet_id: parsed.tweet_id, text },
+          formatted: `[${eventType}] ${text}`,
+        })
+      } catch { /* パース失敗は無視 */ }
+    }
+  }
+
   // IntegrityManager: alertSink登録（検知→投影経由でRenderer通知）
   setAlertSink((code, message) => {
     projection.sendIntegrityAlert(code, message)
@@ -79,21 +99,24 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     startPulse(
       (result, correlationId) => {
         // Streamペインにコンテキスト行（Pulse発火）
-        recordMessage("human", t("pulseCheck"), "pulse")
+        recordMessage("human", t("pulseCheck"), "pulse", "console")
         projection.sendStreamReply({
           actor: "human",
           correlationId,
           text: t("pulseCheck"),
           source: "pulse",
+          channel: "console",
           toolCalls: [],
         })
         // AI応答
-        recordMessage("ai", result.text, "pulse", result.toolCalls)
+        recordMessage("ai", result.text, "pulse", "console", result.toolCalls)
+        forwardXToolResults(result.toolCalls)
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
           text: result.displayText,
           source: "pulse",
+          channel: "console",
           toolCalls: result.toolCalls,
         })
       },
@@ -112,15 +135,43 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         // roblox_log: Monitorのみ（会話履歴には不要）
         if (event.type === "roblox_log") return
         // 会話履歴に記録（AIの文脈維持に必要）
-        recordMessage("human", formatted, "observation")
+        recordMessage("human", formatted, "observation", "roblox")
       },
       (result, correlationId) => {
-        recordMessage("ai", result.text, "observation", result.toolCalls)
+        recordMessage("ai", result.text, "observation", "roblox", result.toolCalls)
         projection.sendStreamReply({
           actor: "ai",
           correlationId,
           text: result.displayText,
           source: "observation",
+          channel: "roblox",
+          toolCalls: result.toolCalls,
+        })
+      },
+      () => isActive(fieldState),
+    )
+
+    // X Webhookサーバー起動（X連携有効時のみ）
+    startXWebhook(
+      (event, formatted) => {
+        // Xペインへ
+        projection.sendXEvent({
+          eventType: event.type,
+          payload: event as unknown as Record<string, unknown>,
+          formatted,
+        })
+        // 会話履歴に記録
+        recordMessage("human", formatted, "observation", "x")
+      },
+      (result, correlationId) => {
+        recordMessage("ai", result.text, "observation", "x", result.toolCalls)
+        forwardXToolResults(result.toolCalls)
+        projection.sendStreamReply({
+          actor: "ai",
+          correlationId,
+          text: result.displayText,
+          source: "observation",
+          channel: "x",
           toolCalls: result.toolCalls,
         })
       },
@@ -188,19 +239,21 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     }
 
     const { text, correlationId, actor } = result.data
-    recordMessage(actor, text)
+    recordMessage(actor, text, "user", "console")
     log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
 
     try {
       const streamResult = await processStream(text)
-      recordMessage("ai", streamResult.text, "user", streamResult.toolCalls)
+      recordMessage("ai", streamResult.text, "user", "console", streamResult.toolCalls)
       log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
+      forwardXToolResults(streamResult.toolCalls)
 
       projection.sendStreamReply({
         actor: "ai",
         correlationId,
         text: streamResult.displayText,
         source: "user",
+        channel: "console",
         toolCalls: streamResult.toolCalls,
       })
     } catch (err) {

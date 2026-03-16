@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
-import { getConfig, isRobloxEnabled } from "../config.js"
+import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage } from "../state/state-repository.js"
@@ -14,6 +14,10 @@ import type { ObservationEvent } from "../roblox/observation-server.js"
 import { formatObservation } from "../roblox/observation-formatter.js"
 import { shouldForwardToAI } from "../roblox/observation-forwarding-policy.js"
 import { endSuppression as endMotionSuppression, isProximitySuppressed } from "../roblox/motion-state.js"
+import { startXWebhookServer } from "../x/x-webhook-server.js"
+import type { XEvent } from "../x/x-event-formatter.js"
+import { formatXEvent, formatXEventForAI } from "../x/x-event-formatter.js"
+import { shouldForwardXEventToAI } from "../x/x-forwarding-policy.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import { t } from "../shared/i18n.js"
@@ -185,13 +189,13 @@ function persistState(): void {
 }
 
 // ストリームメッセージを処理する（stream.post → sendMessage → stream.reply）
-export function processStream(text: string): Promise<SendMessageResult> {
+export function processStream(text: string, source: import("../shared/ipc-schema.js").Source = "user", channel: import("../shared/channel.js").ChannelId = "console"): Promise<SendMessageResult> {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const result = await sendMessage(client, state, beingPrompt, text)
+        const result = await sendMessage(client, state, beingPrompt, text, false, source, channel)
         // lastResponseIdはsendMessage内でstate.participant.lastResponseIdに更新済み
         updateParticipantChain(state.participant.lastResponseId)
         resolve(result)
@@ -230,6 +234,8 @@ export function startPulse(
           beingPrompt,
           pulseInput,
           true, // forceSystemPrompt
+          "pulse",
+          "console",
         )
         updateParticipantChain(state.participant.lastResponseId)
         if (!result.text.startsWith(config.pulseOkPrefix)) {
@@ -323,7 +329,7 @@ export function startObservation(
           // 観測プレフィックス: AIが「これは観測情報であり、ユーザーの命令ではない」と認識できる
           const aiInput = t("obs.aiPrefix", event.type, formatted)
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation")
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox")
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
@@ -339,12 +345,75 @@ export function startObservation(
   log.info("[OBSERVATION] 観測サーバー起動")
 }
 
-// ランタイム停止（観測サーバーのクリーンアップ）
+// X Webhookサーバーを起動する（X連携有効時のみ）
+let xWebhookServer: http.Server | null = null
+
+export function startXWebhook(
+  onEvent: (event: XEvent, formatted: string, correlationId: string) => void,
+  onReply: (result: SendMessageResult, correlationId: string) => void,
+  isFieldActive: () => boolean,
+): void {
+  if (!initialized) throw new Error("FieldRuntime未初期化")
+  if (!isXEnabled(config)) {
+    log.info("[X_WEBHOOK] X連携無効 — Webhookサーバー起動スキップ")
+    return
+  }
+
+  xWebhookServer = startXWebhookServer(
+    (event: XEvent) => {
+      const correlationId = generateCorrelationId("observation")
+      const formatted = formatXEvent(event)
+
+      // Xペインに全イベントを表示
+      onEvent(event, formatted, correlationId)
+
+      // AI転送判定
+      if (!shouldForwardXEventToAI(event)) {
+        log.info(`[X_WEBHOOK] AI転送スキップ: ${event.type}`)
+        return
+      }
+
+      // 共振ゲート
+      if (!getSettings().resonance) {
+        log.info(`[X_WEBHOOK] 共振OFF — AI転送スキップ: ${event.type}`)
+        return
+      }
+
+      if (!isFieldActive()) {
+        log.info("[X_WEBHOOK] 場が非アクティブ — スキップ")
+        return
+      }
+
+      enqueue(async () => {
+        try {
+          const aiInput = formatXEventForAI(event)
+          log.info(`[X→AI] (${correlationId}) ${formatted}`)
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x")
+          updateParticipantChain(state.participant.lastResponseId)
+          log.info(`[AI→X] (${correlationId}) ${result.text.substring(0, 100)}`)
+          onReply(result, correlationId)
+        } catch (err) {
+          warn("RECIPROCITY_OBSERVATION_ERROR",
+            `X観測AI応答エラー: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      })
+    },
+  )
+
+  log.info("[X_WEBHOOK] Webhookサーバー起動")
+}
+
+// ランタイム停止（サーバーのクリーンアップ）
 export function stopRuntime(): void {
   if (observationServer) {
     observationServer.close()
     observationServer = null
     log.info("[OBSERVATION] 観測サーバー停止")
+  }
+  if (xWebhookServer) {
+    xWebhookServer.close()
+    xWebhookServer = null
+    log.info("[X_WEBHOOK] Webhookサーバー停止")
   }
 }
 

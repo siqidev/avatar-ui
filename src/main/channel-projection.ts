@@ -4,6 +4,7 @@
 
 import type { BrowserWindow } from "electron"
 import type { FieldState, Source, ToRendererMessage, AlertCode } from "../shared/ipc-schema.js"
+import type { ChannelId } from "../shared/channel.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import type { PersistedMessage } from "../state/state-repository.js"
 
@@ -14,6 +15,7 @@ export type ChannelProjection = {
   sendFieldState(opts: FieldStateOpts): void
   sendIntegrityAlert(code: AlertCode, message: string): void
   sendObservationEvent(opts: ObservationEventOpts): void
+  sendXEvent(opts: XEventOpts): void
 }
 
 export type StreamReplyOpts = {
@@ -21,6 +23,7 @@ export type StreamReplyOpts = {
   correlationId: string
   text: string
   source: Source
+  channel: ChannelId
   toolCalls: ToolCallInfo[]
 }
 
@@ -32,6 +35,12 @@ export type FieldStateOpts = {
 }
 
 export type ObservationEventOpts = {
+  eventType: string
+  payload: Record<string, unknown>
+  formatted: string
+}
+
+export type XEventOpts = {
   eventType: string
   payload: Record<string, unknown>
   formatted: string
@@ -49,13 +58,14 @@ export function createConsoleProjection(
   }
 
   return {
-    sendStreamReply({ actor, correlationId, text, source, toolCalls }) {
+    sendStreamReply({ actor, correlationId, text, source, channel, toolCalls }) {
       send({
         type: "stream.reply",
         actor,
         correlationId,
         text,
         source,
+        channel,
         toolCalls,
       })
     },
@@ -72,6 +82,7 @@ export function createConsoleProjection(
             text: m.text,
             correlationId: "restored",
             source: m.source,
+            channel: m.channel,
             toolCalls: m.toolCalls?.map((tc) => ({
               name: tc.name,
               args: tc.args ?? {} as Record<string, unknown>,
@@ -93,6 +104,16 @@ export function createConsoleProjection(
     sendObservationEvent({ eventType, payload, formatted }) {
       send({
         type: "observation.event",
+        eventType,
+        payload,
+        formatted,
+        timestamp: new Date().toISOString(),
+      })
+    },
+
+    sendXEvent({ eventType, payload, formatted }) {
+      send({
+        type: "x.event",
         eventType,
         payload,
         formatted,

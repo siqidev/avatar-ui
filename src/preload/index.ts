@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
   onObservation: (cb: (data: unknown) => void) =>
     ipcRenderer.on("observation.event", (_e, data) => cb(data)),
+  onXEvent: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("x.event", (_e, data) => cb(data)),
   onTerminalOutput: (cb: (data: unknown) => void) =>
     ipcRenderer.on("terminal.output", (_e, data) => cb(data)),
   onTerminalLifecycle: (cb: (data: unknown) => void) =>
