@@ -59,6 +59,12 @@ export const streamReplySchema = z.object({
   toolCalls: z.array(toolCallIpcSchema).default([]),
 })
 
+export const monitorEventIpcSchema = z.object({
+  eventType: z.string(),
+  formatted: z.string(),
+  timestamp: z.string(),
+})
+
 export const fieldStateSchema = z.object({
   type: z.literal("field.state"),
   state: z.enum(["generated", "active", "paused", "resumed", "terminated"]),
@@ -71,6 +77,8 @@ export const fieldStateSchema = z.object({
     channel: channelIdSchema.optional(),
     toolCalls: z.array(toolCallIpcSchema).optional(),
   })).optional(),
+  lastObservations: z.array(monitorEventIpcSchema).optional(),
+  lastXEvents: z.array(monitorEventIpcSchema).optional(),
 })
 
 // 健全性管理: AlertCode（不変条件と対応づけた検知コード）

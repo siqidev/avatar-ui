@@ -12,6 +12,8 @@ import {
   getState,
   updateFieldState,
   resetToNewField,
+  appendObservationEvent,
+  appendXEvent,
 } from "./field-runtime.js"
 import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
@@ -63,11 +65,15 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
         if (parsed.status !== "posted") continue
         const text = (tc.args.text as string) ?? ""
         const eventType = tc.name === "x_post" ? "post" : "reply"
+        const timestamp = new Date().toISOString()
+        const formatted = `[${eventType}] ${text}`
         projection.sendXEvent({
           eventType,
           payload: { tweet_id: parsed.tweet_id, text },
-          formatted: `[${eventType}] ${text}`,
+          formatted,
+          timestamp,
         })
+        appendXEvent({ eventType, formatted, timestamp })
       } catch { /* パース失敗は無視 */ }
     }
   }
@@ -126,12 +132,16 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     // 観測サーバー起動（Roblox連携有効時のみ）
     startObservation(
       (event, formatted) => {
+        const timestamp = new Date().toISOString()
         // Roblox Monitorペインへ（ペインの役割: Roblox世界の全入出力）
         projection.sendObservationEvent({
           eventType: event.type,
           payload: event.payload,
           formatted,
+          timestamp,
         })
+        // Monitor履歴に永続化
+        appendObservationEvent({ eventType: event.type, formatted, timestamp })
         // roblox_log: Monitorのみ（会話履歴には不要）
         if (event.type === "roblox_log") return
         // 会話履歴に記録（AIの文脈維持に必要）
@@ -154,12 +164,16 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     // X Webhookサーバー起動（X連携有効時のみ）
     startXWebhook(
       (event, formatted) => {
+        const timestamp = new Date().toISOString()
         // Xペインへ
         projection.sendXEvent({
           eventType: event.type,
           payload: event as unknown as Record<string, unknown>,
           formatted,
+          timestamp,
         })
+        // Monitor履歴に永続化
+        appendXEvent({ eventType: event.type, formatted, timestamp })
         // 会話履歴に記録
         recordMessage("human", formatted, "observation", "x")
       },
@@ -211,6 +225,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       avatarName: config.avatarName,
       userName: config.userName,
       history: restored.field.messageHistory,
+      observationHistory: restored.field.observationHistory,
+      xEventHistory: restored.field.xEventHistory,
     })
   })
 

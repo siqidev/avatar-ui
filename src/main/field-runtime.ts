@@ -5,8 +5,8 @@ import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
-import { loadState, saveState, pushMessage } from "../state/state-repository.js"
-import type { State, PersistedMessage } from "../state/state-repository.js"
+import { loadState, saveState, pushMessage, pushMonitorEvent } from "../state/state-repository.js"
+import type { State, PersistedMessage, PersistedMonitorEvent } from "../state/state-repository.js"
 import { sendMessage } from "../services/chat-session-service.js"
 import type { SendMessageResult } from "../services/chat-session-service.js"
 import { startObservationServer } from "../roblox/observation-server.js"
@@ -159,6 +159,18 @@ export function appendMessage(msg: PersistedMessage): void {
   persistState()
 }
 
+// observationHistoryに追加して永続化する
+export function appendObservationEvent(event: PersistedMonitorEvent): void {
+  pushMonitorEvent(state.field.observationHistory, event)
+  persistState()
+}
+
+// xEventHistoryに追加して永続化する
+export function appendXEvent(event: PersistedMonitorEvent): void {
+  pushMonitorEvent(state.field.xEventHistory, event)
+  persistState()
+}
+
 // 参与者のレスポンスIDを更新して永続化する
 export function updateParticipantChain(responseId: string | null): void {
   state.participant.lastResponseId = responseId
@@ -171,6 +183,8 @@ export function resetToNewField(): void {
   log.info("[RUNTIME] terminated → 新規場にリセット")
   state.field.state = "generated"
   state.field.messageHistory = []
+  state.field.observationHistory = []
+  state.field.xEventHistory = []
   // 参与者側はリセットしない（接続契約: 参与者の意味資産は場の終了で消えない）
   // ただしterminatedは「場の正常終了」なので、チェーンもリセットする
   state.participant.lastResponseId = null

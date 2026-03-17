@@ -6,7 +6,7 @@ import type { BrowserWindow } from "electron"
 import type { FieldState, Source, ToRendererMessage, AlertCode } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
-import type { PersistedMessage } from "../state/state-repository.js"
+import type { PersistedMessage, PersistedMonitorEvent } from "../state/state-repository.js"
 
 // --- 型定義 ---
 
@@ -32,18 +32,22 @@ export type FieldStateOpts = {
   avatarName: string
   userName: string
   history: PersistedMessage[]
+  observationHistory: PersistedMonitorEvent[]
+  xEventHistory: PersistedMonitorEvent[]
 }
 
 export type ObservationEventOpts = {
   eventType: string
   payload: Record<string, unknown>
   formatted: string
+  timestamp: string
 }
 
 export type XEventOpts = {
   eventType: string
   payload: Record<string, unknown>
   formatted: string
+  timestamp: string
 }
 
 // --- Console チャネル実装（Electron BrowserWindow） ---
@@ -70,7 +74,7 @@ export function createConsoleProjection(
       })
     },
 
-    sendFieldState({ state, avatarName, userName, history }) {
+    sendFieldState({ state, avatarName, userName, history, observationHistory, xEventHistory }) {
       send({
         type: "field.state",
         state,
@@ -90,6 +94,8 @@ export function createConsoleProjection(
             })),
           })),
         } : {}),
+        ...(observationHistory.length > 0 ? { lastObservations: observationHistory } : {}),
+        ...(xEventHistory.length > 0 ? { lastXEvents: xEventHistory } : {}),
       })
     },
 
@@ -101,23 +107,23 @@ export function createConsoleProjection(
       })
     },
 
-    sendObservationEvent({ eventType, payload, formatted }) {
+    sendObservationEvent({ eventType, payload, formatted, timestamp }) {
       send({
         type: "observation.event",
         eventType,
         payload,
         formatted,
-        timestamp: new Date().toISOString(),
+        timestamp,
       })
     },
 
-    sendXEvent({ eventType, payload, formatted }) {
+    sendXEvent({ eventType, payload, formatted, timestamp }) {
       send({
         type: "x.event",
         eventType,
         payload,
         formatted,
-        timestamp: new Date().toISOString(),
+        timestamp,
       })
     },
   }

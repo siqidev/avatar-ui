@@ -616,6 +616,8 @@ window.fieldApi.onFieldState((data) => {
       channel?: string
       toolCalls?: ToolCallDisplay[]
     }>
+    lastObservations?: Array<{ eventType: string; formatted: string; timestamp: string }>
+    lastXEvents?: Array<{ eventType: string; formatted: string; timestamp: string }>
   }
   statusEl.textContent = msg.state
   avatarLabel = `${msg.avatarName.toLowerCase()}>`
@@ -637,6 +639,20 @@ window.fieldApi.onFieldState((data) => {
       appendMessage(m.actor, m.text, m.source, m.toolCalls, m.channel)
     }
     enableStream = true
+  }
+
+  // Roblox Monitor履歴の復元（ハイライトなし）
+  if (msg.lastObservations && msg.lastObservations.length > 0) {
+    for (const obs of msg.lastObservations) {
+      appendObservation(obs.eventType, obs.formatted, obs.timestamp)
+    }
+  }
+
+  // X Monitor履歴の復元（ハイライトなし）
+  if (msg.lastXEvents && msg.lastXEvents.length > 0) {
+    for (const ev of msg.lastXEvents) {
+      appendXEvent(ev.eventType, ev.formatted, ev.timestamp)
+    }
   }
 
   // Spaceペイン初期化（場がアクティブ時）+ Canvas連携

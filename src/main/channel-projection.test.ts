@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
-import type { PersistedMessage } from "../state/state-repository.js"
+import type { PersistedMessage, PersistedMonitorEvent } from "../state/state-repository.js"
 
 // BrowserWindowモック
 function createMockWindow() {
@@ -69,6 +69,8 @@ describe("channel-projection", () => {
         avatarName: "TestAvatar",
         userName: "testuser",
         history: [],
+        observationHistory: [],
+        xEventHistory: [],
       })
 
       const sent = mockWin.webContents.send.mock.calls[0][1]
@@ -89,6 +91,8 @@ describe("channel-projection", () => {
         avatarName: "TestAvatar",
         userName: "testuser",
         history,
+        observationHistory: [],
+        xEventHistory: [],
       })
 
       const sent = mockWin.webContents.send.mock.calls[0][1]
@@ -105,6 +109,46 @@ describe("channel-projection", () => {
         { name: "save_memory", args: {}, result: "ok" },
       ])
     })
+
+    it("observationHistoryを含むfield.stateを送信する", () => {
+      const obsHistory: PersistedMonitorEvent[] = [
+        { eventType: "chat", formatted: "[Chat] hello", timestamp: "2026-03-17T10:00:00Z" },
+      ]
+
+      projection.sendFieldState({
+        state: "active",
+        avatarName: "TestAvatar",
+        userName: "testuser",
+        history: [],
+        observationHistory: obsHistory,
+        xEventHistory: [],
+      })
+
+      const sent = mockWin.webContents.send.mock.calls[0][1]
+      expect(sent.lastObservations).toHaveLength(1)
+      expect(sent.lastObservations[0].eventType).toBe("chat")
+      expect(sent.lastXEvents).toBeUndefined()
+    })
+
+    it("xEventHistoryを含むfield.stateを送信する", () => {
+      const xHistory: PersistedMonitorEvent[] = [
+        { eventType: "post", formatted: "[post] test tweet", timestamp: "2026-03-17T10:00:00Z" },
+      ]
+
+      projection.sendFieldState({
+        state: "active",
+        avatarName: "TestAvatar",
+        userName: "testuser",
+        history: [],
+        observationHistory: [],
+        xEventHistory: xHistory,
+      })
+
+      const sent = mockWin.webContents.send.mock.calls[0][1]
+      expect(sent.lastXEvents).toHaveLength(1)
+      expect(sent.lastXEvents[0].eventType).toBe("post")
+      expect(sent.lastObservations).toBeUndefined()
+    })
   })
 
   describe("sendIntegrityAlert", () => {
@@ -119,18 +163,19 @@ describe("channel-projection", () => {
   })
 
   describe("sendObservationEvent", () => {
-    it("observation.eventを送信する（timestampが自動付与される）", () => {
+    it("observation.eventを送信する（timestampが引数から設定される）", () => {
       projection.sendObservationEvent({
         eventType: "chat",
         payload: { player: "Alice", message: "hello" },
         formatted: "[Chat] Alice: hello",
+        timestamp: "2026-03-17T10:00:00.000Z",
       })
 
       const sent = mockWin.webContents.send.mock.calls[0][1]
       expect(sent.type).toBe("observation.event")
       expect(sent.eventType).toBe("chat")
       expect(sent.formatted).toBe("[Chat] Alice: hello")
-      expect(sent.timestamp).toBeDefined()
+      expect(sent.timestamp).toBe("2026-03-17T10:00:00.000Z")
     })
   })
 
