@@ -27,6 +27,7 @@ const INTERNAL_TOOLS: readonly ToolName[] = [
 const ROBLOX_OBSERVATION_TOOLS: readonly ToolName[] = [
   ...READ_ONLY_TOOLS,
   "roblox_action",
+  "x_post",
 ] as const
 
 // X観測入力から許可されるツール（x_replyはisXReplyEnabled時のみ）

@@ -18,13 +18,13 @@ describe("input-gate", () => {
       expect(tools).toContain("roblox_action")
     })
 
-    it("observation/roblox: roblox_action + 読み取り系のみ", () => {
+    it("observation/roblox: roblox_action + x_post + 読み取り系", () => {
       const tools = getAllowedTools("observation", "roblox")
       expect(tools).toContain("roblox_action")
+      expect(tools).toContain("x_post")
       expect(tools).toContain("save_memory")
       expect(tools).toContain("fs_list")
       expect(tools).toContain("fs_read")
-      expect(tools).not.toContain("x_post")
       expect(tools).not.toContain("terminal")
       expect(tools).not.toContain("fs_write")
       expect(tools).not.toContain("fs_mutate")
@@ -57,8 +57,8 @@ describe("input-gate", () => {
       expect(isToolAllowed("x_post", "user", "console")).toBe(true)
     })
 
-    it("observation/robloxからx_postは拒否される", () => {
-      expect(isToolAllowed("x_post", "observation", "roblox")).toBe(false)
+    it("observation/robloxからx_postは許可される", () => {
+      expect(isToolAllowed("x_post", "observation", "roblox")).toBe(true)
     })
 
     it("observation/robloxからroblox_actionは許可される", () => {
