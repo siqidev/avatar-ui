@@ -31,6 +31,12 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 
 Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
 
+**未解決: Webhookイベント未着**
+- 状態: Webhook登録済み（valid:true）、サブスクリプション有効（subscribed:true）、CRC検証成功、エンドポイント到達可能。しかしXからPOSTイベントが一切配信されない
+- 原因候補: X側の伝搬遅延（新規登録後の初期化）、X側の不具合（Developer Communityに同様報告あり）
+- 次のアクション: 時間をおいて再テスト → ダメならWebhook削除→再登録 → それでもダメならX Developer Supportに問い合わせ
+- Webhook ID: 2033744957270593543、URL: https://x.siqi.jp/x/webhook
+
 **技術仕様:** siqi/knowledge/tech/x-api.md
 
 ## 実装バックログ

@@ -25,6 +25,7 @@ export function startXWebhookServer(
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost`)
+    log.info(`[X_WEBHOOK] リクエスト受信: ${req.method} ${url.pathname}`)
 
     // CRC検証（GET /x/webhook?crc_token=...）
     if (req.method === "GET" && url.pathname === "/x/webhook") {
@@ -84,6 +85,7 @@ export function startXWebhookServer(
         // イベント解析
         try {
           const data = JSON.parse(body) as Record<string, unknown>
+          log.info(`[X_WEBHOOK] POST受信: keys=${Object.keys(data).join(",")}`)
           processWebhookPayload(data, onEvent, selfUserId)
         } catch (err) {
           log.error(`[X_WEBHOOK] ペイロード解析失敗: ${err instanceof Error ? err.message : String(err)}`)
