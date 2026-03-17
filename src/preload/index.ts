@@ -10,9 +10,7 @@ import type {
   FsMutateResult,
 } from "../shared/fs-schema.js"
 import type {
-  TerminalExecArgs,
-  TerminalStdinArgs,
-  TerminalStopArgs,
+  TerminalInputArgs,
   TerminalResizeArgs,
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
@@ -41,12 +39,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.invoke("fs.mutate", args),
 
   // Renderer → Main（Terminal: request-response）
-  terminalExec: (args: TerminalExecArgs): Promise<{ accepted: boolean; reason?: string }> =>
-    ipcRenderer.invoke("terminal.exec", args),
-  terminalStdin: (args: TerminalStdinArgs): Promise<{ ok: boolean; reason?: string }> =>
-    ipcRenderer.invoke("terminal.stdin", args),
-  terminalStop: (args: TerminalStopArgs): Promise<{ ok: boolean; reason?: string }> =>
-    ipcRenderer.invoke("terminal.stop", args),
+  terminalInput: (args: TerminalInputArgs): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("terminal.input", args),
   terminalResize: (args: TerminalResizeArgs): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("terminal.resize", args),
   terminalSnapshot: (): Promise<TerminalSnapshot> =>
@@ -67,12 +61,10 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("observation.event", (_e, data) => cb(data)),
   onXEvent: (cb: (data: unknown) => void) =>
     ipcRenderer.on("x.event", (_e, data) => cb(data)),
-  onTerminalOutput: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("terminal.output", (_e, data) => cb(data)),
-  onTerminalLifecycle: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("terminal.lifecycle", (_e, data) => cb(data)),
-  onTerminalSnapshot: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("terminal.snapshot", (_e, data) => cb(data)),
+  onTerminalData: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("terminal.data", (_e, data) => cb(data)),
+  onTerminalState: (cb: (data: unknown) => void) =>
+    ipcRenderer.on("terminal.state", (_e, data) => cb(data)),
   onToolApprovalRequest: (cb: (data: unknown) => void) =>
     ipcRenderer.on("tool.approval.request", (_e, data) => cb(data)),
 

@@ -20,7 +20,7 @@ src/
     menu.ts                   カスタムメニュー（テーマ・モデル・言語radio + 共振checkbox + About）
     filesystem-service.ts     Avatar Spaceファイル操作
     fs-ipc-handlers.ts        FS系IPC処理
-    terminal-service.ts       Terminal実行・出力管理
+    terminal-service.ts       Terminal持続PTY管理（node-pty）
     terminal-ipc-handlers.ts  Terminal系IPC処理
     tunnel-manager.ts         cloudflaredトンネル管理
     acceptance/               受入テスト（S1-S5）
@@ -136,11 +136,9 @@ contextBridge経由でRendererに公開する最小API。ipcRendererの直接公
 | `fsRead(args)` | fs.read | ファイル読み取り |
 | `fsWrite(args)` | fs.write | ファイル書き込み |
 | `fsMutate(args)` | fs.mutate | 構造変更（delete/rename/mkdir） |
-| `terminalExec(args)` | terminal.exec | コマンド実行 |
-| `terminalStdin(args)` | terminal.stdin | 実行中プロセスへのstdin送信 |
-| `terminalStop(args)` | terminal.stop | 実行中プロセスの停止 |
-| `terminalResize(args)` | terminal.resize | ターミナルサイズ変更 |
-| `terminalSnapshot()` | terminal.snapshot | ターミナル状態スナップショット |
+| `terminalInput(args)` | terminal.input | PTYへの生データ入力 |
+| `terminalResize(args)` | terminal.resize | PTYリサイズ |
+| `terminalSnapshot()` | terminal.snapshot | PTY状態スナップショット |
 
 **Main → Renderer（イベント購読: on）**
 
@@ -151,9 +149,8 @@ contextBridge経由でRendererに公開する最小API。ipcRendererの直接公
 | `onIntegrityAlert(cb)` | integrity.alert | 健全性アラート（alertBar表示用） |
 | `onObservation(cb)` | observation.event | Roblox観測イベント |
 | `onXEvent(cb)` | x.event | Xイベント（メンション等） |
-| `onTerminalOutput(cb)` | terminal.output | コマンド出力ストリーム |
-| `onTerminalLifecycle(cb)` | terminal.lifecycle | コマンド開始/終了通知 |
-| `onTerminalSnapshot(cb)` | terminal.snapshot | ターミナル状態復元用 |
+| `onTerminalData(cb)` | terminal.data | PTY出力データストリーム |
+| `onTerminalState(cb)` | terminal.state | PTY状態変化（ready/exited） |
 | `onThemeChange(cb)` | settings.theme | テーマ変更通知（メニュー操作時） |
 | `onLocaleChange(cb)` | settings.locale | 言語変更通知（メニュー操作時、Rendererリロード） |
 
@@ -294,16 +291,17 @@ Avatar Space（`AVATAR_SPACE`環境変数）外へのファイルアクセスは
 
 ### 実行方式
 
-`child_process.spawn`（Node.js標準API）+ xterm.jsでコマンド出力をリアルタイム表示。
+`node-pty`による持続PTY + xterm.jsでターミナル出力をリアルタイム表示。
 
-- ネイティブモジュール不要、ビルド問題ゼロ
-- AI/人間ともにコマンド実行→出力表示が可能（AIは`AVATAR_SHELL=on`時のみ。デフォルトoff）
-- AI実行時はallowlist方式で環境変数をサニタイズ（PATH/HOME/SHELL等のみ。APIキー露出防止）
-- 制約: PTYなし。vim/top/less等のフルスクリーンTUI、Tab補完、シェルプロンプト表示は不可
+- AIと人間が1つのPTYを共有。AIが主ユーザー、人間が補助
+- PTYは場のライフサイクルに束縛（場の開始で起動、終了で破棄）
+- フルTUI対応: vim/top/less、Tab補完、シェルプロンプト表示が可能
+- AI実行時はシェル統合マーカー（OSC 7770シーケンス）でコマンド完了を検知
+- AIは`AVATAR_SHELL=on`時のみ実行可能（デフォルトoff）
 
 ### AI認識設計
 
-CommandRecord（完了済みサマリ）。自動注入なし、オンデマンド取得（terminalツール: cmd有=実行、cmd無=出力取得）。
+オンデマンド取得（terminalツール: cmd有=共有PTYに書き込み＋完了待ち、cmd無=スクロールバック取得）。AIの実行は人間のTerminalペインにリアルタイムで表示される。
 
 ## 長期記憶
 
@@ -742,7 +740,7 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze" }>
 |---|---|---|---|
 | Grok Responses API | 20秒 | なし（maxRetries: 0） | chat-session-service.ts |
 | Roblox Open Cloud API | 20秒 | なし | roblox-messaging.ts（AbortSignal.timeout） |
-| Terminal実行 | AI指定（timeoutMs） | なし | terminal-service.ts |
+| Terminal AI実行 | AI指定（timeoutMs、デフォルト30秒） | なし | terminal-service.ts |
 
 タイムアウト時はthrowしてそのジョブだけ失敗終了。warn()でUI通知し、次の入力は正常に処理する。
 

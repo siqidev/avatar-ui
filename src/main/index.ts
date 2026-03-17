@@ -5,7 +5,7 @@ import { getConfig, ensureDirectories } from "../config.js"
 import { registerIpcHandlers, safeDetach } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
-import { dispose as disposeTerminal } from "./terminal-service.js"
+import { spawnPty, dispose as disposeTerminal } from "./terminal-service.js"
 import { stopRuntime } from "./field-runtime.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import { loadSettings, getSettings } from "./settings-store.js"
@@ -88,6 +88,7 @@ app.whenReady().then(() => {
   registerIpcHandlers(() => mainWindow)
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
+  spawnPty()
   registerDemoIpcHandlers(app.getAppPath())
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")

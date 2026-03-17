@@ -22,9 +22,7 @@ import type {
   FsMutateResult,
 } from "../shared/fs-schema.js"
 import type {
-  TerminalExecArgs,
-  TerminalStdinArgs,
-  TerminalStopArgs,
+  TerminalInputArgs,
   TerminalResizeArgs,
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
@@ -42,9 +40,7 @@ declare global {
       fsRead: (args: FsReadArgs) => Promise<FsReadResult>
       fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
       fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
-      terminalExec: (args: TerminalExecArgs) => Promise<{ accepted: boolean; reason?: string }>
-      terminalStdin: (args: TerminalStdinArgs) => Promise<{ ok: boolean; reason?: string }>
-      terminalStop: (args: TerminalStopArgs) => Promise<{ ok: boolean; reason?: string }>
+      terminalInput: (args: TerminalInputArgs) => Promise<{ ok: boolean }>
       terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
       terminalSnapshot: () => Promise<TerminalSnapshot>
       onFieldState: (cb: (data: unknown) => void) => void
@@ -52,9 +48,8 @@ declare global {
       onIntegrityAlert: (cb: (data: unknown) => void) => void
       onObservation: (cb: (data: unknown) => void) => void
       onXEvent: (cb: (data: unknown) => void) => void
-      onTerminalOutput: (cb: (data: unknown) => void) => void
-      onTerminalLifecycle: (cb: (data: unknown) => void) => void
-      onTerminalSnapshot: (cb: (data: unknown) => void) => void
+      onTerminalData: (cb: (data: unknown) => void) => void
+      onTerminalState: (cb: (data: unknown) => void) => void
       onToolApprovalRequest: (cb: (data: unknown) => void) => void
       respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
       onThemeChange: (cb: (theme: string) => void) => void

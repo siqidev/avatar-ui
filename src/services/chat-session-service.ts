@@ -28,12 +28,10 @@ import { createPost, createReply } from "../x/x-api-repository.js"
 import { requestApproval } from "../main/tool-approval-service.js"
 import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
-  execCommand,
-  waitForExit,
-  getCommandOutput,
+  execAiCommand,
+  isAiBusy,
+  getScrollback,
   getSnapshot,
-  getCwd,
-  isBusy,
 } from "../main/terminal-service.js"
 import {
   fsListArgsSchema,
@@ -520,52 +518,31 @@ async function handleTerminal(argsJson: string): Promise<string> {
 
   const { cmd, timeoutMs } = validation.data
 
-  // cmd省略: 直近のコマンド出力を取得
+  // cmd省略: 直近のターミナル出力を取得
   if (!cmd) {
     const snapshot = getSnapshot()
-    const output = getCommandOutput()
+    const scrollback = getScrollback()
     return JSON.stringify({
       status: "output",
-      busy: snapshot.busy,
-      cwd: snapshot.cwd,
-      lastCmd: snapshot.lastCmd ?? null,
-      lastExitCode: snapshot.lastExitCode ?? null,
-      output: output.lines,
-      truncated: output.truncated,
+      alive: snapshot.alive,
+      output: scrollback.lines,
+      truncated: scrollback.truncated,
     })
   }
 
-  // cmd指定: コマンド実行
-  if (isBusy()) {
+  // cmd指定: コマンド実行（共有PTYに書き込み、完了を待つ）
+  if (isAiBusy()) {
     return JSON.stringify({ status: "error", reason: "TERMINAL_BUSY" })
   }
 
-  const correlationId = crypto.randomUUID()
-  const execResult = execCommand({
-    actor: "ai",
-    correlationId,
-    cmd,
-    timeoutMs,
-  })
+  const result = await execAiCommand(cmd, timeoutMs)
 
-  if (!execResult.accepted) {
-    return JSON.stringify({ status: "error", reason: execResult.reason })
-  }
-
-  // 完了を待つ
-  const exitPromise = waitForExit()
-  if (exitPromise) await exitPromise
-
-  // 結果を返す
-  const snapshot = getSnapshot()
-  const output = getCommandOutput()
   return JSON.stringify({
     status: "executed",
     cmd,
-    exitCode: snapshot.lastExitCode ?? null,
-    cwd: snapshot.cwd,
-    output: output.lines,
-    truncated: output.truncated,
+    exitCode: result.exitCode,
+    output: result.output,
+    truncated: result.truncated,
   })
 }
 

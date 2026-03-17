@@ -1,21 +1,16 @@
-// Terminal Service — per-command spawn + cwd追跡
+// Terminal Service — 持続PTY（node-pty）
+// 人間とAIが1つのPTYを共有。AIが主ユーザー、人間が補助。
 
-import { spawn } from "node:child_process"
-import type { ChildProcess } from "node:child_process"
+import * as pty from "node-pty"
+import type { IPty } from "node-pty"
 import { homedir } from "node:os"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
-import type {
-  TerminalExecArgs,
-  TerminalStdinArgs,
-  TerminalStopArgs,
-  TerminalSnapshot,
-  TerminalToRendererEvent,
-} from "../shared/terminal-schema.js"
+import type { TerminalToRendererEvent, TerminalSnapshot } from "../shared/terminal-schema.js"
 
-// cwdマーカー: コマンド末尾に付与し、Renderer転送前に除去
-const CWD_MARKER_PREFIX = "__AVATAR_CWD__:"
-const CWD_MARKER_RE = new RegExp(`${CWD_MARKER_PREFIX}(.+)\\n?$`)
+// AIコマンド完了検知マーカー（OSC private sequence）
+// precmd/PROMPT_COMMANDから発火。xterm.jsに到達前に除去する
+const OSC_MARKER_RE = /\x1b\]7770;(-?\d+)\x07/g
 
 // AI実行時に許可する環境変数（allowlist方式: 漏れに強い）
 const AI_ENV_ALLOWLIST = [
@@ -24,7 +19,6 @@ const AI_ENV_ALLOWLIST = [
 ]
 
 const MAX_SCROLLBACK = 200
-const MAX_COMMAND_OUTPUT = 200
 const DEFAULT_TIMEOUT_MS = 30_000
 
 type EventSink = (event: TerminalToRendererEvent) => void
@@ -32,23 +26,22 @@ type EventSink = (event: TerminalToRendererEvent) => void
 // --- 状態 ---
 
 let eventSink: EventSink | null = null
-let currentProcess: ChildProcess | null = null
-let currentPid: number | null = null
-let currentCwd: string = homedir()
-let currentCmd: string | null = null
-let currentActor: "human" | "ai" | null = null
-let currentCorrelationId: string | null = null
-let startedAt: number | null = null
+let ptyProcess: IPty | null = null
+let initialized = false
 let scrollback: string[] = []
-let lastExitCode: number | null | undefined = undefined
-let killTimer: ReturnType<typeof setTimeout> | null = null
-let detectedCwd: string | null = null
 
-// コマンド単位の出力蓄積（AI用）
-let commandOutput: string[] = []
+// AIコマンド実行中の状態
+let aiCapture: {
+  output: string
+  resolve: (result: AiCommandResult) => void
+  timer: ReturnType<typeof setTimeout>
+} | null = null
 
-// 完了待ちPromise
-let exitResolve: (() => void) | null = null
+export type AiCommandResult = {
+  exitCode: number | null
+  output: string[]
+  truncated: boolean
+}
 
 // --- 公開API ---
 
@@ -56,196 +49,189 @@ export function setEventSink(sink: EventSink): void {
   eventSink = sink
 }
 
-export function getCwd(): string {
-  return currentCwd
+/** PTYを起動する（場の開始時に呼ぶ） */
+export function spawnPty(cols = 80, rows = 24): void {
+  if (ptyProcess) return
+
+  const config = getConfig()
+  const shell = config.terminalShell
+
+  const p = pty.spawn(shell, [], {
+    name: "xterm-256color",
+    cols,
+    rows,
+    cwd: homedir(),
+    env: { ...process.env, TERM: "xterm-256color" },
+  })
+  ptyProcess = p
+
+  log.info(`[TERMINAL] PTY起動: shell=${shell} pid=${p.pid}`)
+
+  p.onData((data: string) => {
+    // dispose後に旧PTYのイベントが来ても無視
+    if (ptyProcess !== p) return
+    handlePtyData(data)
+  })
+
+  p.onExit(({ exitCode, signal }) => {
+    // dispose後に旧PTYのonExitが来ても現在の状態を汚染しない
+    if (ptyProcess !== p) return
+    log.info(`[TERMINAL] PTY終了: code=${exitCode} signal=${signal}`)
+    ptyProcess = null
+    initialized = false
+
+    // AIコマンド待ちがあれば解決
+    resolveAiCapture(exitCode)
+
+    emit({ type: "terminal.state", state: "exited" })
+  })
+
+  // シェル統合を注入（precmd/PROMPT_COMMANDで完了マーカーを発火）
+  injectShellIntegration(shell)
 }
 
-export function isBusy(): boolean {
-  return currentProcess !== null
+/** PTYに生データを書き込む（人間の入力） */
+export function write(data: string): void {
+  if (!ptyProcess) return
+  ptyProcess.write(data)
 }
 
-export function getSnapshot(): TerminalSnapshot {
-  return {
-    cwd: currentCwd,
-    busy: currentProcess !== null,
-    scrollback: [...scrollback],
-    lastCmd: currentCmd ?? undefined,
-    lastExitCode,
+/** AIコマンドを実行し、完了まで待つ */
+export function execAiCommand(cmd: string, timeoutMs?: number): Promise<AiCommandResult> {
+  if (!ptyProcess) {
+    return Promise.resolve({ exitCode: null, output: ["PTY未起動"], truncated: false })
   }
-}
-
-/** コマンド実行（per-command spawn） */
-export function execCommand(args: TerminalExecArgs): { accepted: boolean; reason?: string } {
-  if (currentProcess) {
-    return { accepted: false, reason: "TERMINAL_BUSY" }
+  if (aiCapture) {
+    return Promise.resolve({ exitCode: null, output: ["TERMINAL_BUSY: AI実行中"], truncated: false })
   }
 
-  const { cmd, actor, correlationId, timeoutMs } = args
-  currentCmd = cmd
-  currentActor = actor
-  currentCorrelationId = correlationId
-  startedAt = Date.now()
-  detectedCwd = null
-  commandOutput = []
-
-  // シェル実行: コマンド末尾にpwdマーカーを付与
-  // -c（非ログイン）: Electron親プロセスのPATHを継承。-lcだとzshrcのプロンプトテーマが初期化ゴミを出す
-  // AI実行時はallowlist方式で環境変数をサニタイズ（APIキー等の露出防止）
-  const spawnEnv = actor === "ai" ? buildSanitizedEnv() : { ...process.env, TERM: "dumb" }
-
-  const wrappedCmd = `${cmd}; __exit=$?; echo "${CWD_MARKER_PREFIX}$(pwd)"; exit $__exit`
-  const child = spawn(getConfig().terminalShell, ["-c", wrappedCmd], {
-    cwd: currentCwd,
-    env: spawnEnv,
-    stdio: ["pipe", "pipe", "pipe"],
-    detached: true, // プロセスグループ分離（killで子孫プロセスまで届ける）
-  })
-
-  currentProcess = child
-  currentPid = child.pid ?? null
-  log.info(`[TERMINAL] exec(${actor}): ${cmd.substring(0, 80)} [pid=${child.pid}]`)
-
-  pushScrollback(`$ ${cmd}`)
-
-  emit({
-    type: "terminal.lifecycle",
-    phase: "started",
-    actor,
-    correlationId,
-    cmd,
-  })
-
-  child.stdout?.on("data", (chunk: Buffer) => {
-    const text = chunk.toString()
-    const markerMatch = CWD_MARKER_RE.exec(text)
-    if (markerMatch) {
-      detectedCwd = markerMatch[1]
-      const cleaned = text.replace(CWD_MARKER_RE, "")
-      if (cleaned) {
-        pushScrollback(cleaned)
-        pushCommandOutput(cleaned)
-        emit({ type: "terminal.output", stream: "stdout", chunk: cleaned, at: Date.now() })
-      }
-    } else {
-      pushScrollback(text)
-      pushCommandOutput(text)
-      emit({ type: "terminal.output", stream: "stdout", chunk: text, at: Date.now() })
-    }
-  })
-
-  child.stderr?.on("data", (chunk: Buffer) => {
-    const text = chunk.toString()
-    pushScrollback(text)
-    pushCommandOutput(text)
-    emit({ type: "terminal.output", stream: "stderr", chunk: text, at: Date.now() })
-  })
-
-  child.on("close", (code, signal) => {
-    const duration = startedAt ? Date.now() - startedAt : 0
-    if (killTimer) { clearTimeout(killTimer); killTimer = null }
-
-    if (detectedCwd) currentCwd = detectedCwd
-    lastExitCode = code
-
-    log.info(`[TERMINAL] exit: code=${code} signal=${signal} duration=${duration}ms cwd=${currentCwd}`)
-
-    emit({
-      type: "terminal.lifecycle",
-      phase: "exited",
-      actor: currentActor!,
-      correlationId: currentCorrelationId!,
-      exitCode: code,
-      signal: signal ?? undefined,
-      durationMs: duration,
-      cwdAfter: currentCwd,
-    })
-
-    currentProcess = null
-    currentPid = null
-    currentActor = null
-    currentCorrelationId = null
-    startedAt = null
-
-    emit({ type: "terminal.snapshot", snapshot: getSnapshot() })
-
-    // 完了通知
-    exitResolve?.()
-    exitResolve = null
-  })
-
-  // タイムアウト
   const timeout = timeoutMs ?? DEFAULT_TIMEOUT_MS
-  killTimer = setTimeout(() => {
-    killProcessGroup("SIGTERM")
-    log.info(`[TERMINAL] タイムアウト(${timeout}ms) — SIGTERM送信`)
-  }, timeout)
 
-  return { accepted: true }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      log.info(`[TERMINAL] AIコマンドタイムアウト(${timeout}ms): ${cmd.substring(0, 80)}`)
+      resolveAiCapture(null)
+    }, timeout)
+
+    aiCapture = { output: "", resolve, timer }
+
+    log.info(`[TERMINAL] AI exec: ${cmd.substring(0, 80)}`)
+    ptyProcess!.write(cmd + "\n")
+  })
 }
 
-/** 実行中プロセスにstdinを書き込む */
-export function writeStdin(args: TerminalStdinArgs): { ok: boolean; reason?: string } {
-  if (!currentProcess?.stdin?.writable) {
-    return { ok: false, reason: "NO_PROCESS" }
-  }
-  currentProcess.stdin.write(args.data)
-  return { ok: true }
+/** AIコマンド実行中か */
+export function isAiBusy(): boolean {
+  return aiCapture !== null
 }
 
-/** 実行中プロセスを停止 */
-export function stopCommand(args: TerminalStopArgs): { ok: boolean; reason?: string } {
-  if (!currentProcess) {
-    return { ok: false, reason: "NO_PROCESS" }
-  }
-  const signal = args.signal ?? "SIGTERM"
-  killProcessGroup(signal)
-  log.info(`[TERMINAL] stop(${args.actor}): ${signal}`)
-  return { ok: true }
+/** PTYリサイズ */
+export function resize(cols: number, rows: number): void {
+  if (!ptyProcess) return
+  ptyProcess.resize(cols, rows)
 }
 
-/** 現在のコマンド完了を待つ */
-export function waitForExit(): Promise<void> | null {
-  if (!currentProcess) return null
-  return new Promise((resolve) => { exitResolve = resolve })
+/** スナップショット取得 */
+export function getSnapshot(): TerminalSnapshot {
+  return { alive: ptyProcess !== null }
 }
 
-/** 直近コマンドの出力（AI用、末尾N行） */
-export function getCommandOutput(): { lines: string[]; truncated: boolean } {
-  const truncated = commandOutput.length > MAX_COMMAND_OUTPUT
-  return {
-    lines: commandOutput.slice(-MAX_COMMAND_OUTPUT),
-    truncated,
-  }
+/** 直近の出力（AI用: cmd省略時） */
+export function getScrollback(): { lines: string[]; truncated: boolean } {
+  const truncated = scrollback.length >= MAX_SCROLLBACK
+  return { lines: [...scrollback], truncated }
 }
 
-/** アプリ終了時クリーンアップ */
+/** クリーンアップ（場の終了時に呼ぶ） */
 export function dispose(): void {
-  if (killTimer) { clearTimeout(killTimer); killTimer = null }
-  killProcessGroup("SIGKILL")
-  currentProcess = null
-  currentPid = null
-  currentCmd = null
-  currentActor = null
-  currentCorrelationId = null
-  startedAt = null
-  lastExitCode = undefined
-  detectedCwd = null
-  commandOutput = []
+  if (aiCapture) {
+    clearTimeout(aiCapture.timer)
+    aiCapture.resolve({ exitCode: null, output: ["PTY終了"], truncated: false })
+    aiCapture = null
+  }
+  if (ptyProcess) {
+    ptyProcess.kill()
+    ptyProcess = null
+  }
+  initialized = false
   scrollback = []
-  exitResolve?.()
-  exitResolve = null
 }
 
 // --- 内部ヘルパー ---
 
-/** プロセスグループにシグナル送信（子孫プロセス含む） */
-function killProcessGroup(signal: string): void {
-  if (!currentPid) return
-  try {
-    // 負のPIDでプロセスグループ全体にシグナル送信
-    process.kill(-currentPid, signal)
-  } catch {
-    // プロセスが既に終了している場合のERR_NO_SUCH_PROCESSを無視
+/** PTYからのデータを処理 */
+function handlePtyData(raw: string): void {
+  // OSCマーカーを検出・除去
+  let exitCode: number | null = null
+  const matches = [...raw.matchAll(OSC_MARKER_RE)]
+  if (matches.length > 0) {
+    exitCode = parseInt(matches[matches.length - 1][1], 10)
+  }
+  const cleaned = raw.replace(OSC_MARKER_RE, "")
+
+  // AIキャプチャ中なら出力を蓄積
+  if (aiCapture) {
+    aiCapture.output += cleaned
+  }
+
+  // マーカー検出 = コマンド完了
+  if (exitCode !== null && aiCapture) {
+    resolveAiCapture(exitCode)
+  }
+
+  // 初期化完了前のシェル統合注入出力を抑制
+  if (!initialized) {
+    if (matches.length > 0) {
+      // 最初のマーカー到着 = シェル統合が動作している → 初期化完了
+      initialized = true
+      emit({ type: "terminal.state", state: "ready" })
+      // 注入コマンドの出力はRendererに送らない（clear済み）
+    }
+    return
+  }
+
+  // Rendererに転送
+  if (cleaned) {
+    pushScrollback(cleaned)
+    emit({ type: "terminal.data", data: cleaned })
+  }
+}
+
+/** AIキャプチャを解決する */
+function resolveAiCapture(exitCode: number | null): void {
+  if (!aiCapture) return
+  clearTimeout(aiCapture.timer)
+
+  const lines = aiCapture.output.split("\n")
+  const truncated = lines.length > MAX_SCROLLBACK
+  const outputLines = truncated ? lines.slice(-MAX_SCROLLBACK) : lines
+
+  aiCapture.resolve({ exitCode, output: outputLines, truncated })
+  aiCapture = null
+}
+
+/** シェル統合を注入: precmd/PROMPT_COMMANDで完了マーカーを発火させる */
+function injectShellIntegration(shell: string): void {
+  if (!ptyProcess) return
+
+  const isZsh = shell.includes("zsh")
+  const isBash = shell.includes("bash")
+
+  if (isZsh) {
+    // zsh: precmd_functionsに追加（既存のprecmdを壊さない）
+    ptyProcess.write(
+      `__avatar_precmd() { printf '\\033]7770;%d\\007' $? }; precmd_functions+=(__avatar_precmd); clear\n`,
+    )
+  } else if (isBash) {
+    // bash: PROMPT_COMMANDに追加
+    ptyProcess.write(
+      `__avatar_pc() { printf '\\033]7770;%d\\007' $?; }; PROMPT_COMMAND="__avatar_pc;\${PROMPT_COMMAND}"; clear\n`,
+    )
+  } else {
+    // 未対応シェル: マーカーなしで動作（AI完了検知はタイムアウトのみ）
+    log.info(`[TERMINAL] シェル統合未対応: ${shell}（AI完了検知はタイムアウトのみ）`)
+    initialized = true
+    emit({ type: "terminal.state", state: "ready" })
   }
 }
 
@@ -259,18 +245,4 @@ function pushScrollback(text: string): void {
   if (scrollback.length > MAX_SCROLLBACK) {
     scrollback = scrollback.slice(-MAX_SCROLLBACK)
   }
-}
-
-function pushCommandOutput(text: string): void {
-  const lines = text.split("\n")
-  commandOutput.push(...lines)
-}
-
-/** AI実行用のサニタイズ済み環境変数を構築（allowlist方式） */
-function buildSanitizedEnv(): Record<string, string> {
-  const env: Record<string, string> = { TERM: "dumb" }
-  for (const key of AI_ENV_ALLOWLIST) {
-    if (process.env[key]) env[key] = process.env[key]!
-  }
-  return env
 }
