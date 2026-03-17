@@ -416,40 +416,24 @@ body {
 
 .canvas-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
-/* Canvas: ファイル表示（行番号付きモノスペース） */
-.canvas-code {
-  padding: 4px 0;
+/* Canvas: 未保存マーカー */
+.canvas-dirty-dot {
+  font-size: 0.6em;
+  vertical-align: middle;
 }
 
-.canvas-code-row {
-  display: flex;
-  line-height: var(--line-height);
-  font-size: var(--font-size);
+/* Canvas: CodeMirror エディタ */
+.canvas-content .cm-editor {
+  height: 100%;
 }
 
-.canvas-code-row:hover {
-  background: var(--bg-pane-alt);
-}
-
-.canvas-line-no {
-  box-sizing: content-box;
-  color: var(--fg-dim);
-  text-align: right;
-  padding: 0 12px 0 8px;
-  flex-shrink: 0;
-  width: 3ch;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.canvas-line-text {
-  color: var(--fg-main);
-  white-space: pre;
-  padding-right: 10px;
+.canvas-content .cm-scroller {
+  overflow: auto;
 }
 
 /* Canvas: 画像表示 */
@@ -830,7 +814,6 @@ body {
 
 /* hover: line-defaultで視認性を確保（bg-pane-altとの差が微小なため） */
 [data-theme="classic"] .fs-entry-row:hover,
-[data-theme="classic"] .canvas-code-row:hover,
 [data-theme="classic"] .observation-entry:hover {
   background: var(--line-default);
 }
