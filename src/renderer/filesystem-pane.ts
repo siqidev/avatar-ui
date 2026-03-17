@@ -1,7 +1,14 @@
 // Spaceペイン — Avatar Spaceのツリー表示と操作
 
 import { t } from "../shared/i18n.js"
-import type { FsEntry, FsListResult, FsReadResult } from "../shared/fs-schema.js"
+import type { FsEntry, FsListResult } from "../shared/fs-schema.js"
+import {
+  getBaseName,
+  getParentDir,
+  joinPath,
+  rewritePathPrefix,
+  validateTreeMove,
+} from "./filesystem-dnd.js"
 
 export type FilesystemPaneOptions = {
   onFileOpen?: (path: string) => void
@@ -10,6 +17,7 @@ export type FilesystemPaneOptions = {
 // --- DOM参照 ---
 
 const treeEl = document.getElementById("fs-tree") as HTMLDivElement
+const treePaneBodyEl = treeEl.parentElement as HTMLDivElement
 const errorEl = document.getElementById("fs-error") as HTMLDivElement
 const spaceLabel = document.getElementById("space-label") as HTMLSpanElement
 const refreshBtn = document.getElementById("fs-refresh") as HTMLButtonElement
@@ -38,6 +46,7 @@ type UndoEntry =
 const undoStack: UndoEntry[] = []
 const redoStack: UndoEntry[] = []
 const MAX_UNDO = 50
+const INTERNAL_FS_DND_MIME = "application/x-aui-fs-path"
 
 function pushUndo(entry: UndoEntry): void {
   undoStack.push(entry)
@@ -56,10 +65,11 @@ async function executeUndoEntry(entry: UndoEntry): Promise<void> {
   switch (entry.type) {
     case "rename":
       await window.fieldApi.fsMutate({ op: "rename", path: entry.from, newPath: entry.to })
+      syncTrackedPaths(entry.from, entry.to)
       break
     case "delete":
       await window.fieldApi.fsMutate({ op: "delete", path: entry.path })
-      expandedDirs.delete(entry.path)
+      clearTrackedPaths(entry.path)
       break
   }
 }
@@ -115,6 +125,11 @@ function showInlineInput(container: HTMLElement, placeholder: string, defaultVal
   })
 }
 
+/** ツリー内 D&D を無効化すべき状態か */
+function isTreeDnDDisabled(): boolean {
+  return activeMenu !== null || treePaneBodyEl.querySelector(".fs-inline-input") !== null
+}
+
 // --- ファイルツリー ---
 
 /** ディレクトリを読み込んでツリーノードを構築する */
@@ -143,6 +158,7 @@ function createEntryEl(entry: FsEntry, parentPath: string): HTMLDivElement {
 
   const row = document.createElement("div")
   row.className = "fs-entry-row"
+  row.draggable = true
 
   const icon = document.createElement("span")
   icon.className = "fs-icon"
@@ -164,6 +180,8 @@ function createEntryEl(entry: FsEntry, parentPath: string): HTMLDivElement {
   // クリックハンドラ
   row.addEventListener("click", () => handleEntryClick(entry, entryPath, el))
   row.addEventListener("mousedown", () => setFocused(entryPath))
+  row.addEventListener("dragstart", (e) => handleInternalDragStart(e, entryPath, row))
+  row.addEventListener("dragend", () => clearDragFeedback())
 
   // コンテキストメニュー
   row.addEventListener("contextmenu", (e) => {
@@ -319,10 +337,11 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
       if (!entryEl) return
       const newName = await showInlineInput(entryEl as HTMLElement, t("newName"), entry.name)
       if (!newName || newName === entry.name) return
-      const parentDir = entryPath.includes("/") ? entryPath.substring(0, entryPath.lastIndexOf("/")) : "."
-      const newPath = parentDir === "." ? newName : `${parentDir}/${newName}`
+      const parentDir = getParentDir(entryPath)
+      const newPath = joinPath(parentDir, newName)
       await window.fieldApi.fsMutate({ op: "rename", path: entryPath, newPath })
       pushUndo({ type: "rename", from: entryPath, to: newPath })
+      syncTrackedPaths(entryPath, newPath)
       await refreshTree()
     },
   })
@@ -331,7 +350,7 @@ function showContextMenu(e: MouseEvent, entry: FsEntry, entryPath: string): void
     label: t("delete"),
     action: async () => {
       await window.fieldApi.fsMutate({ op: "delete", path: entryPath })
-      expandedDirs.delete(entryPath)
+      clearTrackedPaths(entryPath)
       await refreshTree()
     },
   })
@@ -457,14 +476,184 @@ function closeContextMenu(): void {
 
 // --- ユーティリティ ---
 
-/** パスの親ディレクトリを返す */
-function getParentDir(p: string): string {
-  return p.includes("/") ? p.substring(0, p.lastIndexOf("/")) : "."
+/** 追跡中のパス状態を移動先へ追従させる */
+function syncTrackedPaths(fromPath: string, toPath: string): void {
+  const nextExpandedDirs = new Set<string>()
+  for (const dirPath of expandedDirs) {
+    nextExpandedDirs.add(rewritePathPrefix(dirPath, fromPath, toPath))
+  }
+  expandedDirs.clear()
+  for (const dirPath of nextExpandedDirs) expandedDirs.add(dirPath)
+
+  if (focusedPath) {
+    focusedPath = rewritePathPrefix(focusedPath, fromPath, toPath)
+  }
+
+  if (clipboard) {
+    clipboard = {
+      ...clipboard,
+      path: rewritePathPrefix(clipboard.path, fromPath, toPath),
+    }
+  }
 }
 
-/** パスからファイル/フォルダ名を取得 */
-function getBaseName(p: string): string {
-  return p.includes("/") ? p.substring(p.lastIndexOf("/") + 1) : p
+/** 削除されたパス配下の追跡状態を破棄する */
+function clearTrackedPaths(targetPath: string): void {
+  const targetPrefix = `${targetPath}/`
+  for (const dirPath of Array.from(expandedDirs)) {
+    if (dirPath === targetPath || dirPath.startsWith(targetPrefix)) {
+      expandedDirs.delete(dirPath)
+    }
+  }
+
+  if (focusedPath === targetPath || focusedPath?.startsWith(targetPrefix)) {
+    focusedPath = null
+  }
+
+  if (clipboard && (clipboard.path === targetPath || clipboard.path.startsWith(targetPrefix))) {
+    clipboard = null
+  }
+}
+
+let dragSourceRow: HTMLDivElement | null = null
+let dragTargetRow: HTMLDivElement | null = null
+
+function clearDragFeedback(): void {
+  dragSourceRow?.classList.remove("drag-source")
+  dragSourceRow = null
+  dragTargetRow?.classList.remove("drag-target-valid")
+  dragTargetRow = null
+  treePaneBodyEl.classList.remove("fs-drop-root-valid")
+}
+
+function resolveDropTarget(target: EventTarget | null): { dirPath: string; dirRow: HTMLDivElement | null } {
+  const targetEl = target instanceof HTMLElement ? target : null
+  const row = targetEl?.closest(".fs-entry-row") as HTMLDivElement | null
+  if (!row) return { dirPath: ".", dirRow: null }
+
+  const entryEl = row.closest(".fs-entry") as HTMLDivElement | null
+  if (!entryEl?.dataset.path) return { dirPath: ".", dirRow: null }
+
+  if (entryEl.dataset.type === "directory") {
+    return { dirPath: entryEl.dataset.path, dirRow: row }
+  }
+
+  // ファイル行 → 親フォルダに解決し、親フォルダの行をハイライト対象にする
+  const parentDir = getParentDir(entryEl.dataset.path)
+  const parentEntry = parentDir === "."
+    ? null
+    : treeEl.querySelector(`[data-path="${CSS.escape(parentDir)}"]`) as HTMLDivElement | null
+  const parentRow = parentEntry?.querySelector(".fs-entry-row") as HTMLDivElement | null ?? null
+  return { dirPath: parentDir, dirRow: parentRow }
+}
+
+function applyDropFeedback(dirRow: HTMLDivElement | null, valid: boolean): void {
+  dragTargetRow?.classList.remove("drag-target-valid")
+  dragTargetRow = null
+  treePaneBodyEl.classList.remove("fs-drop-root-valid")
+
+  if (!valid) return
+
+  if (dirRow) {
+    dragTargetRow = dirRow
+    dragTargetRow.classList.add("drag-target-valid")
+  } else {
+    treePaneBodyEl.classList.add("fs-drop-root-valid")
+  }
+}
+
+function isInternalDrag(dt: DataTransfer | null): boolean {
+  return dt ? Array.from(dt.types).includes(INTERNAL_FS_DND_MIME) : false
+}
+
+function hasExternalFiles(dt: DataTransfer | null): boolean {
+  return dt ? Array.from(dt.types).includes("Files") : false
+}
+
+function getExternalFilePaths(dt: DataTransfer): string[] {
+  return Array.from(dt.files)
+    .map((f) => window.fieldApi.getFilePath(f))
+    .filter((p) => p.length > 0)
+}
+
+function handleInternalDragStart(event: DragEvent, sourcePath: string, row: HTMLDivElement): void {
+  if (!event.dataTransfer || isTreeDnDDisabled()) {
+    event.preventDefault()
+    return
+  }
+  dragSourceRow = row
+  dragSourceRow.classList.add("drag-source")
+  event.dataTransfer.setData(INTERNAL_FS_DND_MIME, sourcePath)
+  event.dataTransfer.setData("text/plain", sourcePath)
+  event.dataTransfer.effectAllowed = "move"
+}
+
+function handleTreeDragOver(event: DragEvent): void {
+  const dt = event.dataTransfer
+  if (!dt) return
+  if (!isInternalDrag(dt) && !hasExternalFiles(dt)) return
+
+  event.preventDefault()
+
+  if (isTreeDnDDisabled()) {
+    dt.dropEffect = "none"
+    applyDropFeedback(null, false)
+    return
+  }
+
+  const { dirPath, dirRow } = resolveDropTarget(event.target)
+
+  if (isInternalDrag(dt)) {
+    const sourcePath = dt.getData(INTERNAL_FS_DND_MIME)
+    const valid = validateTreeMove(sourcePath, dirPath).ok
+    dt.dropEffect = valid ? "move" : "none"
+    applyDropFeedback(dirRow, valid)
+    return
+  }
+
+  dt.dropEffect = "copy"
+  applyDropFeedback(dirRow, true)
+}
+
+function handleTreeDragLeave(event: DragEvent): void {
+  const next = document.elementFromPoint(event.clientX, event.clientY)
+  if (next && treePaneBodyEl.contains(next)) return
+  clearDragFeedback()
+}
+
+async function handleTreeDrop(event: DragEvent): Promise<void> {
+  const dt = event.dataTransfer
+  if (!dt) return
+
+  const internal = isInternalDrag(dt)
+  if (!internal && !hasExternalFiles(dt)) return
+
+  event.preventDefault()
+  clearDragFeedback()
+  if (isTreeDnDDisabled()) return
+
+  const { dirPath } = resolveDropTarget(event.target)
+
+  try {
+    if (internal) {
+      const sourcePath = dt.getData(INTERNAL_FS_DND_MIME)
+      const validation = validateTreeMove(sourcePath, dirPath)
+      if (!validation.ok) return
+      if (await existsInDir(dirPath, getBaseName(sourcePath))) return
+      await window.fieldApi.fsMutate({ op: "rename", path: sourcePath, newPath: validation.destPath })
+      syncTrackedPaths(sourcePath, validation.destPath)
+      pushUndo({ type: "rename", from: sourcePath, to: validation.destPath })
+    } else {
+      const externalPaths = getExternalFilePaths(dt)
+      for (const src of externalPaths) {
+        const dest = joinPath(dirPath, getBaseName(src))
+        await window.fieldApi.fsImportFile({ sourcePath: src, destPath: dest })
+      }
+    }
+    await refreshTree()
+  } catch (err) {
+    errorEl.textContent = err instanceof Error ? err.message : t("operationError")
+  }
 }
 
 /** コピー先のパスを生成する（同名が存在する場合は "name copy.ext" にリネーム） */
@@ -498,16 +687,13 @@ async function existsInDir(dirPath: string, name: string): Promise<boolean> {
 async function executePaste(destDir: string): Promise<void> {
   if (!clipboard) return
   if (clipboard.mode === "cut") {
-    const name = getBaseName(clipboard.path)
-    const destPath = destDir === "." ? name : `${destDir}/${name}`
-    // 同じ場所への切り取りは無視
-    if (getParentDir(clipboard.path) === destDir) {
-      clipboard = null
-      return
-    }
     const srcPath = clipboard.path
-    await window.fieldApi.fsMutate({ op: "rename", path: srcPath, newPath: destPath })
-    pushUndo({ type: "rename", from: srcPath, to: destPath })
+    const validation = validateTreeMove(srcPath, destDir)
+    if (!validation.ok) return
+    if (await existsInDir(destDir, getBaseName(srcPath))) return
+    await window.fieldApi.fsMutate({ op: "rename", path: srcPath, newPath: validation.destPath })
+    syncTrackedPaths(srcPath, validation.destPath)
+    pushUndo({ type: "rename", from: srcPath, to: validation.destPath })
     clipboard = null
   } else {
     const destPath = await resolveDestPath(destDir, clipboard.path)
@@ -538,7 +724,7 @@ function getTargetDir(): string {
   if (!focusedPath) return "."
   const entry = treeEl.querySelector(`[data-path="${CSS.escape(focusedPath)}"]`) as HTMLDivElement | null
   if (entry?.dataset.type === "directory") return focusedPath
-  return focusedPath.includes("/") ? focusedPath.substring(0, focusedPath.lastIndexOf("/")) : "."
+  return getParentDir(focusedPath)
 }
 
 function getEntryContainer(path: string): HTMLElement | null {
@@ -556,12 +742,12 @@ function triggerRename(): void {
   const fp = focusedPath
   showInlineInput(el, t("newName"), currentName).then(async (newName) => {
     if (!newName || newName === currentName) return
-    const parentDir = fp.includes("/") ? fp.substring(0, fp.lastIndexOf("/")) : "."
-    const newPath = parentDir === "." ? newName : `${parentDir}/${newName}`
+    const parentDir = getParentDir(fp)
+    const newPath = joinPath(parentDir, newName)
     try {
       await window.fieldApi.fsMutate({ op: "rename", path: fp, newPath })
       pushUndo({ type: "rename", from: fp, to: newPath })
-      focusedPath = null
+      syncTrackedPaths(fp, newPath)
       await refreshTree()
     } catch (err) {
       errorEl.textContent = err instanceof Error ? err.message : t("renameError")
@@ -681,8 +867,7 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       window.fieldApi
         .fsMutate({ op: "delete", path: pathToDeleteMac })
         .then(() => {
-          expandedDirs.delete(pathToDeleteMac)
-          focusedPath = null
+          clearTrackedPaths(pathToDeleteMac)
           return refreshTree()
         })
         .catch((err: unknown) => {
@@ -698,8 +883,7 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       window.fieldApi
         .fsMutate({ op: "delete", path: pathToDelete })
         .then(() => {
-          expandedDirs.delete(pathToDelete)
-          focusedPath = null
+          clearTrackedPaths(pathToDelete)
           return refreshTree()
         })
         .catch((err: unknown) => {
@@ -720,6 +904,7 @@ export async function refreshTree(): Promise<void> {
   for (const entry of result.entries) {
     treeEl.appendChild(createEntryEl(entry, currentPath))
   }
+  setFocused(focusedPath)
 }
 
 /** 初期化 — ルートディレクトリを読み込む + リフレッシュボタン接続 */
@@ -765,9 +950,16 @@ export async function initFilesystemPane(options?: FilesystemPaneOptions): Promi
   // キーボードナビゲーション
   treeEl.tabIndex = 0
   treeEl.addEventListener("keydown", handleTreeKeydown)
+  treePaneBodyEl.addEventListener("dragover", handleTreeDragOver)
+  treePaneBodyEl.addEventListener("dragleave", handleTreeDragLeave)
+  treePaneBodyEl.addEventListener("drop", (event) => {
+    void handleTreeDrop(event)
+  })
+  document.addEventListener("dragend", clearDragFeedback)
+  document.addEventListener("drop", clearDragFeedback)
 
   // ツリー背景の右クリック（エントリ外の空白部分）
-  treeEl.addEventListener("contextmenu", (e) => {
+  treePaneBodyEl.addEventListener("contextmenu", (e) => {
     // エントリ上の右クリックはエントリ側で処理済み
     if ((e.target as HTMLElement).closest(".fs-entry-row")) return
     e.preventDefault()

@@ -1,5 +1,7 @@
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 import type {
+  FsImportFileArgs,
+  FsImportFileResult,
   FsListArgs,
   FsReadArgs,
   FsWriteArgs,
@@ -35,6 +37,8 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.invoke("fs.read", args),
   fsWrite: (args: FsWriteArgs): Promise<FsWriteResult> =>
     ipcRenderer.invoke("fs.write", args),
+  fsImportFile: (args: FsImportFileArgs): Promise<FsImportFileResult> =>
+    ipcRenderer.invoke("fs.importFile", args),
   fsMutate: (args: FsMutateArgs): Promise<FsMutateResult> =>
     ipcRenderer.invoke("fs.mutate", args),
 
@@ -73,6 +77,9 @@ contextBridge.exposeInMainWorld("fieldApi", {
     ipcRenderer.on("settings.theme", (_e, theme) => cb(theme)),
   onLocaleChange: (cb: (locale: string) => void) =>
     ipcRenderer.on("settings.locale", (_e, locale) => cb(locale)),
+
+  // D&D外部ファイルパス取得（Electron 32+でFile.path廃止のため）
+  getFilePath: (file: File): string => webUtils.getPathForFile(file),
 
   // デモモード
   loadDemoScript: (): Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }> =>

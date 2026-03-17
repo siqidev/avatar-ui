@@ -12,6 +12,8 @@ import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
 import { DemoPlayer } from "./demo-player.js"
 
 import type {
+  FsImportFileArgs,
+  FsImportFileResult,
   FsListArgs,
   FsReadArgs,
   FsWriteArgs,
@@ -39,6 +41,7 @@ declare global {
       fsList: (args: FsListArgs) => Promise<FsListResult>
       fsRead: (args: FsReadArgs) => Promise<FsReadResult>
       fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
+      fsImportFile: (args: FsImportFileArgs) => Promise<FsImportFileResult>
       fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
       terminalInput: (args: TerminalInputArgs) => Promise<{ ok: boolean }>
       terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
@@ -52,6 +55,7 @@ declare global {
       onTerminalState: (cb: (data: unknown) => void) => void
       onToolApprovalRequest: (cb: (data: unknown) => void) => void
       respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
+      getFilePath: (file: File) => string
       onThemeChange: (cb: (theme: string) => void) => void
       onLocaleChange: (cb: (locale: string) => void) => void
       loadDemoScript: () => Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }>

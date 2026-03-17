@@ -32,7 +32,8 @@ src/
     state-normalizer.ts       IPC入力→視覚状態マッピング（優先度ロジック）
     canvas-pane.ts            Canvasペイン
     canvas-focus-stack.ts     Canvas上のフォーカス履歴管理（スタック）
-    filesystem-pane.ts        Spaceペイン
+    filesystem-pane.ts        Spaceペイン（ツリーD&D移動+外部インポート）
+    filesystem-dnd.ts         D&D純粋関数（パス検証・書換）
     terminal-pane.ts          Terminalペイン（xterm.js）
     style.css                 デザイントークン+レイアウト+テーマ定義
     public/
@@ -135,7 +136,8 @@ contextBridge経由でRendererに公開する最小API。ipcRendererの直接公
 | `fsList(args)` | fs.list | ディレクトリ一覧 |
 | `fsRead(args)` | fs.read | ファイル読み取り |
 | `fsWrite(args)` | fs.write | ファイル書き込み |
-| `fsMutate(args)` | fs.mutate | 構造変更（delete/rename/mkdir） |
+| `fsImportFile(args)` | fs.importFile | 外部ファイルインポート（バイナリ対応） |
+| `fsMutate(args)` | fs.mutate | 構造変更（delete/rename/mkdir/copy） |
 | `terminalInput(args)` | terminal.input | PTYへの生データ入力 |
 | `terminalResize(args)` | terminal.resize | PTYリサイズ |
 | `terminalSnapshot()` | terminal.snapshot | PTY状態スナップショット |

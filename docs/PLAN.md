@@ -48,7 +48,7 @@ Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
 
 - **内発的動機による自律行動** — cronベースの定期実行ではなく、共振・蓄積情報・文脈からアバターが自発的に行動する仕組み。Pulse複数化はその実装手段の一つ。全チャネル横断の設計変更
 - ~~**Canvas双方向編集**~~ — 実装済み（CodeMirror 6エディタ、Cmd+S保存、ファイル切り替え状態保持、未保存マーカー）
-- **SpaceペインD&D** — ファイル/フォルダのドラッグ&ドロップ移動
+- ~~**SpaceペインD&D**~~ — 実装済み（ツリー内移動+Finder外部インポート、VSCode準拠のドロップ先解決・ハイライト、webUtils.getPathForFile経由）
 - ~~**Terminal PTY昇格**~~ — 実装済み（node-pty持続PTY、AIと人間が共有、OSCマーカーによるAIコマンド完了検知）
 - **Console用3Dマップ** — Roblox空間のリアルタイム可視化（Three.js）
 - **Roblox TypeScript整理** — catalog/schema/eventsの分離（肥大化防止）

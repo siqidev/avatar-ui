@@ -2,19 +2,22 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import * as os from "node:os"
-import { fsList, fsRead, fsWrite, fsMutate } from "./filesystem-service.js"
+import { fsImportFile, fsList, fsRead, fsWrite, fsMutate } from "./filesystem-service.js"
 import { _resetConfigForTest } from "../config.js"
 
 // テスト用の一時Avatar Spaceを作成
 let tmpDir: string
+let importSourceDir: string
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "avatar-space-test-"))
-  const config = _resetConfigForTest({ XAI_API_KEY: "test-key", AVATAR_SPACE: tmpDir })
+  importSourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "avatar-import-test-"))
+  _resetConfigForTest({ XAI_API_KEY: "test-key", AVATAR_SPACE: tmpDir })
 })
 
 afterEach(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true })
+  await fs.rm(importSourceDir, { recursive: true, force: true })
   _resetConfigForTest({ XAI_API_KEY: "test-key" })
 })
 
@@ -91,6 +94,30 @@ describe("fsWrite", () => {
 
     const content = await fs.readFile(path.join(tmpDir, "overwrite.txt"), "utf-8")
     expect(content).toBe("new")
+  })
+})
+
+describe("fsImportFile", () => {
+  it("外部ファイルをAvatar Spaceへコピーする", async () => {
+    const sourcePath = path.join(importSourceDir, "binary.dat")
+    const sourceBytes = Buffer.from([0x00, 0x7f, 0x80, 0xff, 0x41])
+    await fs.writeFile(sourcePath, sourceBytes)
+
+    const result = await fsImportFile({ sourcePath, destPath: "imports/binary.dat" })
+
+    expect(result.path).toBe("imports/binary.dat")
+    expect(result.bytes).toBe(sourceBytes.length)
+    const copied = await fs.readFile(path.join(tmpDir, "imports/binary.dat"))
+    expect(Buffer.compare(copied, sourceBytes)).toBe(0)
+  })
+
+  it("移動先がAvatar Space外なら拒否する", async () => {
+    const sourcePath = path.join(importSourceDir, "escape.txt")
+    await fs.writeFile(sourcePath, "escape")
+
+    await expect(
+      fsImportFile({ sourcePath, destPath: "../escape.txt" }),
+    ).rejects.toThrow("Avatar Space外")
   })
 })
 
