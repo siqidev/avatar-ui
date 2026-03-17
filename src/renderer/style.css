@@ -373,6 +373,12 @@ body {
   color: var(--fg-main);
 }
 
+.fs-context-separator {
+  height: 1px;
+  background: var(--line-default);
+  margin: 4px 0;
+}
+
 /* === Avatarペイン === */
 .avatar-display {
   display: flex;

@@ -123,5 +123,12 @@ export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
       await fs.mkdir(resolved, { recursive: true })
       return { message: `ディレクトリを作成しました: ${args.path}` }
     }
+    case "copy": {
+      const resolvedFrom = await assertInAvatarSpace(args.path)
+      const resolvedTo = await assertInAvatarSpace(args.destPath)
+      await fs.mkdir(path.dirname(resolvedTo), { recursive: true })
+      await fs.cp(resolvedFrom, resolvedTo, { recursive: true })
+      return { message: `コピーしました: ${args.path} → ${args.destPath}` }
+    }
   }
 }

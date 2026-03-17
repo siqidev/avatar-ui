@@ -78,10 +78,17 @@ export const fsMutateMkdirSchema = z.object({
   path: z.string().min(1),
 })
 
+export const fsMutateCopySchema = z.object({
+  op: z.literal("copy"),
+  path: z.string().min(1),
+  destPath: z.string().min(1),
+})
+
 export const fsMutateArgsSchema = z.discriminatedUnion("op", [
   fsMutateDeleteSchema,
   fsMutateRenameSchema,
   fsMutateMkdirSchema,
+  fsMutateCopySchema,
 ])
 
 export type FsMutateArgs = z.infer<typeof fsMutateArgsSchema>
