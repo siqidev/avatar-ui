@@ -27,11 +27,11 @@
 
 A coexistence interface for physical beings and information beings.
 
-AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a persistent "field" — maintaining continuous reciprocal interaction across sessions, across restarts, and across media (console + Roblox).
+AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a persistent "field" — maintaining continuous reciprocal interaction across sessions, across restarts, and across media (console + Roblox + X).
 
 ## Features
 
-- **Console UI** — 6-pane Electron interface (Avatar / Space / Canvas / Stream / Terminal / Roblox)
+- **Console UI** — 7-pane Electron interface (Avatar / Space / Canvas / X / Stream / Terminal / Roblox)
 - **Avatar motion** — Pixel art avatar expression (idle motion + blink + lip-sync)
 - **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
@@ -39,6 +39,7 @@ AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a 
 - **Avatar Space** — Dedicated filesystem the AI can read and write
 - **Terminal** — AI and human share a shell (command execution + output viewing)
 - **Roblox integration** — Chat with the avatar in Roblox and have it follow players
+- **X (Twitter) integration** — Post to X from console, monitor mentions and events
 
 <p align="center">
   <img src="docs/assets/console.png" alt="Console UI" width="800" />
@@ -165,8 +166,10 @@ In Studio: Plugins tab > Rojo > Connect. File changes sync automatically.
 │ (presence)    │ (file editor   │ (conversation │
 │               │  + images)     │  + tools)     │
 ├───────────────┼────────────────┼───────────────┤
-│ Space         │ Roblox         │ Terminal       │
-│ (filesystem)  │ (monitor)      │ (shell)        │
+│ Space         │ X (monitor)    │ Terminal       │
+│ (filesystem)  ├────────────────┤ (shell)        │
+│               │ Roblox         │               │
+│               │ (monitor)      │               │
 └───────────────┴────────────────┴───────────────┘
 ```
 
@@ -211,7 +214,7 @@ src/
   config.ts           Environment → AppConfig (single source)
   main/               Electron Main (FieldRuntime, IPC, services)
   preload/            contextBridge API
-  renderer/           6-pane UI
+  renderer/           7-pane UI
   services/           Grok Responses API client
   roblox/             Roblox projector, observer, tool definitions
   tools/              LLM tool definitions (fs, terminal, memory, roblox)

@@ -26,7 +26,8 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - x_postツール（280文字制限、OAuth 1.0a HMAC-SHA1署名）
 - x_replyツール（Phase 2スタブ、X_REPLY_APPROVED=onで有効化）
 - Account Activity API Webhookサーバー（CRC + HMAC-SHA256署名検証 + 自己投稿フィルタ + 重複排除）
-- 7ペインUI（全ペインD&D入替対応、列構造2/3/2固定）
+- 7ペインUI（全ペインD&D入替対応、Xペイン一級市民化、列構造2/3/2固定）
+- Monitor履歴永続化（Roblox/X Monitorの観測ログをstate.jsonに保存、再起動後復元）
 - テスト313件（33ファイル）
 
 Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
@@ -73,7 +74,7 @@ Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
 - **規約の動的管理** — 場の規約（boundary/rules）の実行時変更・検証。現在は静的
 
 #### ②媒体投影
-- **InputGate（チャネル別ツール権限制御）** — field-runtime手前で入力元チャネルに応じて許可ツールを制限。観測経由の入力がチャネル外ツールを起動しないための境界。X統合の前提条件
+- ~~**InputGate（チャネル別ツール権限制御）**~~ — 実装済み（v0.4.0）。source+channelベースの二重防御。Roblox観測→roblox_action+読取系のみ、X観測→x_reply+読取系のみ
 - **入力パイプラインの明示化** — user/pulse/observationの3入力経路が暗黙的。入力の正規化・バリデーション・ルーティングを明示的なパイプラインとして定義
 - **チャネル抽象化** — Console以外の媒体（X, Live2D等）追加時に必要なチャネルインターフェース。出力側のChannelProjection interface拡張
 
@@ -99,15 +100,15 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 
 v0.3.0で確立した設計。実装の正本はarchitecture.md、概念の正本はPROJECT.md。
 
-### 場モデル6要素のv0.3.0実装度
+### 場モデル6要素の実装度（v0.4.0時点）
 
-| # | 要素 | v0.3.0実装度 | 残ギャップ |
+| # | 要素 | 実装度 | 残ギャップ |
 |---|---|---|---|
 | 1 | 場契約（FieldContract） | 実装（FSM遷移+永続化） | 権限判定・規約動的管理 |
-| 2 | 媒体投影（ChannelProjection） | 最小実装（Console単一チャネル） | 入力パイプライン明示化→チャネル抽象化 |
+| 2 | 媒体投影（ChannelProjection） | 3チャネル（Console+Roblox+X）+ InputGate | 入力パイプライン明示化→チャネル抽象化 |
 | 3 | 参与文脈（ParticipationContext） | 実装 | — |
 | 4 | 往復回路（ReciprocityLoop） | 実装（enqueue直列化+チェーン回復） | 中断処理→優先度→再解釈 |
-| 5 | 共存記録（CoexistenceStore） | v0.3充足 | — |
+| 5 | 共存記録（CoexistenceStore） | 実装（会話+Monitor履歴永続化） | — |
 | 6 | 健全性管理（IntegrityManager） | 実装（検知+通知+凍結） | — |
 
 ### 受入シナリオ（S1-S5）

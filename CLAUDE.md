@@ -9,7 +9,7 @@
 2. docs/PLAN.md — 到達状態・実装バックログ・受入シナリオ（リリースごとに上書き）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-14）
+## 現在の状況（2026-03-17）
 
 ### ブランチ戦略
 - **main**: リリース済みの安定版（v0.3.1タグ）
@@ -17,7 +17,7 @@
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.1リリース済み。v0.4.0（Xチャネル統合）のスコープ確定、L3設計から着手。詳細はdocs/PLAN.md。
+v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monitor履歴永続化、Canvas双方向編集、Spaceファイル操作を含む。詳細はdocs/PLAN.md。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 

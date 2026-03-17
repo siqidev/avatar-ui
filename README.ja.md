@@ -27,11 +27,11 @@
 
 物理生命と情報生命の共存インターフェース。
 
-AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有するデスクトップアプリケーションです。セッションを跨ぎ、再起動を跨ぎ、メディア（コンソール＋Roblox）を跨いで、継続的な往復対話を維持します。
+AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有するデスクトップアプリケーションです。セッションを跨ぎ、再起動を跨ぎ、メディア（コンソール＋Roblox＋X）を跨いで、継続的な往復対話を維持します。
 
 ## 特徴
 
-- **Console UI** — 6ペインのElectronインターフェース（Avatar / Space / Canvas / Stream / Terminal / Roblox）
+- **Console UI** — 7ペインのElectronインターフェース（Avatar / Space / Canvas / X / Stream / Terminal / Roblox）
 - **アバターモーション** — アバターのピクセルアート表現（待機モーション＋瞬き＋リップシンク）
 - **共振モード** — アバターが周囲の変化を感知し、自発的に応答する
 - **自発行動（Pulse）** — 人間の入力を待たず、アバターが自発的に動く
@@ -39,6 +39,7 @@ AVATAR UI（AUI）は、AIアバターと人間が永続的な「場」を共有
 - **Avatar Space** — AIが読み書きできる専用ファイルシステム
 - **Terminal** — AIと人間がシェルを共有（コマンド実行＋出力確認）
 - **Roblox連携** — アバターとRoblox空間で対話し、プレイヤーに追従する
+- **X（Twitter）連携** — コンソールからXに投稿、メンションやイベントを監視
 
 <p align="center">
   <img src="docs/assets/console.png" alt="Console UI" width="800" />
@@ -163,10 +164,12 @@ Studio: Pluginsタブ > Rojo > Connect。ファイル変更は自動同期され
 ┌── Left 15% ───┬── Center 42% ──┬── Right 43% ──┐
 │ Avatar        │ Canvas         │ Stream        │
 │ (存在提示)    │ (ファイル編集  │ (会話・承認   │
-│               │  + 画像昇格)   │  + ツール)    │
+│               │  + 画像昇格)   │  + X投稿)     │
 ├───────────────┼────────────────┼───────────────┤
-│ Space         │ Roblox         │ Terminal       │
-│ (FS探索)      │ (監視)         │ (シェル)       │
+│ Space         │ X (X監視)      │ Terminal       │
+│ (FS探索)      ├────────────────┤ (シェル)       │
+│               │ Roblox         │               │
+│               │ (Roblox監視)   │               │
 └───────────────┴────────────────┴───────────────┘
 ```
 
@@ -211,7 +214,7 @@ src/
   config.ts           環境変数→AppConfig（唯一の入口）
   main/               Electron Main（FieldRuntime、IPC、サービス）
   preload/            contextBridge API
-  renderer/           6ペインUI
+  renderer/           7ペインUI
   services/           Grok Responses APIクライアント
   roblox/             Roblox投影・観測・ツール定義
   tools/              LLMツール定義（fs、terminal、memory、roblox）
