@@ -30,13 +30,29 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - Monitor履歴永続化（Roblox/X Monitorの観測ログをstate.jsonに保存、再起動後復元）
 - テスト313件（33ファイル）
 
-Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
+**Phase 2（x_reply）: API規制により設計前提変更**
+
+2026年2月23-24日、X APIの自動リプライ規制が施行された（LLMスパム対策）。
+
+- **新ルール**: APIリプライは「元投稿者がボットを@メンションした場合」または「元投稿者がボットの投稿をQuoteした場合」のみ許可。それ以外は技術的にブロック
+- **対象ティア**: Free / Basic / Pro / Pay-per-Use。Enterpriseプラン（月額$42,000〜）のみ例外で従来通り無制限
+- **x_postへの影響**: なし。オリジナル投稿・Quote自体は制限なし
+- **ポリシー要件**: AIリプライボットはX Developer Portalで事前書面承認が必要。opt-out機能必須。無差別リプは明確に禁止
+- **違反時**: ポスト検索除外、アカウント/アプリ凍結、APIアクセス停止
+- **公式ソース**: https://devcommunity.x.com/t/x-api-v2-update-addressing-llm-generated-spam/257909
+- **ポリシー**: https://help.x.com/en/rules-and-policies/x-automation
+
+現行実装への影響:
+- x_replyツールは`X_REPLY_APPROVED=on`ゲート済みのため即座の影響なし
+- Phase 2有効化時はWebhookでメンション/Quote検知 → x_replyの設計に変更（能動的リプ → 召喚応答型へ）
+- 運用方針: オリジナル投稿（x_post）中心 + メンション来訪時のみリプライ
 
 **未解決: Webhookイベント未着**
 - 状態: Webhook登録済み（valid:true）、サブスクリプション有効（subscribed:true）、CRC検証成功、エンドポイント到達可能。しかしXからPOSTイベントが一切配信されない
 - 原因候補: X側の伝搬遅延（新規登録後の初期化）、X側の不具合（Developer Communityに同様報告あり）
 - 次のアクション: 時間をおいて再テスト → ダメならWebhook削除→再登録 → それでもダメならX Developer Supportに問い合わせ
 - Webhook ID: 2033744957270593543、URL: https://x.siqi.jp/x/webhook
+- 備考: Phase 2はWebhookでメンション検知が前提のため、未着問題の解決が先決
 
 **技術仕様:** siqi/knowledge/tech/x-api.md
 
