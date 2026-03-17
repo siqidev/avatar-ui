@@ -2,7 +2,7 @@
 
 import { setLocale, t, getLocale, type Locale } from "../shared/i18n.js"
 import { swapPanes, DEFAULT_LAYOUT, GRID_SLOTS } from "./layout-manager.js"
-import type { GridSlot } from "./layout-manager.js"
+import type { GridSlot, Layout } from "./layout-manager.js"
 import { normalizeState } from "./state-normalizer.js"
 import type { PaneInput } from "./state-normalizer.js"
 import { initFilesystemPane } from "./filesystem-pane.js"
@@ -90,7 +90,8 @@ let spaceInitialized = false
 initTerminalPane()
 
 // === レイアウト管理 ===
-let currentLayout: GridSlot[][] = DEFAULT_LAYOUT.map((row) => [...row])
+// レイアウト = 列の配列。各列はペインIDの配列。列構造は2/3/2固定
+let currentLayout: Layout = DEFAULT_LAYOUT.map((col) => [...col])
 
 // ペイン要素マップ（slot名 → DOM要素）
 const paneElements = new Map<GridSlot, HTMLElement>()
@@ -98,26 +99,20 @@ for (const slot of GRID_SLOTS) {
   paneElements.set(slot, document.querySelector(`[data-slot="${slot}"]`)!)
 }
 
-// 列コンテナ + 列内スプリッター
+// 列コンテナ
 const columns = [
   document.getElementById("col-0")!,
   document.getElementById("col-1")!,
   document.getElementById("col-2")!,
 ]
-const columnSplitters = columns.map((col) => col.querySelector(".splitter-h")! as HTMLElement)
-
-// 中央列の2つ目のスプリッター（Canvas-X間 / X-Roblox間）
-const centerSplitterCX = document.getElementById("splitter-h-cx") as HTMLElement
-const centerSplitterXR = document.getElementById("splitter-h-xr") as HTMLElement
 
 // 列幅比率 [left, center, right] — 初期 15:42:43
 const colRatios = [15, 42, 43]
-// 列ごとの行比率 — 各列独立
-// 左列・右列: [top, bottom]、中央列: [canvas, x, roblox]
+// 列ごとの行比率（正の重み、描画時に正規化）
 const rowRatios: number[][] = [
-  [30, 70],       // 左列: Avatar小 / Space大
+  [30, 70],       // 左列: Avatar / Space
   [50, 20, 30],   // 中央列: Canvas / X / Roblox
-  [65, 35],       // 右列: Stream大 / Terminal小
+  [65, 35],       // 右列: Stream / Terminal
 ]
 
 const SPLITTER_WIDTH = 4
@@ -128,54 +123,45 @@ function applyColumnWidths(): void {
     `${colRatios[0]}fr ${SPLITTER_WIDTH}px ${colRatios[1]}fr ${SPLITTER_WIDTH}px ${colRatios[2]}fr`
 }
 
-// 列ごとのペイン高さ比率を適用
+// 列ごとのペイン高さ比率を適用（列内ペイン数に応じて汎用処理）
 function applyRowRatios(): void {
   for (let c = 0; c < 3; c++) {
     const col = columns[c]
-    if (rowRatios[c].length === 3) {
-      // 中央列: 3ペイン（Canvas / X / Roblox）
-      const pane0 = col.children[0] as HTMLElement
-      const pane1 = col.children[2] as HTMLElement
-      const pane2 = col.children[4] as HTMLElement
-      pane0.style.flex = String(rowRatios[c][0])
-      pane1.style.flex = String(rowRatios[c][1])
-      pane2.style.flex = String(rowRatios[c][2])
-    } else {
-      const topPane = col.children[0] as HTMLElement
-      const bottomPane = col.children[2] as HTMLElement
-      topPane.style.flex = String(rowRatios[c][0])
-      bottomPane.style.flex = String(rowRatios[c][1])
+    const paneCount = currentLayout[c].length
+    for (let p = 0; p < paneCount; p++) {
+      // DOM children: [pane0, splitter0, pane1, splitter1, pane2, ...]
+      // pane の child index = p * 2
+      const paneEl = col.children[p * 2] as HTMLElement
+      if (paneEl) paneEl.style.flex = String(rowRatios[c][p])
     }
   }
 }
 
-// レイアウト配列に従ってペインDOMを列に配置
+// レイアウト配列に従ってペインDOMを列に配置（列ループで統一、特例なし）
 function renderLayout(): void {
   for (let c = 0; c < 3; c++) {
     const col = columns[c]
-    const topSlot = currentLayout[0][c]
-    const bottomSlot = currentLayout[1][c]
-    const topPane = paneElements.get(topSlot)!
-    const bottomPane = paneElements.get(bottomSlot)!
+    // 既存の子要素をクリア
+    while (col.firstChild) col.removeChild(col.firstChild)
 
-    // appendChildはDOMノードを移動する（イベントリスナー保持）
-    col.appendChild(topPane)
-    if (c === 1) {
-      // 中央列: Canvas → splitter → X → splitter → Roblox
-      col.appendChild(centerSplitterCX)
-      col.appendChild(xPane)
-      col.appendChild(centerSplitterXR)
-    } else {
-      col.appendChild(columnSplitters[c])
+    const slots = currentLayout[c]
+    for (let p = 0; p < slots.length; p++) {
+      if (p > 0) {
+        // ペイン間に横スプリッターを挿入
+        const splitter = document.createElement("div")
+        splitter.className = "splitter-h"
+        col.appendChild(splitter)
+        initRowSplitter(splitter, c, p - 1, p)
+      }
+      col.appendChild(paneElements.get(slots[p])!)
     }
-    col.appendChild(bottomPane)
   }
   applyRowRatios()
 }
 
 // 初期レイアウト適用
 applyColumnWidths()
-applyRowRatios()
+renderLayout()
 
 // === 縦スプリッタードラッグ（列幅変更） ===
 const splitterV1 = document.getElementById("splitter-v1") as HTMLDivElement
@@ -225,59 +211,20 @@ function initColumnSplitter(
 initColumnSplitter(splitterV1, 0, 1)
 initColumnSplitter(splitterV2, 1, 2)
 
-// === 横スプリッタードラッグ（列ごとの行高さ変更） ===
-function initRowSplitter(col: HTMLElement, colIdx: number, splitter: HTMLElement): void {
-  splitter.addEventListener("mousedown", (e: MouseEvent) => {
-    e.preventDefault()
-    const startY = e.clientY
-    const topPane = col.children[0] as HTMLElement
-    const bottomPane = col.children[2] as HTMLElement
-    const startTopH = topPane.getBoundingClientRect().height
-    const startBottomH = bottomPane.getBoundingClientRect().height
-
-    splitter.classList.add("dragging")
-    document.body.style.cursor = "row-resize"
-    document.body.style.userSelect = "none"
-
-    function onMouseMove(ev: MouseEvent): void {
-      const dy = ev.clientY - startY
-      const combined = startTopH + startBottomH
-      const newTopH = Math.max(MIN_TRACK_PX, Math.min(startTopH + dy, combined - MIN_TRACK_PX))
-      const newBottomH = combined - newTopH
-
-      rowRatios[colIdx] = [newTopH / combined, newBottomH / combined]
-      topPane.style.flex = String(rowRatios[colIdx][0])
-      bottomPane.style.flex = String(rowRatios[colIdx][1])
-    }
-
-    function onMouseUp(): void {
-      splitter.classList.remove("dragging")
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
-      document.removeEventListener("mousemove", onMouseMove)
-      document.removeEventListener("mouseup", onMouseUp)
-    }
-
-    document.addEventListener("mousemove", onMouseMove)
-    document.addEventListener("mouseup", onMouseUp)
-  })
-}
-
-// 3ペイン列用の横スプリッター（隣接2ペイン間のドラッグ、3つ目は固定）
-function initRowSplitter3(
+// === 横スプリッタードラッグ（汎用: 隣接2ペイン間、列内ペイン数不問） ===
+function initRowSplitter(
   splitter: HTMLElement,
   colIdx: number,
-  upperIdx: number,
-  lowerIdx: number,
-  upperChildIdx: number,
-  lowerChildIdx: number,
+  upperPaneIdx: number,
+  lowerPaneIdx: number,
 ): void {
-  const col = columns[colIdx]
   splitter.addEventListener("mousedown", (e: MouseEvent) => {
     e.preventDefault()
+    const col = columns[colIdx]
     const startY = e.clientY
-    const upperPane = col.children[upperChildIdx] as HTMLElement
-    const lowerPane = col.children[lowerChildIdx] as HTMLElement
+    // DOM children: [pane0, splitter0, pane1, splitter1, pane2, ...]
+    const upperPane = col.children[upperPaneIdx * 2] as HTMLElement
+    const lowerPane = col.children[lowerPaneIdx * 2] as HTMLElement
     const startUpperH = upperPane.getBoundingClientRect().height
     const startLowerH = lowerPane.getBoundingClientRect().height
 
@@ -291,12 +238,12 @@ function initRowSplitter3(
       const newUpperH = Math.max(MIN_TRACK_PX, Math.min(startUpperH + dy, combined - MIN_TRACK_PX))
       const newLowerH = combined - newUpperH
 
-      const totalH = startUpperH + startLowerH +
-        (rowRatios[colIdx].reduce((a, b) => a + b, 0) - rowRatios[colIdx][upperIdx] - rowRatios[colIdx][lowerIdx])
-      rowRatios[colIdx][upperIdx] = newUpperH / (totalH || 1)
-      rowRatios[colIdx][lowerIdx] = newLowerH / (totalH || 1)
-      upperPane.style.flex = String(rowRatios[colIdx][upperIdx])
-      lowerPane.style.flex = String(rowRatios[colIdx][lowerIdx])
+      // 比率を更新（隣接2ペインの重み合計を保存し、高さ比で再分配）
+      const weightSum = rowRatios[colIdx][upperPaneIdx] + rowRatios[colIdx][lowerPaneIdx]
+      rowRatios[colIdx][upperPaneIdx] = (newUpperH / combined) * weightSum
+      rowRatios[colIdx][lowerPaneIdx] = (newLowerH / combined) * weightSum
+      upperPane.style.flex = String(rowRatios[colIdx][upperPaneIdx])
+      lowerPane.style.flex = String(rowRatios[colIdx][lowerPaneIdx])
     }
 
     function onMouseUp(): void {
@@ -312,16 +259,7 @@ function initRowSplitter3(
   })
 }
 
-// 左列・右列: 2ペインスプリッター
-initRowSplitter(columns[0], 0, columnSplitters[0])
-initRowSplitter(columns[2], 2, columnSplitters[2])
-
-// 中央列: 3ペインスプリッター（Canvas-X間, X-Roblox間）
-// children: [0]=Canvas, [1]=splitter-cx, [2]=X, [3]=splitter-xr, [4]=Roblox
-initRowSplitter3(centerSplitterCX, 1, 0, 1, 0, 2)
-initRowSplitter3(centerSplitterXR, 1, 1, 2, 2, 4)
-
-// === ペインD&D入替 ===
+// === ペインD&D入替（全7ペイン対応） ===
 function initPaneDragAndDrop(): void {
   const allPanes = consoleEl.querySelectorAll<HTMLDivElement>(".pane")
 
@@ -351,7 +289,6 @@ function initPaneDragAndDrop(): void {
       const fromSlot = e.dataTransfer?.getData("text/plain") as GridSlot | undefined
       const toSlot = pane.dataset.slot as GridSlot | undefined
       if (!fromSlot || !toSlot || fromSlot === toSlot) return
-      // グリッド外スロット（Xペイン等）はD&D入替対象外
       if (!(GRID_SLOTS as readonly string[]).includes(fromSlot) ||
           !(GRID_SLOTS as readonly string[]).includes(toSlot)) return
 

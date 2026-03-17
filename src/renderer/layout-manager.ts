@@ -1,9 +1,10 @@
-// レイアウト管理: 2×3グリッド配置 + ペイン入替
+// レイアウト管理: 3列可変長配置 + ペイン入替
 
 export const GRID_SLOTS = [
   "avatar",
   "space",
   "canvas",
+  "x",
   "stream",
   "terminal",
   "roblox",
@@ -11,36 +12,43 @@ export const GRID_SLOTS = [
 
 export type GridSlot = (typeof GRID_SLOTS)[number]
 
+// レイアウト = 列の配列、各列はペインIDの配列
+// 列構造は 2/3/2 固定（左列2ペイン、中央列3ペイン、右列2ペイン）
+// swapで任意のペイン同士が位置交換可能
+export type Layout = GridSlot[][]
+
 // デフォルト配置
-// 上段: Avatar / Canvas   / Stream
-// 下段: Space  / Roblox   / Terminal
-export const DEFAULT_LAYOUT: GridSlot[][] = [
-  ["avatar", "canvas", "stream"],
-  ["space", "roblox", "terminal"],
+// 左列:   Avatar / Space
+// 中央列: Canvas / X / Roblox
+// 右列:   Stream / Terminal
+export const DEFAULT_LAYOUT: Layout = [
+  ["avatar", "space"],
+  ["canvas", "x", "roblox"],
+  ["stream", "terminal"],
 ]
 
-// 配置からgrid-template-areas CSS文字列を生成
-// 5列×3行（列2,4=verticalスプリッター、行2=horizontalスプリッター）
-export function buildGridAreas(layout: GridSlot[][]): string {
-  const top = layout[0]
-  const bottom = layout[1]
-  return [
-    `"${top[0]} . ${top[1]} . ${top[2]}"`,
-    `". . . . ."`,
-    `"${bottom[0]} . ${bottom[1]} . ${bottom[2]}"`,
-  ].join(" ")
+// 全7ペインが1回ずつ存在するか検証
+export function validateLayout(layout: Layout): boolean {
+  const flat = layout.flat()
+  if (flat.length !== GRID_SLOTS.length) return false
+  const set = new Set(flat)
+  if (set.size !== GRID_SLOTS.length) return false
+  for (const slot of GRID_SLOTS) {
+    if (!set.has(slot)) return false
+  }
+  return true
 }
 
 // 2ペインの位置を入れ替える（immutable）
 export function swapPanes(
-  layout: GridSlot[][],
+  layout: Layout,
   a: GridSlot,
   b: GridSlot,
-): GridSlot[][] {
+): Layout {
   if (a === b) return layout
 
-  return layout.map((row) =>
-    row.map((slot) => {
+  return layout.map((col) =>
+    col.map((slot) => {
       if (slot === a) return b
       if (slot === b) return a
       return slot

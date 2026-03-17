@@ -26,8 +26,8 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - x_postツール（280文字制限、OAuth 1.0a HMAC-SHA1署名）
 - x_replyツール（Phase 2スタブ、X_REPLY_APPROVED=onで有効化）
 - Account Activity API Webhookサーバー（CRC + HMAC-SHA256署名検証 + 自己投稿フィルタ + 重複排除）
-- 7ペインUI（中央列3段化: Canvas / X / Roblox）
-- テスト304件（33ファイル）
+- 7ペインUI（全ペインD&D入替対応、列構造2/3/2固定）
+- テスト308件（33ファイル）
 
 Phase 2（x_reply有効化）はX Developer Portal事前承認取得後。
 
