@@ -123,6 +123,31 @@ npm run dev
 | `ROBLOX_OBSERVATION_PORT` | 観測サーバーポート（デフォルト: `3000`） |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnelトークン（Electronが自動管理） |
 
+### オプション: X（Twitter）連携
+
+OAuth 5トークン + `X_USER_ID` の全設定で有効化されます。
+
+| 変数 | 説明 |
+|------|------|
+| `X_CONSUMER_KEY` | OAuth 1.0a Consumer Key（[Developer Portal](https://developer.x.com/)） |
+| `X_CONSUMER_SECRET` | OAuth 1.0a Consumer Secret |
+| `X_ACCESS_TOKEN` | OAuth 1.0a Access Token |
+| `X_ACCESS_TOKEN_SECRET` | OAuth 1.0a Access Token Secret |
+| `X_WEBHOOK_SECRET` | Webhook署名検証シークレット（= Consumer Secret） |
+| `X_USER_ID` | アバターのXユーザーID（自己投稿フィルタ用） |
+| `X_WEBHOOK_PORT` | Webhookサーバーポート（デフォルト: `3001`） |
+| `X_REPLY_APPROVED` | リプライ機能（`on`/`off`、デフォルト: `off`） |
+
+#### X Appの設定
+
+Account Activity API（Webhookイベント配信）には特定のApp権限が必要です:
+
+1. [X Developer Portal](https://developer.x.com/)でApp permissionsを **「Read and write and Direct message」** に設定
+2. 権限変更**後に**アクセストークンを生成する — 変更前に生成されたトークンは旧権限のままなので再生成が必要
+3. アクセストークンはアバターが使うアカウント（監視対象のアカウント）で認可すること
+
+> **重要**: DM権限がない場合、Webhook登録やCRC検証は成功しますが、**イベントは一切配信されません**。Xはエラーを返さず、イベントは黙って破棄されます。
+
 ### オプション: Cloudflare Tunnel（Roblox観測用）
 
 Robloxは観測イベント（プレイヤーの接近、チャット、コマンド結果）をHTTPでローカルマシンに送信します。

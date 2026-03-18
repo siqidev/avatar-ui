@@ -123,6 +123,31 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed by Electron) |
 
+### Optional: X (Twitter) integration
+
+All 5 OAuth tokens + `X_USER_ID` must be set to enable.
+
+| Variable | Description |
+|----------|-------------|
+| `X_CONSUMER_KEY` | OAuth 1.0a Consumer Key ([Developer Portal](https://developer.x.com/)) |
+| `X_CONSUMER_SECRET` | OAuth 1.0a Consumer Secret |
+| `X_ACCESS_TOKEN` | OAuth 1.0a Access Token |
+| `X_ACCESS_TOKEN_SECRET` | OAuth 1.0a Access Token Secret |
+| `X_WEBHOOK_SECRET` | Webhook signature verification secret (= Consumer Secret) |
+| `X_USER_ID` | Your avatar's X user ID (for self-post filtering) |
+| `X_WEBHOOK_PORT` | Webhook server port (default: `3001`) |
+| `X_REPLY_APPROVED` | Enable reply feature (`on`/`off`, default: `off`) |
+
+#### X App setup
+
+The X app requires specific permissions for the Account Activity API (webhook event delivery):
+
+1. In the [X Developer Portal](https://developer.x.com/), set App permissions to **"Read and write and Direct message"**
+2. Generate the Access Token **after** setting permissions — tokens generated before a permission change retain the old scope and must be regenerated
+3. The Access Token must be authorized by the account your avatar uses (the account whose activity you want to monitor)
+
+> **Important**: Without DM permission, webhook registration and CRC validation will succeed, but **no events will be delivered**. X returns no error — events are silently dropped.
+
 ### Optional: Cloudflare Tunnel (for Roblox observation)
 
 Roblox sends observation events (player proximity, chat, command results) to your local machine via HTTP.

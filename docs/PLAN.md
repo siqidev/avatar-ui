@@ -49,10 +49,16 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 
 **未解決: Webhookイベント未着**
 - 状態: Webhook登録済み（valid:true）、サブスクリプション有効（subscribed:true）、CRC検証成功、エンドポイント到達可能。しかしXからPOSTイベントが一切配信されない
-- 原因候補: X側の伝搬遅延（新規登録後の初期化）、X側の不具合（Developer Communityに同様報告あり）
-- 次のアクション: 時間をおいて再テスト → ダメならWebhook削除→再登録 → それでもダメならX Developer Supportに問い合わせ
-- Webhook ID: 2033744957270593543、URL: https://x.siqi.jp/x/webhook
-- 備考: Phase 2はWebhookでメンション検知が前提のため、未着問題の解決が先決
+- 検証済み（2026-03-18）:
+  - curlでGETリクエスト → `[X_WEBHOOK] リクエスト受信: GET /x/webhook` がログに出る → **インフラ（cloudflared→localhost:3001）は正常**
+  - sito(@Sikino_Sito)からSpectra(@SCUN7X)のポストにリプライ → POSTイベント未着
+  - sito(@Sikino_Sito)から@SCUN7Xに直接メンション → POSTイベント未着
+  - 自己投稿フィルタは無関係（X_USER_ID=SpectraのID、リプライ者=sitoのID → フィルタ対象外）
+- **根本原因（2026-03-18解決）: App permissionsにDM権限がなかった**
+  - App permissionsが「読み書き」のみ → Webhook登録・CRC・購読は全て成功するが、**イベント配信が行われない**
+  - 「読み書きおよびダイレクトメッセージ」に変更 + アクセストークン再生成 + 再購読で解決
+  - 教訓: Account Activity APIはDM権限必須。権限変更後は既存トークンに反映されないため再生成が必要
+- Webhook ID: 2034089116300939265、URL: https://x.siqi.jp/x/webhook
 
 **技術仕様:** siqi/knowledge/tech/x-api.md
 
