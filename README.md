@@ -136,7 +136,6 @@ All 5 OAuth tokens + `X_USER_ID` must be set to enable.
 | `X_WEBHOOK_SECRET` | Webhook signature verification secret (= Consumer Secret) |
 | `X_USER_ID` | Your avatar's X user ID (for self-post filtering) |
 | `X_WEBHOOK_PORT` | Webhook server port (default: `3001`) |
-| `X_REPLY_APPROVED` | Enable reply feature (`on`/`off`, default: `off`) |
 
 #### X App setup
 

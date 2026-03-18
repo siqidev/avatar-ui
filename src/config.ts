@@ -42,11 +42,6 @@ const envSchema = z.object({
     .string()
     .regex(/^\d+$/, "X_WEBHOOK_PORT は数値で指定してください")
     .default("3001"),
-  X_REPLY_APPROVED: z
-    .string()
-    .default("off")
-    .transform((v) => v.toLowerCase() === "on"),
-
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
 
@@ -124,7 +119,6 @@ export type AppConfig = {
   observationPort: number
   robloxOpenCloudBaseUrl: string
   xWebhookPort: number
-  xReplyApproved: boolean
 
   // Terminal
   terminalShell: string
@@ -204,7 +198,6 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),
     robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
     xWebhookPort: Number(env.X_WEBHOOK_PORT),
-    xReplyApproved: env.X_REPLY_APPROVED,
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
@@ -272,7 +265,3 @@ export function isXEnabled(config: AppConfig): boolean {
   )
 }
 
-// X返信（x_reply）が承認済みか判定（X事前承認取得後にX_REPLY_APPROVED=onで有効化）
-export function isXReplyEnabled(config: AppConfig): boolean {
-  return isXEnabled(config) && config.xReplyApproved
-}

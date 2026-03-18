@@ -1,5 +1,4 @@
 // x_reply ツール定義: X（Twitter）のメンションに返信する
-// Phase 2: X事前承認取得後に有効化（X_REPLY_APPROVED=on）
 
 import type { Tool } from "openai/resources/responses/responses"
 import { z } from "zod/v4"

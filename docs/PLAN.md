@@ -24,7 +24,7 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - ChannelId SSOT化（`"console" | "roblox" | "x"`、入力パイプライン全層に貫通）
 - InputGate二重防御（source+channelベースのツール権限制御）
 - x_postツール（280文字制限、OAuth 1.0a HMAC-SHA1署名）
-- x_replyツール（Phase 2スタブ、X_REPLY_APPROVED=onで有効化）
+- x_replyツール（X連携有効時に利用可能、TOOL_AUTO_APPROVEで自動実行制御）
 - Account Activity API Webhookサーバー（CRC + HMAC-SHA256署名検証 + 自己投稿フィルタ + 重複排除）
 - 7ペインUI（全ペインD&D入替対応、Xペイン一級市民化、列構造2/3/2固定）
 - Monitor履歴永続化（Roblox/X Monitorの観測ログをstate.jsonに保存、再起動後復元）
@@ -43,8 +43,8 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - **ポリシー**: https://help.x.com/en/rules-and-policies/x-automation
 
 現行実装への影響:
-- x_replyツールは`X_REPLY_APPROVED=on`ゲート済みのため即座の影響なし
-- Phase 2有効化時はWebhookでメンション/Quote検知 → x_replyの設計に変更（能動的リプ → 召喚応答型へ）
+- x_replyはX連携有効時に利用可能。TOOL_AUTO_APPROVEにx_replyを含めると自動実行、含めなければユーザー承認を挟む
+- メンション/Quoteトリガーのリプライは規制対象外（召喚応答型）
 - 運用方針: オリジナル投稿（x_post）中心 + メンション来訪時のみリプライ
 
 **未解決: Webhookイベント未着**

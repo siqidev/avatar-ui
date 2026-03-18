@@ -7,7 +7,7 @@ import type {
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import type { Source } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
-import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled, isXReplyEnabled } from "../config.js"
+import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled } from "../config.js"
 import { getAllowedTools, isToolAllowed } from "./input-gate.js"
 import { getSettings } from "../main/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
@@ -294,7 +294,7 @@ function buildTools(config: import("../config.js").AppConfig, source: Source, ch
     { name: "terminal", def: terminalToolDef, condition: config.avatarShell },
     { name: "roblox_action", def: robloxActionToolDef, condition: isRobloxEnabled(config) },
     { name: "x_post", def: xPostToolDef, condition: isXEnabled(config) },
-    { name: "x_reply", def: xReplyToolDef, condition: isXReplyEnabled(config) },
+    { name: "x_reply", def: xReplyToolDef, condition: isXEnabled(config) },
   ]
 
   // InputGateで許可されたツールのみ追加
@@ -562,14 +562,8 @@ async function handleXPost(argsJson: string): Promise<string> {
   return JSON.stringify({ status: "posted", tweet_id: result.tweetId })
 }
 
-// x_replyツールの実行（Phase 2: X_REPLY_APPROVED=on時のみbuildToolsに含まれる）
-// 二重ガード: buildToolsでツール定義を除外しても、万が一呼ばれた場合に備える
+// x_replyツールの実行（X連携有効時に利用可能、TOOL_AUTO_APPROVEで自動実行を制御）
 async function handleXReply(argsJson: string): Promise<string> {
-  const config = getConfig()
-  if (!config.xReplyApproved) {
-    return JSON.stringify({ status: "error", reason: "X_REPLY_NOT_APPROVED" })
-  }
-
   const parsed = JSON.parse(argsJson)
   const validation = xReplyArgsSchema.safeParse(parsed)
   if (!validation.success) {

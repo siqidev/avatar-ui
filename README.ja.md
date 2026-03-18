@@ -136,7 +136,6 @@ OAuth 5トークン + `X_USER_ID` の全設定で有効化されます。
 | `X_WEBHOOK_SECRET` | Webhook署名検証シークレット（= Consumer Secret） |
 | `X_USER_ID` | アバターのXユーザーID（自己投稿フィルタ用） |
 | `X_WEBHOOK_PORT` | Webhookサーバーポート（デフォルト: `3001`） |
-| `X_REPLY_APPROVED` | リプライ機能（`on`/`off`、デフォルト: `off`） |
 
 #### X Appの設定
 

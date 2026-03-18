@@ -29,7 +29,7 @@ const ROBLOX_OBSERVATION_TOOLS: readonly ToolName[] = [
   "roblox_action",
 ] as const
 
-// X観測入力から許可されるツール（x_replyはisXReplyEnabled時のみ）
+// X観測入力から許可されるツール
 const X_OBSERVATION_TOOLS: readonly ToolName[] = [
   ...READ_ONLY_TOOLS,
   "x_reply",
