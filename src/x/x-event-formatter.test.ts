@@ -60,4 +60,10 @@ describe("formatXEventForAI", () => {
     expect(result).toContain("@testuser")
     expect(result).toContain("こんにちは @spectra_aui")
   })
+
+  it("x_replyツール使用指示とreply_to_tweet_idを含む", () => {
+    const result = formatXEventForAI(mentionEvent)
+    expect(result).toContain("x_replyツールを使うこと")
+    expect(result).toContain("reply_to_tweet_id: 123456")
+  })
 })

@@ -31,6 +31,9 @@ export function formatXEvent(event: XEvent): string {
 export function formatXEventForAI(event: XEvent): string {
   switch (event.type) {
     case "x_mention":
-      return `[X観測: mention] @${event.username} がメンションしました（tweet_id: ${event.tweetId}）: ${event.text}`
+      return (
+        `[X観測: mention] @${event.username} がメンションしました（tweet_id: ${event.tweetId}）: ${event.text}\n` +
+        `返信する場合はx_replyツールを使うこと（reply_to_tweet_id: ${event.tweetId}）。テキスト応答だけでは相手に届かない。`
+      )
   }
 }

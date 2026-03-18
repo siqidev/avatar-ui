@@ -62,7 +62,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       if (tc.name !== "x_post" && tc.name !== "x_reply") continue
       try {
         const parsed = JSON.parse(tc.result) as Record<string, unknown>
-        if (parsed.status !== "posted") continue
+        if (parsed.status !== "posted" && parsed.status !== "replied") continue
         const text = (tc.args.text as string) ?? ""
         const eventType = tc.name === "x_post" ? "post" : "reply"
         const timestamp = new Date().toISOString()
