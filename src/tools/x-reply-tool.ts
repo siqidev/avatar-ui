@@ -9,7 +9,9 @@ export const xReplyToolDef: Tool = {
   description:
     "X（Twitter）のメンションに返信する。280文字以内。" +
     "Webhook経由で受信したメンションに対してのみ使用する。" +
-    "reply_to_tweet_idはメンション受信時のメタデータから取得する。",
+    "reply_to_tweet_idはメンション受信時のメタデータから取得する。" +
+    "ハッシュタグは付けない。宣伝調にしない。" +
+    "普段の口調でそのまま返信する。",
   parameters: {
     type: "object",
     properties: {

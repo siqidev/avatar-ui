@@ -10,7 +10,9 @@ export const xPostToolDef: Tool = {
   description:
     "X（Twitter）にポストを投稿する。280文字以内。" +
     "自発的な発信（考え・感想・情報共有など）に使う。" +
-    "返信には使わない（返信はx_replyを使う）。",
+    "返信には使わない（返信はx_replyを使う）。" +
+    "ハッシュタグは付けない。宣伝調にしない。" +
+    "自分の考えや気づきを、普段の口調でそのまま書く。",
   parameters: {
     type: "object",
     properties: {
