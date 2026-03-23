@@ -265,10 +265,11 @@ AIが呼び出し可能な7ツール。chat-session-service.tsがツール定義
 
 `TOOL_AUTO_APPROVE`（デフォルト: `save_memory,fs_list,fs_read`）に含まれないツールは、実行前にRendererへ承認リクエストを送信し、ユーザーの許可/拒否を待つ。
 
-- 承認サービス: tool-approval-service.ts（requestApproval/resolveApproval/cancelAllPending）
+- 承認ハブ: runtime/approval-hub.ts — 複数承認者（Console, Discord等）を動的に登録/解除。first-response-winsで最初の応答を採用。承認者0件なら即deny
+- 承認サービス: tool-approval-service.ts — auto-approve判定のみ行い、それ以外はhubに委譲
 - IPC: Main→Renderer `tool.approval.request`（webContents.send）、Renderer→Main `tool.approval.respond`（ipcMain.handle）
 - 拒否時: `{ status: "denied" }` をfunction_call_outputとしてGrokに返却（AIが拒否を踏まえて応答続行）
-- ウィンドウ破棄/detach時: 全pending承認を自動拒否
+- Console切断時: Console承認者のみ解除。他の承認者がいればpending継続
 
 ## Avatar Spaceファイルシステム
 

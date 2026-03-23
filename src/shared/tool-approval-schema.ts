@@ -36,5 +36,5 @@ export type ToolApprovalRespond = z.infer<typeof toolApprovalRespondSchema>
 // 内部判定結果
 export type ToolApprovalDecision = {
   approved: boolean
-  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "RENDERER_UNAVAILABLE"
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER"
 }

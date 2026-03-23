@@ -29,7 +29,7 @@ export function createFireHelper(ipcMainOnMock: Mock) {
       (c) => c[0] === channel,
     )
     if (!call) throw new Error(`ハンドラ未登録: ${channel}`)
-    return call[1]({ sender: {} }, ...args)
+    return call[1]({ sender: { id: 1, isDestroyed: () => false, once: vi.fn(), send: vi.fn() } }, ...args)
   }
 }
 

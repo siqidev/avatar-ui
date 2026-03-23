@@ -19,7 +19,7 @@ import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
 import { recordMessage } from "./message-recorder.js"
 import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
-import { initApprovalService, resolveApproval, cancelAllPending } from "./tool-approval-service.js"
+import { registerApprover, unregisterApprover, respond as hubRespond } from "../runtime/approval-hub.js"
 import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { getConfig } from "../config.js"
 import { t } from "../shared/i18n.js"
@@ -83,8 +83,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     projection.sendIntegrityAlert(code, message)
   })
 
-  // ツール承認サービス初期化
-  initApprovalService(getMainWindow)
+  // Console承認者の登録解除関数（attach/detach時に管理）
+  let unregisterConsoleApprover: (() => void) | null = null
 
   // FieldRuntime初期化
   let runtimeReady = false
@@ -194,7 +194,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
   }
 
   // channel.attach: ウィンドウ接続
-  ipcMain.on("channel.attach", () => {
+  ipcMain.on("channel.attach", (event) => {
     // terminated → 新規場にリセット（接続契約: 旧場は終了済み）
     if (fieldState === "terminated") {
       resetToNewField()
@@ -216,6 +216,25 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       return
     }
 
+    // Console承認者を登録（既存があれば先に解除）
+    unregisterConsoleApprover?.()
+    const sender = event.sender
+    unregisterConsoleApprover = registerApprover({
+      approverId: `console:${sender.id}`,
+      label: "Console GUI",
+      sendRequest: (req) => {
+        if (!sender.isDestroyed()) {
+          sender.send("tool.approval.request", req)
+        }
+      },
+    })
+
+    // sender破棄時に自動解除
+    sender.once("destroyed", () => {
+      unregisterConsoleApprover?.()
+      unregisterConsoleApprover = null
+    })
+
     // 場の状態 + 永続化された履歴を投影
     const config = getConfig()
     const restored = getState()
@@ -232,7 +251,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // channel.detach: ウィンドウ切断
   ipcMain.on("channel.detach", () => {
-    cancelAllPending()
+    // Console承認者を解除（他の承認者がいればpending継続）
+    unregisterConsoleApprover?.()
+    unregisterConsoleApprover = null
     safeDetach()
   })
 
@@ -283,9 +304,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     const parsed = toolApprovalRespondSchema.safeParse(raw)
     if (!parsed.success) {
       log.error(`[IPC] tool.approval.respond バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-      return { ok: false }
+      return { ok: false, reason: "VALIDATION_ERROR" }
     }
-    return resolveApproval(parsed.data.requestId, parsed.data.decision)
+    return hubRespond(parsed.data.requestId, parsed.data.decision)
   })
 
   // field.terminate: 場の終了
