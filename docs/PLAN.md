@@ -68,7 +68,10 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 
 ### 拡張（到達状態は満たすが品質・体験を向上）
 
-- **内発的動機による自律行動** — cronベースの定期実行ではなく、共振・蓄積情報・文脈からアバターが自発的に行動する仕組み。Pulse複数化はその実装手段の一つ。全チャネル横断の設計変更
+- **自発行動ロジック** — 共振・蓄積情報・文脈からアバターが自発的に行動する仕組み。時計駆動ではなく、蓄積状態が発火トリガーとなる。全チャネル横断の設計変更。定期実行（Pulse）とは独立した機構
+- **定期実行の拡張** — 時計駆動に適したタスク（日報、タスク管理、定期メンテナンス等）の実行基盤
+  - **Pulse複数化** — 用途別に複数のPulseインスタンスを持つ（例: X投稿用、タスク管理用）
+  - **スクリプト実行** — Pulse以外の定期実行手段（外部スクリプト、cron連携等）の検討
 - ~~**Canvas双方向編集**~~ — 実装済み（CodeMirror 6エディタ、Cmd+S保存、ファイル切り替え状態保持、未保存マーカー）
 - ~~**SpaceペインD&D**~~ — 実装済み（ツリー内移動+Finder外部インポート、VSCode準拠のドロップ先解決・ハイライト、webUtils.getPathForFile経由）
 - ~~**Terminal PTY昇格**~~ — 実装済み（node-pty持続PTY、AIと人間が共有、OSCマーカーによるAIコマンド完了検知）
@@ -79,6 +82,14 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - **場モデル要素の網羅的検証** — ギャップセクションの項目を含む、帰納的検証の完全版
 - **Classic テーマ: 罫線タイトル埋め込み** — ヘッダーのタイトルをペインの上辺罫線に埋め込む表示（fieldset/legend風）。レイアウトをModernと同一に保つ制約あり（`overflow: hidden` 等）
 - **Classic テーマ: 色の意味限定使用** — 装飾的な色分けを排除し、色は「データの意味」にだけ使う設計原則をClassicで徹底。有効であればModernにも拡張
+- **サーバー/クライアント分離（常時起動）** — Spectra本体をVPS上で常時稼働させ、GUIは接続して覗く「窓」にする設計変更。本体は1つ、窓が複数（Console GUI、Discord、Roblox）。現在は本体とGUIが一体（Electronプロセス内）のため、分離が必要。設計方針: B-lite（2026-03-21議論確定）
+  - **設計方針（B-lite）** — 全イベント再設計はせず、最小共通データ形式だけ定義。既存の窓（X, Roblox, Terminal）が異種プロトコルで動いている現実を踏まえ、共通化は「Console・Discordが共有するStream+承認」に絞る。後回し: Terminal遠隔操作、X/Roblox通信統一、全ペインリモート再現
+  - **構造変更**: `src/runtime/`新設（Electron非依存の責務）、`src/discord/`新設（Discord窓口）。`field-runtime.ts`は`src/main/`→`src/runtime/`に移動（名前維持）
+  - **Step 1: 承認の独立化** — tool-approval-serviceをRenderer依存から外す。Console・Discordどちらからでも承認可能にする（first-response-wins）。新規: `src/runtime/approval-hub.ts`
+  - **Step 3: ヘッドレスサーバー** — FieldRuntime + AI + Pulse + X Webhook + Roblox観測をElectron無しのNode.jsサーバーとして稼働。共通データ形式（stream.item / approval.requested / approval.resolved / monitor.item / session.state）の定義を含む。WebSocket接続口を1本開け、固定共有トークンで認証。設定をサーバー設定（model, resonance）とクライアント設定（theme, locale）に分離。新規: `src/runtime/session-registry.ts`, `src/server/ws-gateway.ts`, `src/server/index.ts`
+  - **Step 4: Console（GUI）のクライアント化**（Step 3後、Step 5と並行可） — MacのConsoleがリモートのSpectra本体にWebSocket接続し、共通データ形式を受け取って7ペインに表示。閉じても本体は動き続ける。Space/Canvas/TerminalのVPS対応は後回し
+  - **Step 5: Discord窓口**（Step 3後、Step 4と並行可） — discord.jsで自前実装。WebSocket APIの外部クライアントとして接続（特権経路なし）。stream.itemとapproval.*だけ購読。承認リクエストに👍/👎で応答。新規: `src/discord/discord-bridge.ts`
+  - **Roblox接続** — Roblox Studio/Clientはローカル（Mac）でのみ動作。VPS上のSpectra本体とはcloudflaredトンネル経由で接続。通信方式は現行HTTP POSTを維持
 - **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）
 - **共振機構（場レベル）** — 共振は媒体（Console/Roblox等）ではなく場レベルの機構。構成: 知覚（観測収集）→注意（AI転送）→表出（非命令的応答生成）の3段チェーン。制御: `RESONANCE_MODE=on/off`（.env、デフォルト: off）。offで注意+表出を停止、知覚は常時ON。設計原則: 場が蛇口を設計し、ユーザーが開閉を制御する。各媒体は知覚（観測データ）を場に提供し、場が注意・表出を統合制御する
   - ~~**RESONANCE_MODE実装**~~ — 実装済み（settings-store.tsの共振チェックボックス + field-runtime.tsの共振ゲート）。.env側は設定の2層分離で除去
