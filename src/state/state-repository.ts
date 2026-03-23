@@ -13,7 +13,7 @@ export type PersistedToolCall = {
 export type PersistedMessage = {
   actor: "human" | "ai"
   text: string
-  source?: "user" | "pulse" | "observation"
+  source?: "user" | "pulse" | "xpulse" | "observation"
   channel?: "console" | "roblox" | "x"
   toolCalls?: PersistedToolCall[]
 }

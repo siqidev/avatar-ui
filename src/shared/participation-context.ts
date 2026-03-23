@@ -20,6 +20,8 @@ export function generateCorrelationId(source: Source): string {
       return crypto.randomUUID()
     case "pulse":
       return `pulse-${Date.now()}`
+    case "xpulse":
+      return `xpulse-${Date.now()}`
     case "observation":
       return `obs-${Date.now()}`
   }

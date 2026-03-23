@@ -103,6 +103,7 @@ const dictionary: Record<string, Record<Locale, string>> = {
 
   // --- Main: ipc-handlers ---
   "pulseCheck": { ja: "定期確認", en: "Pulse check" },
+  "xpulseCheck": { ja: "X投稿確認", en: "XPulse check" },
 
   // --- Main: observation-formatter ---
   "obs.chat": {

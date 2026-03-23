@@ -7,6 +7,7 @@ import {
   initRuntime,
   processStream,
   startPulse,
+  startXpulse,
   startObservation,
   startXWebhook,
   getState,
@@ -123,6 +124,34 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
           text: result.displayText,
           source: "pulse",
           channel: "console",
+          toolCalls: result.toolCalls,
+        })
+      },
+      () => isActive(fieldState),
+    )
+
+    // XPulse開始（X連携有効時のみ）
+    startXpulse(
+      (result, correlationId) => {
+        // Streamペインにコンテキスト行（XPulse発火）
+        recordMessage("human", t("xpulseCheck"), "xpulse", "x")
+        projection.sendStreamReply({
+          actor: "human",
+          correlationId,
+          text: t("xpulseCheck"),
+          source: "xpulse",
+          channel: "x",
+          toolCalls: [],
+        })
+        // AI応答
+        recordMessage("ai", result.text, "xpulse", "x", result.toolCalls)
+        forwardXToolResults(result.toolCalls)
+        projection.sendStreamReply({
+          actor: "ai",
+          correlationId,
+          text: result.displayText,
+          source: "xpulse",
+          channel: "x",
           toolCalls: result.toolCalls,
         })
       },

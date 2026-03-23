@@ -38,8 +38,8 @@ const X_OBSERVATION_TOOLS: readonly ToolName[] = [
 // 入力文脈からの許可ツール一覧を取得する
 // buildTools()でツールリストのフィルタリングに使用
 export function getAllowedTools(source: Source, channel: ChannelId): readonly ToolName[] {
-  // user/pulse: 内部入力 → 全ツール許可
-  if (source === "user" || source === "pulse") {
+  // user/pulse/xpulse: 内部入力 → 全ツール許可
+  if (source === "user" || source === "pulse" || source === "xpulse") {
     return INTERNAL_TOOLS
   }
 

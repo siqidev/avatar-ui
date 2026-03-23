@@ -44,6 +44,8 @@ const envSchema = z.object({
     .default("3001"),
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
+  // --- XPulse（X投稿用Pulse） ---
+  XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
 
   // --- Terminal ---
   TERMINAL_SHELL: z.string().min(1).default("zsh"),
@@ -114,6 +116,11 @@ export type AppConfig = {
   pulseCron: string
   pulseFile: string
   pulseOkPrefix: string
+
+  // XPulse（X投稿用Pulse）
+  xpulseCron: string
+  xpulseFile: string
+  xpulseOkPrefix: string
 
   // ネットワーク
   observationPort: number
@@ -193,6 +200,11 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     pulseCron: env.PULSE_CRON,
     pulseFile: "PULSE.md",
     pulseOkPrefix: "PULSE_OK",
+
+    // XPulse
+    xpulseCron: env.XPULSE_CRON,
+    xpulseFile: "XPULSE.md",
+    xpulseOkPrefix: "XPULSE_OK",
 
     // ネットワーク
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),

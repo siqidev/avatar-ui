@@ -38,7 +38,7 @@ export type ToMainMessage = z.infer<typeof toMainSchema>
 
 // --- Main → Renderer ---
 
-export const sourceSchema = z.enum(["user", "pulse", "observation"])
+export const sourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
 export type Source = z.infer<typeof sourceSchema>
 
 export const channelIdSchema = z.enum(["console", "roblox", "x"])

@@ -18,6 +18,14 @@ describe("input-gate", () => {
       expect(tools).toContain("roblox_action")
     })
 
+    it("xpulse/x: 全ツール許可（X投稿用Pulse）", () => {
+      const tools = getAllowedTools("xpulse", "x")
+      expect(tools).toContain("x_post")
+      expect(tools).toContain("fs_list")
+      expect(tools).toContain("fs_read")
+      expect(tools).toContain("terminal")
+    })
+
     it("observation/roblox: roblox_action + 読み取り系のみ", () => {
       const tools = getAllowedTools("observation", "roblox")
       expect(tools).toContain("roblox_action")

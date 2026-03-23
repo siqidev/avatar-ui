@@ -20,6 +20,7 @@ vi.mock("../field-runtime.js", () => ({
     toolCalls: [],
   }),
   startPulse: vi.fn(),
+  startXpulse: vi.fn(),
   startObservation: vi.fn(),
   startXWebhook: vi.fn(),
   getState: vi.fn(() => mockDefaultState()),

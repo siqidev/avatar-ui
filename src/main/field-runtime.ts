@@ -268,6 +268,70 @@ export function startPulse(
   log.info(`[PULSE] cron開始: ${config.pulseCron}`)
 }
 
+// xpulse.mdを読み込む
+function loadXpulse(): string | null {
+  try {
+    const content = fs.readFileSync(getConfig().xpulseFile, "utf-8").trim()
+    return content || null
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      return null
+    }
+    throw err
+  }
+}
+
+// XPulseを開始する（X投稿用の定期Pulse）
+export function startXpulse(
+  onReply: (result: SendMessageResult, correlationId: string) => void,
+  isFieldActive: () => boolean,
+): void {
+  if (!initialized) throw new Error("FieldRuntime未初期化")
+  if (!isXEnabled(config)) {
+    log.info("[XPULSE] X連携無効 — XPulse起動スキップ")
+    return
+  }
+
+  cron.schedule(config.xpulseCron, () => {
+    if (!isFieldActive()) {
+      log.info("[XPULSE] 場が非アクティブ — スキップ")
+      return
+    }
+
+    const xpulseContent = loadXpulse()
+    if (!xpulseContent) return
+
+    const correlationId = generateCorrelationId("xpulse")
+    log.info(`[XPULSE] 発火 (${correlationId})`)
+    enqueue(async () => {
+      try {
+        const xpulseInput = `${xpulseContent}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
+        const result = await sendMessage(
+          client,
+          state,
+          beingPrompt,
+          xpulseInput,
+          true, // forceSystemPrompt
+          "xpulse",
+          "x",
+        )
+        updateParticipantChain(state.participant.lastResponseId)
+        if (!result.text.startsWith(config.xpulseOkPrefix)) {
+          log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
+          onReply(result, correlationId)
+        } else {
+          log.info("[XPULSE] 対応不要")
+        }
+      } catch (err) {
+        warn("RECIPROCITY_PULSE_ERROR",
+          `XPulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    })
+  })
+
+  log.info(`[XPULSE] cron開始: ${config.xpulseCron}`)
+}
+
 // 観測サーバーを起動する（Roblox連携有効時のみ）
 // onEvent: 生イベント通知（Renderer表示用）
 // onReply: AI応答通知（stream.reply用）
