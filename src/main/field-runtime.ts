@@ -282,6 +282,10 @@ function loadXpulse(): string | null {
 }
 
 // XPulseを開始する（X投稿用の定期Pulse）
+// xpulseBusy: 前回のXPulseジョブが完了するまで次の発火をスキップ
+// （承認待ちでキューが詰まり、解放後に大量実行される問題の防止）
+let xpulseBusy = false
+
 export function startXpulse(
   onReply: (result: SendMessageResult, correlationId: string) => void,
   isFieldActive: () => boolean,
@@ -298,11 +302,17 @@ export function startXpulse(
       return
     }
 
+    if (xpulseBusy) {
+      log.info("[XPULSE] 前回のジョブが未完了 — スキップ")
+      return
+    }
+
     const xpulseContent = loadXpulse()
     if (!xpulseContent) return
 
     const correlationId = generateCorrelationId("xpulse")
     log.info(`[XPULSE] 発火 (${correlationId})`)
+    xpulseBusy = true
     enqueue(async () => {
       try {
         const xpulseInput = `${xpulseContent}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
@@ -325,6 +335,8 @@ export function startXpulse(
       } catch (err) {
         warn("RECIPROCITY_PULSE_ERROR",
           `XPulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
+      } finally {
+        xpulseBusy = false
       }
     })
   })
