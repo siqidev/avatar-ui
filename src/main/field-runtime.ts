@@ -315,7 +315,15 @@ export function startXpulse(
     xpulseBusy = true
     enqueue(async () => {
       try {
-        const xpulseInput = `${xpulseContent}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
+        // 直近の投稿履歴を注入（重複防止）
+        const recentPosts = state.field.xEventHistory
+          .filter((e) => e.eventType === "post")
+          .slice(-5)
+          .map((e) => `- ${e.formatted.replace(/^\[post\]\s*/, "")} (${e.timestamp.substring(0, 10)})`)
+        const recentSection = recentPosts.length > 0
+          ? `\n\n# 直近の投稿（同じ話題・同じ切り口で書くな）\n${recentPosts.join("\n")}`
+          : ""
+        const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client,
           state,
@@ -326,11 +334,14 @@ export function startXpulse(
           "x",
         )
         updateParticipantChain(state.participant.lastResponseId)
-        if (!result.text.startsWith(config.xpulseOkPrefix)) {
+        if (result.text.startsWith(config.xpulseOkPrefix)) {
+          log.info("[XPULSE] 対応不要")
+        } else if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
           log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
           onReply(result, correlationId)
         } else {
-          log.info("[XPULSE] 対応不要")
+          // x_postを呼ばずにテキストだけ返した場合 — プロンプト不遵守として抑制
+          log.info(`[XPULSE] x_post未使用の応答を抑制: ${result.text.substring(0, 100)}`)
         }
       } catch (err) {
         warn("RECIPROCITY_PULSE_ERROR",
