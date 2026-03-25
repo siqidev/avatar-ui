@@ -263,9 +263,9 @@ export function startPulse(
           `Pulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
       }
     })
-  })
+  }, { timezone: "Etc/UTC" })
 
-  log.info(`[PULSE] cron開始: ${config.pulseCron}`)
+  log.info(`[PULSE] cron開始: ${config.pulseCron} (UTC)`)
 }
 
 // xpulse.mdを読み込む
@@ -350,9 +350,9 @@ export function startXpulse(
         xpulseBusy = false
       }
     })
-  })
+  }, { timezone: "Etc/UTC" })
 
-  log.info(`[XPULSE] cron開始: ${config.xpulseCron}`)
+  log.info(`[XPULSE] cron開始: ${config.xpulseCron} (UTC)`)
 }
 
 // 観測サーバーを起動する（Roblox連携有効時のみ）
