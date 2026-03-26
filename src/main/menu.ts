@@ -3,7 +3,7 @@
 // Edit/View/Window: Electron標準
 
 import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from "electron"
-import { getSettings, updateSettings, MODEL_CATALOG, type Theme } from "./settings-store.js"
+import { getSettings, updateSettings, MODEL_CATALOG, type Theme } from "../runtime/settings-store.js"
 import { resetChainForModelSwitch } from "./field-runtime.js"
 import { setLocale, type Locale } from "../shared/i18n.js"
 import * as log from "../logger.js"

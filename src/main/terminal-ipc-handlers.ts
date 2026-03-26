@@ -8,7 +8,7 @@ import {
   terminalResizeSchema,
 } from "../shared/terminal-schema.js"
 import type { TerminalToRendererEvent } from "../shared/terminal-schema.js"
-import * as service from "./terminal-service.js"
+import * as service from "../runtime/terminal-service.js"
 
 /** Terminal IPC ハンドラを登録する */
 export function registerTerminalIpcHandlers(getMainWindow: () => BrowserWindow | null): void {

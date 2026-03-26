@@ -9,7 +9,7 @@ import type { Source } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled } from "../config.js"
 import { getAllowedTools, isToolAllowed } from "./input-gate.js"
-import { getSettings } from "../main/settings-store.js"
+import { getSettings } from "../runtime/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
   robloxActionToolDef,
@@ -25,21 +25,21 @@ import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
 import { xPostToolDef, xPostArgsSchema } from "../tools/x-post-tool.js"
 import { xReplyToolDef, xReplyArgsSchema } from "../tools/x-reply-tool.js"
 import { createPost, createReply } from "../x/x-api-repository.js"
-import { requestApproval } from "../main/tool-approval-service.js"
+import { requestApproval } from "../runtime/tool-approval-service.js"
 import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
   execAiCommand,
   isAiBusy,
   getScrollback,
   getSnapshot,
-} from "../main/terminal-service.js"
+} from "../runtime/terminal-service.js"
 import {
   fsListArgsSchema,
   fsReadArgsSchema,
   fsWriteArgsSchema,
   fsMutateArgsSchema,
 } from "../shared/fs-schema.js"
-import { fsList, fsRead, fsWrite, fsMutate } from "../main/filesystem-service.js"
+import { fsList, fsRead, fsWrite, fsMutate } from "../runtime/filesystem-service.js"
 import {
   saveMemoryArgsSchema,
   createMemoryRecord,

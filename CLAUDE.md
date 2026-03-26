@@ -66,7 +66,7 @@ v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monito
 | src/main/index.ts | Electron Mainエントリーポイント |
 | src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
-| src/main/settings-store.ts | ランタイム設定（テーマ・モデル → data/settings.json） |
+| src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |
 | src/tools/ | Grokツール定義 |

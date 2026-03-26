@@ -16,11 +16,8 @@ src/
     integrity-manager.ts      健全性管理（warn/report/凍結ラッチ）
     channel-projection.ts     媒体投影（Renderer送信+メッセージ整形）
     message-recorder.ts       履歴記録（永続化付き）
-    settings-store.ts         設定ストア（テーマ・モデル・言語・共振モード永続化 → data/settings.json）
     menu.ts                   カスタムメニュー（テーマ・モデル・言語radio + 共振checkbox + About）
-    filesystem-service.ts     Avatar Spaceファイル操作
     fs-ipc-handlers.ts        FS系IPC処理
-    terminal-service.ts       Terminal持続PTY管理（node-pty）
     terminal-ipc-handlers.ts  Terminal系IPC処理
     tunnel-manager.ts         cloudflaredトンネル管理
     acceptance/               受入テスト（S1-S5）
@@ -41,6 +38,12 @@ src/
       idle-00〜03.png          アバター画像（待機フレーム、連番プローブ）
       blink.png               アバター画像（瞬きフレーム、150ms表示）
       talk.png                アバター画像（発話）
+  runtime/                    Electron非依存のランタイム基盤
+    approval-hub.ts           承認ハブ（複数承認者 first-response-wins）
+    tool-approval-service.ts  承認サービス（auto-approve判定 + hub委譲）
+    settings-store.ts         設定ストア（テーマ・モデル・言語・共振モード永続化 → data/settings.json）
+    terminal-service.ts       Terminal持続PTY管理（node-pty）
+    filesystem-service.ts     Avatar Spaceファイル操作
   services/
     chat-session-service.ts   Grok Responses API呼出+ツール実行ループ
     input-gate.ts             InputGate（source+channelベースのツール権限制御）

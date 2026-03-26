@@ -109,7 +109,7 @@ describe("S2: モード可達性", () => {
     })
 
     // settings-store初期化（共振=on: 既存テストはAI転送を前提とする）
-    const settingsStore = await import("../settings-store.js")
+    const settingsStore = await import("../../runtime/settings-store.js")
     settingsStore.loadSettings(tempDir)
     settingsStore.updateSettings({ resonance: true })
 
@@ -334,7 +334,7 @@ describe("S2: モード可達性", () => {
 
   it("共振OFF: 観測はMonitorに表示されるがAIには転送されない", async () => {
     // 共振をoffに切替
-    const settingsStore = await import("../settings-store.js")
+    const settingsStore = await import("../../runtime/settings-store.js")
     settingsStore.updateSettings({ resonance: false })
 
     observationHandler({

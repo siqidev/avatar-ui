@@ -7,7 +7,7 @@ import {
   fsWriteArgsSchema,
   fsMutateArgsSchema,
 } from "../shared/fs-schema.js"
-import { fsImportFile, fsList, fsRead, fsWrite, fsMutate, fsRootName } from "./filesystem-service.js"
+import { fsImportFile, fsList, fsRead, fsWrite, fsMutate, fsRootName } from "../runtime/filesystem-service.js"
 import * as log from "../logger.js"
 
 /** FS系IPCハンドラを登録する */
