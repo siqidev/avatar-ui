@@ -3,6 +3,7 @@ import type { BrowserWindow } from "electron"
 import { streamPostSchema } from "../shared/ipc-schema.js"
 import type { FieldState } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
+import type { SessionStatePayload, HistoryItem } from "../shared/session-event-schema.js"
 import { transition, isActive } from "./field-fsm.js"
 import {
   initRuntime,
@@ -49,6 +50,75 @@ export function safeDetach(): void {
     // 想定外（ガードを通過したのに遷移失敗）
     report("FIELD_CONTRACT_VIOLATION",
       `safeDetach失敗: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+// 場の状態スナップショット（SessionStatePayload形式）を返す
+// WSサーバーの初回接続時配信 + Console attach時の投影に使用
+export function getStateSnapshot(): SessionStatePayload {
+  const config = getConfig()
+  const restored = getState()
+
+  // PersistedMessage → HistoryItem(stream)
+  const streamHistory: HistoryItem[] = restored.field.messageHistory.map((m) => ({
+    type: "stream" as const,
+    actor: m.actor,
+    text: m.text,
+    ...(m.source ? { source: m.source } : {}),
+    ...(m.channel ? { channel: m.channel } : {}),
+    ...(m.toolCalls ? { toolCalls: m.toolCalls.map((tc) => ({ name: tc.name, args: tc.args ?? {}, result: tc.result })) } : {}),
+  }))
+
+  // PersistedMonitorEvent → HistoryItem(monitor)
+  const robloxHistory: HistoryItem[] = restored.field.observationHistory.map((e) => ({
+    type: "monitor" as const,
+    channel: "roblox" as const,
+    eventType: e.eventType,
+    formatted: e.formatted,
+    timestamp: e.timestamp,
+  }))
+
+  const xHistory: HistoryItem[] = restored.field.xEventHistory.map((e) => ({
+    type: "monitor" as const,
+    channel: "x" as const,
+    eventType: e.eventType,
+    formatted: e.formatted,
+    timestamp: e.timestamp,
+  }))
+
+  return {
+    fieldState: fieldState as SessionStatePayload["fieldState"],
+    settings: {
+      avatarName: config.avatarName,
+      userName: config.userName,
+    },
+    history: [...streamHistory, ...robloxHistory, ...xHistory],
+  }
+}
+
+// stream.post共通処理（IPC/WS両方から呼ばれる）
+export async function handleStreamPost(text: string, correlationId: string, actor: "human" | "ai"): Promise<void> {
+  if (isFrozen()) {
+    log.error("[STREAM] stream.post拒否: 凍結中")
+    return
+  }
+
+  if (!isActive(fieldState)) {
+    log.error(`[STREAM] stream.post拒否: 場が非アクティブ (${fieldState})`)
+    return
+  }
+
+  appendMessage({ actor, text, source: "user", channel: "console" })
+  log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
+
+  try {
+    const streamResult = await processStream(text)
+    log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
+    emitStreamItem("ai", streamResult.text, correlationId, "user", "console", streamResult.toolCalls, streamResult.displayText)
+    publishXToolResults(streamResult.toolCalls)
+  } catch (err) {
+    warn("RECIPROCITY_STREAM_ERROR",
+      `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
@@ -192,30 +262,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
       log.error(`[IPC] stream.post バリデーション失敗: ${JSON.stringify(result.error.issues)}`)
       return
     }
-
-    if (isFrozen()) {
-      log.error("[IPC] stream.post拒否: 凍結中")
-      return
-    }
-
-    if (!isActive(fieldState)) {
-      log.error(`[IPC] stream.post拒否: 場が非アクティブ (${fieldState})`)
-      return
-    }
-
     const { text, correlationId, actor } = result.data
-    appendMessage({ actor, text, source: "user", channel: "console" })
-    log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
-
-    try {
-      const streamResult = await processStream(text)
-      log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
-      emitStreamItem("ai", streamResult.text, correlationId, "user", "console", streamResult.toolCalls, streamResult.displayText)
-      publishXToolResults(streamResult.toolCalls)
-    } catch (err) {
-      warn("RECIPROCITY_STREAM_ERROR",
-        `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
-    }
+    await handleStreamPost(text, correlationId, actor)
   })
 
   // tool.approval.respond: ツール承認応答（Renderer→Main）

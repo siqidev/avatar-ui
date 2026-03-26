@@ -42,6 +42,13 @@ const envSchema = z.object({
     .string()
     .regex(/^\d+$/, "X_WEBHOOK_PORT は数値で指定してください")
     .default("3001"),
+
+  // --- セッションWebSocket ---
+  SESSION_WS_PORT: z
+    .string()
+    .regex(/^\d+$/, "SESSION_WS_PORT は数値で指定してください")
+    .default("3002"),
+  SESSION_WS_TOKEN: z.string().min(1).optional(),
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
   // --- XPulse（X投稿用Pulse） ---
@@ -126,6 +133,8 @@ export type AppConfig = {
   observationPort: number
   robloxOpenCloudBaseUrl: string
   xWebhookPort: number
+  sessionWsPort: number
+  sessionWsToken: string | undefined
 
   // Terminal
   terminalShell: string
@@ -210,6 +219,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),
     robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
     xWebhookPort: Number(env.X_WEBHOOK_PORT),
+    sessionWsPort: Number(env.SESSION_WS_PORT),
+    sessionWsToken: env.SESSION_WS_TOKEN,
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,

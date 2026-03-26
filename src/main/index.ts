@@ -2,11 +2,13 @@ import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { getConfig, ensureDirectories } from "../config.js"
-import { registerIpcHandlers, safeDetach } from "./ipc-handlers.js"
+import { registerIpcHandlers, safeDetach, getStateSnapshot, handleStreamPost } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
 import { spawnPty, dispose as disposeTerminal } from "../runtime/terminal-service.js"
 import { stopRuntime } from "./field-runtime.js"
+import { createSessionWsServer } from "../runtime/session-ws-server.js"
+import type { SessionWsServer } from "../runtime/session-ws-server.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
 import { loadSettings, getSettings } from "../runtime/settings-store.js"
 import { setLocale } from "../shared/i18n.js"
@@ -15,6 +17,7 @@ import { registerDemoIpcHandlers } from "./demo-ipc-handlers.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
+let sessionWs: SessionWsServer | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -86,6 +89,16 @@ app.whenReady().then(() => {
   }
 
   registerIpcHandlers(() => mainWindow)
+
+  // セッションWebSocketサーバー起動（SESSION_WS_TOKEN設定時のみ認証有効）
+  sessionWs = createSessionWsServer({
+    port: config.sessionWsPort,
+    token: config.sessionWsToken,
+    getStateSnapshot,
+    onStreamPost: handleStreamPost,
+  })
+  sessionWs.start()
+
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
   spawnPty()
@@ -110,6 +123,8 @@ app.on("window-all-closed", () => {
 // アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
   safeDetach()
+  sessionWs?.stop()
+  sessionWs = null
   disposeTerminal()
   stopTunnel()
   stopRuntime()
