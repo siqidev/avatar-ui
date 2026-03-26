@@ -19,11 +19,14 @@ import type { XEvent } from "../x/x-event-formatter.js"
 import { formatXEvent, formatXEventForAI } from "../x/x-event-formatter.js"
 import { shouldForwardXEventToAI } from "../x/x-forwarding-policy.js"
 import { generateCorrelationId } from "../shared/participation-context.js"
+import { publish } from "../runtime/session-event-bus.js"
+import { createSessionEvent } from "../shared/session-event-schema.js"
+import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
 import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
 
-// FieldRuntime: 場のロジックを統合する（Electron Main向け）
+// FieldRuntime: 場のロジックを統合する
 
 let client: OpenAI
 let config: AppConfig
@@ -202,6 +205,64 @@ function persistState(): void {
   }
 }
 
+// 場がアクティブかどうか（callbackなしで内部判定）
+function isFieldActive(): boolean {
+  return state.field.state === "active" || state.field.state === "resumed"
+}
+
+// ツール結果からx_post/x_replyの成功をmonitor.itemとして発行する
+export function publishXToolResults(toolCalls: ToolCallInfo[]): void {
+  for (const tc of toolCalls) {
+    if (tc.name !== "x_post" && tc.name !== "x_reply") continue
+    try {
+      const parsed = JSON.parse(tc.result) as Record<string, unknown>
+      if (parsed.status !== "posted" && parsed.status !== "replied") continue
+      const text = (tc.args.text as string) ?? ""
+      const eventType = tc.name === "x_post" ? "post" : "reply"
+      const timestamp = new Date().toISOString()
+      const formatted = `[${eventType}] ${text}`
+      publish(createSessionEvent("monitor.item", {
+        channel: "x",
+        eventType,
+        payload: { tweet_id: parsed.tweet_id, text },
+        formatted,
+        timestamp,
+      }))
+      appendXEvent({ eventType, formatted, timestamp })
+    } catch { /* パース失敗は無視 */ }
+  }
+}
+
+// stream.itemイベントを発行 + 永続化
+export function emitStreamItem(
+  actor: "human" | "ai",
+  text: string,
+  correlationId: string,
+  source: "user" | "pulse" | "xpulse" | "observation",
+  channel: "console" | "roblox" | "x",
+  toolCalls: ToolCallInfo[] = [],
+  displayText?: string,
+): void {
+  appendMessage({
+    actor,
+    text,
+    source,
+    channel,
+    ...(toolCalls.length ? {
+      toolCalls: toolCalls.map((tc) => ({ name: tc.name, args: tc.args, result: tc.result })),
+    } : {}),
+  })
+  publish(createSessionEvent("stream.item", {
+    actor,
+    correlationId,
+    text: displayText ?? text,
+    ...(displayText ? { displayText } : {}),
+    source,
+    channel,
+    toolCalls,
+  }))
+}
+
 // ストリームメッセージを処理する（stream.post → sendMessage → stream.reply）
 export function processStream(text: string, source: import("../shared/ipc-schema.js").Source = "user", channel: import("../shared/channel.js").ChannelId = "console"): Promise<SendMessageResult> {
   if (!initialized) throw new Error("FieldRuntime未初期化")
@@ -221,11 +282,7 @@ export function processStream(text: string, source: import("../shared/ipc-schema
 }
 
 // Pulseを開始する（AI起点の定期発話）
-// isFieldActive: 場状態ゲート（非アクティブ時はスキップ）
-export function startPulse(
-  onReply: (result: SendMessageResult, correlationId: string) => void,
-  isFieldActive: () => boolean,
-): void {
+export function startPulse(): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   cron.schedule(config.pulseCron, () => {
@@ -243,18 +300,14 @@ export function startPulse(
       try {
         const pulseInput = `${pulseContent}\n\n${config.pulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
-          client,
-          state,
-          beingPrompt,
-          pulseInput,
-          true, // forceSystemPrompt
-          "pulse",
-          "console",
+          client, state, beingPrompt, pulseInput, true, "pulse", "console",
         )
         updateParticipantChain(state.participant.lastResponseId)
         if (!result.text.startsWith(config.pulseOkPrefix)) {
           log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
-          onReply(result, correlationId)
+          emitStreamItem("human", t("pulseCheck"), correlationId, "pulse", "console")
+          emitStreamItem("ai", result.text, correlationId, "pulse", "console", result.toolCalls, result.displayText)
+          publishXToolResults(result.toolCalls)
         } else {
           log.info("[PULSE] 対応不要")
         }
@@ -286,10 +339,7 @@ function loadXpulse(): string | null {
 // （承認待ちでキューが詰まり、解放後に大量実行される問題の防止）
 let xpulseBusy = false
 
-export function startXpulse(
-  onReply: (result: SendMessageResult, correlationId: string) => void,
-  isFieldActive: () => boolean,
-): void {
+export function startXpulse(): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
   if (!isXEnabled(config)) {
     log.info("[XPULSE] X連携無効 — XPulse起動スキップ")
@@ -325,20 +375,16 @@ export function startXpulse(
           : ""
         const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
-          client,
-          state,
-          beingPrompt,
-          xpulseInput,
-          true, // forceSystemPrompt
-          "xpulse",
-          "x",
+          client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
         )
         updateParticipantChain(state.participant.lastResponseId)
         if (result.text.startsWith(config.xpulseOkPrefix)) {
           log.info("[XPULSE] 対応不要")
         } else if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
           log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
-          onReply(result, correlationId)
+          emitStreamItem("human", t("xpulseCheck"), correlationId, "xpulse", "x")
+          emitStreamItem("ai", result.text, correlationId, "xpulse", "x", result.toolCalls, result.displayText)
+          publishXToolResults(result.toolCalls)
         } else {
           // x_postを呼ばずにテキストだけ返した場合 — プロンプト不遵守として抑制
           log.info(`[XPULSE] x_post未使用の応答を抑制: ${result.text.substring(0, 100)}`)
@@ -356,16 +402,9 @@ export function startXpulse(
 }
 
 // 観測サーバーを起動する（Roblox連携有効時のみ）
-// onEvent: 生イベント通知（Renderer表示用）
-// onReply: AI応答通知（stream.reply用）
 let observationServer: http.Server | null = null
 
-// isFieldActive: 場状態ゲート（非アクティブ時はスキップ）
-export function startObservation(
-  onEvent: (event: ObservationEvent, formatted: string, correlationId: string) => void,
-  onReply: (result: SendMessageResult, correlationId: string) => void,
-  isFieldActive: () => boolean,
-): void {
+export function startObservation(): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
   if (!isRobloxEnabled(config)) {
     log.info("[OBSERVATION] Roblox連携無効 — 観測サーバー起動スキップ")
@@ -377,19 +416,32 @@ export function startObservation(
       const correlationId = generateCorrelationId("observation")
       const formatted = formatObservation(event, config.robloxOwnerDisplayName)
       const shouldForward = shouldForwardToAI(event)
+      const timestamp = new Date().toISOString()
 
       // roblox_log: Monitorに表示、AIには送らない
       if (event.type === "roblox_log") {
         log.info(`[ROBLOX] ${formatted}`)
-        onEvent(event, formatted, correlationId)
+        publish(createSessionEvent("monitor.item", {
+          channel: "roblox", eventType: event.type,
+          payload: event.payload as Record<string, unknown>,
+          formatted, timestamp,
+        }))
+        appendObservationEvent({ eventType: event.type, formatted, timestamp })
         return
       }
 
       // Monitorに全観測を表示（ペインの役割: Roblox世界の全入出力）
-      onEvent(event, formatted, correlationId)
+      publish(createSessionEvent("monitor.item", {
+        channel: "roblox", eventType: event.type,
+        payload: event.payload as Record<string, unknown>,
+        formatted, timestamp,
+      }))
+      appendObservationEvent({ eventType: event.type, formatted, timestamp })
+
+      // 会話履歴に記録（AIの文脈維持用。Streamには出さない）
+      appendMessage({ actor: "human", text: formatted, source: "observation", channel: "roblox" })
 
       // 移動完了検知: 自己起因proximity抑制を解除
-      // ACK/stoppedが来たら、以降のproximityは「新規の観測」として扱う
       if (event.type === "command_ack") {
         const p = event.payload as Record<string, unknown>
         if (p.op === "go_to_player" || p.op === "follow_player") {
@@ -427,13 +479,12 @@ export function startObservation(
 
       enqueue(async () => {
         try {
-          // 観測プレフィックス: AIが「これは観測情報であり、ユーザーの命令ではない」と認識できる
           const aiInput = t("obs.aiPrefix", event.type, formatted)
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox")
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
-          onReply(result, correlationId)
+          emitStreamItem("ai", result.text, correlationId, "observation", "roblox", result.toolCalls, result.displayText)
         } catch (err) {
           warn("RECIPROCITY_OBSERVATION_ERROR",
             `観測AI応答エラー: ${err instanceof Error ? err.message : String(err)}`)
@@ -449,11 +500,7 @@ export function startObservation(
 // X Webhookサーバーを起動する（X連携有効時のみ）
 let xWebhookServer: http.Server | null = null
 
-export function startXWebhook(
-  onEvent: (event: XEvent, formatted: string, correlationId: string) => void,
-  onReply: (result: SendMessageResult, correlationId: string) => void,
-  isFieldActive: () => boolean,
-): void {
+export function startXWebhook(): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
   if (!isXEnabled(config)) {
     log.info("[X_WEBHOOK] X連携無効 — Webhookサーバー起動スキップ")
@@ -464,9 +511,18 @@ export function startXWebhook(
     (event: XEvent) => {
       const correlationId = generateCorrelationId("observation")
       const formatted = formatXEvent(event)
+      const timestamp = new Date().toISOString()
 
       // Xペインに全イベントを表示
-      onEvent(event, formatted, correlationId)
+      publish(createSessionEvent("monitor.item", {
+        channel: "x", eventType: event.type,
+        payload: event as unknown as Record<string, unknown>,
+        formatted, timestamp,
+      }))
+      appendXEvent({ eventType: event.type, formatted, timestamp })
+
+      // 会話履歴に記録（AIの文脈維持用）
+      appendMessage({ actor: "human", text: formatted, source: "observation", channel: "x" })
 
       // AI転送判定
       if (!shouldForwardXEventToAI(event)) {
@@ -492,7 +548,8 @@ export function startXWebhook(
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x")
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→X] (${correlationId}) ${result.text.substring(0, 100)}`)
-          onReply(result, correlationId)
+          emitStreamItem("ai", result.text, correlationId, "observation", "x", result.toolCalls, result.displayText)
+          publishXToolResults(result.toolCalls)
         } catch (err) {
           warn("RECIPROCITY_OBSERVATION_ERROR",
             `X観測AI応答エラー: ${err instanceof Error ? err.message : String(err)}`)

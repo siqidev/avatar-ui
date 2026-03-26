@@ -27,6 +27,12 @@ vi.mock("../field-runtime.js", () => ({
   updateFieldState: vi.fn(),
   resetToNewField: vi.fn(),
   appendMessage: vi.fn(),
+  emitStreamItem: vi.fn(),
+  publishXToolResults: vi.fn(),
+}))
+
+vi.mock("../../runtime/session-event-bus.js", () => ({
+  subscribe: vi.fn(),
 }))
 
 vi.mock("../channel-projection.js", () => ({
@@ -57,8 +63,6 @@ describe("S5: ライフサイクル完走", () => {
   let mockProjection: Record<string, Mock>
   let updateFieldStateMock: Mock
   let resetToNewFieldMock: Mock
-  let startPulseMock: Mock
-
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -82,7 +86,6 @@ describe("S5: ライフサイクル完走", () => {
     mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
     updateFieldStateMock = vi.mocked(fieldRuntime.updateFieldState)
     resetToNewFieldMock = vi.mocked(fieldRuntime.resetToNewField)
-    startPulseMock = vi.mocked(fieldRuntime.startPulse)
   })
 
   // --- 完全走行 ---
@@ -157,28 +160,5 @@ describe("S5: ライフサイクル完走", () => {
     expect(lastCall.state).toBe("active")
   })
 
-  // --- 横断: ai起点を含む完走 ---
-
-  it("横断: Pulse isFieldActiveゲートがライフサイクル各段階で正しく動作する", () => {
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    // generated → false
-    expect(isFieldActive()).toBe(false)
-
-    // active → true
-    fire("channel.attach")
-    expect(isFieldActive()).toBe(true)
-
-    // paused → false
-    fire("channel.detach")
-    expect(isFieldActive()).toBe(false)
-
-    // resumed→active → true
-    fire("channel.attach")
-    expect(isFieldActive()).toBe(true)
-
-    // terminated → false
-    fire("field.terminate")
-    expect(isFieldActive()).toBe(false)
-  })
+  // isFieldActiveゲートの各段階動作はS2で実物を使って検証済み（end-to-end）
 })

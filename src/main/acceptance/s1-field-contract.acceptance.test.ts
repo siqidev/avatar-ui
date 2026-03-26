@@ -27,6 +27,12 @@ vi.mock("../field-runtime.js", () => ({
   updateFieldState: vi.fn(),
   resetToNewField: vi.fn(),
   appendMessage: vi.fn(),
+  emitStreamItem: vi.fn(),
+  publishXToolResults: vi.fn(),
+}))
+
+vi.mock("../../runtime/session-event-bus.js", () => ({
+  subscribe: vi.fn(),
 }))
 
 vi.mock("../channel-projection.js", () => ({
@@ -184,32 +190,10 @@ describe("S1: 場契約整合性", () => {
   })
 
   // --- ai起点: Pulse契約遵守 ---
+  // isFieldActiveゲートの動作はS2で実物を使って検証済み（end-to-end）
 
-  it("ai起点: Pulse isFieldActiveゲート — 非active時はfalse", () => {
-    // startPulseに渡されたisFieldActiveコールバックを取得
+  it("ai起点: startPulse/startXpulse/startObservation/startXWebhookが引数なしで呼ばれる", () => {
     expect(startPulseMock).toHaveBeenCalledOnce()
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    // generated状態（attach前）→ false
-    // ただしregisterIpcHandlers内でattachされていないので初期状態はgenerated
-    // → 実際にはregisterIpcHandlers呼出時点ではfieldState=generatedだが、
-    //   startPulseはruntimeReady=trueの場合のみ呼ばれる
-    // generated → isActive = false
-    expect(isFieldActive()).toBe(false)
-  })
-
-  it("ai起点: Pulse isFieldActiveゲート — active時はtrue", () => {
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    fire("channel.attach") // generated→active
-    expect(isFieldActive()).toBe(true)
-  })
-
-  it("ai起点: Pulse isFieldActiveゲート — paused時はfalse", () => {
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    fire("channel.attach") // generated→active
-    fire("channel.detach") // active→paused
-    expect(isFieldActive()).toBe(false)
+    expect(startPulseMock).toHaveBeenCalledWith()
   })
 })
