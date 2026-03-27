@@ -123,6 +123,17 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed by Electron) |
 
+### Optional: Discord integration
+
+Both variables must be set to enable.
+
+| Variable | Description |
+|----------|-------------|
+| `DISCORD_BOT_TOKEN` | Discord Bot token ([Developer Portal](https://discord.com/developers/)) |
+| `DISCORD_CHANNEL_ID` | Text channel ID for Spectra's messages |
+
+The Discord bot mirrors stream messages and tool approval requests to the specified channel. Approval can be done via Discord buttons. Bot requires `Guilds` intent only.
+
 ### Optional: X (Twitter) integration
 
 All 5 OAuth tokens + `X_USER_ID` must be set to enable.

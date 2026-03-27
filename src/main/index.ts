@@ -10,6 +10,9 @@ import { stopRuntime } from "./field-runtime.js"
 import { createSessionWsServer } from "../runtime/session-ws-server.js"
 import type { SessionWsServer } from "../runtime/session-ws-server.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
+import { isDiscordEnabled } from "../config.js"
+import { createDiscordBridge } from "../discord/discord-bridge.js"
+import type { DiscordBridge } from "../discord/discord-bridge.js"
 import { loadSettings, getSettings } from "../runtime/settings-store.js"
 import { setLocale } from "../shared/i18n.js"
 import { buildAppMenu } from "./menu.js"
@@ -18,6 +21,7 @@ import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
 let sessionWs: SessionWsServer | null = null
+let discordBridge: DiscordBridge | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -99,6 +103,15 @@ app.whenReady().then(() => {
   })
   sessionWs.start()
 
+  // Discord窓口起動（DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID 設定時のみ）
+  if (isDiscordEnabled(config)) {
+    discordBridge = createDiscordBridge(config)
+    discordBridge.start().catch((err) => {
+      log.error(`[DISCORD] 起動失敗: ${err instanceof Error ? err.message : String(err)}`)
+      discordBridge = null
+    })
+  }
+
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
   spawnPty()
@@ -123,6 +136,8 @@ app.on("window-all-closed", () => {
 // アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
   safeDetach()
+  void discordBridge?.stop()
+  discordBridge = null
   sessionWs?.stop()
   sessionWs = null
   disposeTerminal()

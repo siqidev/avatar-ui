@@ -49,6 +49,11 @@ const envSchema = z.object({
     .regex(/^\d+$/, "SESSION_WS_PORT は数値で指定してください")
     .default("3002"),
   SESSION_WS_TOKEN: z.string().min(1).optional(),
+
+  // --- Discord ---
+  DISCORD_BOT_TOKEN: z.string().min(1).optional(),
+  DISCORD_CHANNEL_ID: z.string().min(1).optional(),
+
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
   // --- XPulse（X投稿用Pulse） ---
@@ -136,6 +141,10 @@ export type AppConfig = {
   sessionWsPort: number
   sessionWsToken: string | undefined
 
+  // Discord
+  discordBotToken: string | undefined
+  discordChannelId: string | undefined
+
   // Terminal
   terminalShell: string
   avatarShell: boolean
@@ -222,6 +231,10 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     sessionWsPort: Number(env.SESSION_WS_PORT),
     sessionWsToken: env.SESSION_WS_TOKEN,
 
+    // Discord
+    discordBotToken: env.DISCORD_BOT_TOKEN,
+    discordChannelId: env.DISCORD_CHANNEL_ID,
+
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
     avatarShell: env.AVATAR_SHELL,
@@ -275,6 +288,11 @@ export function isCollectionsEnabled(config: AppConfig): boolean {
 // Roblox連携が利用可能か判定
 export function isRobloxEnabled(config: AppConfig): boolean {
   return Boolean(config.robloxApiKey && config.robloxUniverseId)
+}
+
+// Discord窓口が利用可能か判定
+export function isDiscordEnabled(config: AppConfig): boolean {
+  return Boolean(config.discordBotToken && config.discordChannelId)
 }
 
 // X連携が利用可能か判定（OAuth認証4キー + ユーザーID が全て設定されている場合）
