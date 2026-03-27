@@ -607,6 +607,7 @@ function appendMessage(
 let sessionClient: SessionClient | null = null
 
 ;(async () => {
+  try {
   // 1. FSM遷移を保証（attach完了後にWS接続）
   await window.fieldApi.attach()
 
@@ -750,6 +751,10 @@ let sessionClient: SessionClient | null = null
   })
 
   await sessionClient.connect()
+  } catch (err) {
+    console.error("[SESSION] 初期化失敗:", err)
+    statusEl.textContent = `接続失敗: ${err instanceof Error ? err.message : String(err)}`
+  }
 })()
 
 // stream.reply IPC → WS onStreamItemに移行済み
@@ -897,7 +902,6 @@ function renderApprovalRequest(requestId: string, toolName: string, args: Record
 // 送信ロジック（手入力・デモモード共用）
 function submitMessage(text: string): string {
   const correlationId = crypto.randomUUID()
-  appendMessage("human", text)
   inputEl.value = ""
   inputEl.disabled = true
   formEl.querySelector("button")!.disabled = true
