@@ -17,20 +17,7 @@ import type {
 
 describe("discord-message-renderer", () => {
   describe("renderStreamItem", () => {
-    it("human/userメッセージ: 絵文字プレフィックスのみ", () => {
-      const payload: StreamItemPayload = {
-        actor: "human",
-        correlationId: "test-1",
-        text: "こんにちは",
-        source: "user",
-        channel: "console",
-        toolCalls: [],
-      }
-      const result = renderStreamItem(payload)
-      expect(result).toBe("👤 こんにちは")
-    })
-
-    it("ai/userメッセージ: ロボット絵文字", () => {
+    it("ai/userメッセージ: テキストのみ", () => {
       const payload: StreamItemPayload = {
         actor: "ai",
         correlationId: "test-2",
@@ -40,7 +27,7 @@ describe("discord-message-renderer", () => {
         toolCalls: [],
       }
       const result = renderStreamItem(payload)
-      expect(result).toBe("🤖 応答テスト")
+      expect(result).toBe("応答テスト")
     })
 
     it("pulse sourceタグ付き", () => {
@@ -53,7 +40,7 @@ describe("discord-message-renderer", () => {
         toolCalls: [],
       }
       const result = renderStreamItem(payload)
-      expect(result).toBe("🤖 [pulse] Pulse応答")
+      expect(result).toBe("[pulse] Pulse応答")
     })
 
     it("displayTextが優先される", () => {
@@ -67,7 +54,7 @@ describe("discord-message-renderer", () => {
         toolCalls: [],
       }
       const result = renderStreamItem(payload)
-      expect(result).toBe("🤖 表示テキスト")
+      expect(result).toBe("表示テキスト")
     })
 
     it("toolCallsがある場合ツール名を表示", () => {

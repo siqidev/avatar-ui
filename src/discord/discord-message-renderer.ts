@@ -18,9 +18,8 @@ const SENSITIVE_KEYS = ["token", "secret", "apikey", "api_key", "authorization",
 export function renderStreamItem(payload: StreamItemPayload): string {
   const text = payload.displayText ?? payload.text
   const sourceTag = payload.source !== "user" ? `[${payload.source}] ` : ""
-  const actorTag = payload.actor === "human" ? "👤" : "🤖"
 
-  let body = `${actorTag} ${sourceTag}${text}`
+  let body = `${sourceTag}${text}`
 
   // ツール呼び出し（名前のみ）
   if (payload.toolCalls.length > 0) {
