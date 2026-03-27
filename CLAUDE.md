@@ -67,7 +67,8 @@ v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monito
 | src/runtime/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/runtime/field-orchestrator.ts | 場の起動・FSM遷移・stream処理統括 |
 | src/main/ipc-handlers.ts | IPC配線（orchestratorへのアダプタ） |
-| src/headless/index.ts | ヘッドレスエントリーポイント（VPS用） |
+| src/headless/index.ts | ヘッドレスエントリーポイント（Console UI HTTP配信+WS+Runtime統合起動） |
+| src/runtime/console-http-server.ts | Console UI HTTP配信（ブラウザ用ポリフィル注入） |
 | src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |

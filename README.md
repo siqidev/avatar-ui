@@ -86,6 +86,10 @@ Edit these to define your avatar's personality and periodic behavior.
 ### 4. Run
 
 ```bash
+# ヘッドレスモード（VPS / ローカル共通。ブラウザで http://localhost:3002 にアクセス）
+npm start
+
+# Electron GUIモード（ローカル開発向け）
 npm run dev
 ```
 

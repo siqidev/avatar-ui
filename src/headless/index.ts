@@ -1,5 +1,5 @@
 // ヘッドレスエントリーポイント: Electron無しでFieldRuntimeを起動する
-// VPSデプロイ用。Console GUIは不要（WSで後から接続可能）
+// VPS/ローカル両対応。Console UIをHTTP配信し、ブラウザからアクセス可能
 
 import "dotenv/config"
 import { getConfig, ensureDirectories, isDiscordEnabled } from "../config.js"
@@ -8,15 +8,19 @@ import { setLocale } from "../shared/i18n.js"
 import { setAlertSink } from "../runtime/integrity-manager.js"
 import { boot, attach, safeDetach, getStateSnapshot, handleStreamPost } from "../runtime/field-orchestrator.js"
 import { stopRuntime } from "../runtime/field-runtime.js"
+import { createConsoleHttpServer } from "../runtime/console-http-server.js"
+import type { ConsoleHttpServer } from "../runtime/console-http-server.js"
 import { createSessionWsServer } from "../runtime/session-ws-server.js"
 import type { SessionWsServer } from "../runtime/session-ws-server.js"
 import { createDiscordBridge } from "../discord/discord-bridge.js"
 import type { DiscordBridge } from "../discord/discord-bridge.js"
 import { startTunnel, stopTunnel } from "../main/tunnel-manager.js"
+import * as path from "node:path"
 import * as log from "../logger.js"
 
 // --- 起動 ---
 
+let consoleHttp: ConsoleHttpServer | null = null
 let sessionWs: SessionWsServer | null = null
 let discordBridge: DiscordBridge | null = null
 
@@ -50,13 +54,25 @@ async function main(): Promise<void> {
     startTunnel(config.cloudflaredToken)
   }
 
-  // 7. セッションWebSocketサーバー起動
+  // 7. Console HTTP + WebSocket サーバー起動（同一ポート）
+  // rendererDir: electron-vite buildの出力先
+  const rendererDir = path.resolve("out/renderer")
+  consoleHttp = createConsoleHttpServer({
+    port: config.sessionWsPort,
+    token: config.sessionWsToken,
+    rendererDir,
+  })
+
   sessionWs = createSessionWsServer({
     port: config.sessionWsPort,
     token: config.sessionWsToken,
     getStateSnapshot,
     onStreamPost: handleStreamPost,
+    httpServer: consoleHttp.httpServer, // HTTPサーバーを共有
   })
+
+  // HTTP配信開始 → WS upgradeハンドラ登録
+  consoleHttp.start()
   sessionWs.start()
 
   // 8. Discord窓口起動（設定時のみ）
@@ -82,6 +98,8 @@ function shutdown(): void {
   discordBridge = null
   sessionWs?.stop()
   sessionWs = null
+  consoleHttp?.stop()
+  consoleHttp = null
   stopTunnel()
   stopRuntime()
   log.info("[HEADLESS] シャットダウン完了")

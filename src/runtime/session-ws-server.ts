@@ -22,6 +22,9 @@ export type SessionWsOptions = {
   getStateSnapshot: () => SessionStatePayload
   // 依存注入: stream.post処理
   onStreamPost?: (text: string, correlationId: string, actor: "human" | "ai") => void
+  // 外部HTTPサーバー（console-http-serverと同居する場合）
+  // 指定時: createServer/listenをスキップし、upgradeハンドラのみ登録
+  httpServer?: HttpServer
 }
 
 export type SessionWsServer = {
@@ -47,6 +50,7 @@ function extractToken(req: IncomingMessage): string | null {
 
 export function createSessionWsServer(options: SessionWsOptions): SessionWsServer {
   const { port, token, getStateSnapshot, onStreamPost } = options
+  const externalServer = options.httpServer ?? null
 
   let httpServer: HttpServer | null = null
   let wss: WebSocketServer | null = null
@@ -54,11 +58,16 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
   let unregisterWsApprover: (() => void) | null = null
 
   function start(): void {
-    httpServer = createServer((_req, res) => {
-      // HTTP直アクセスは拒否（WebSocket upgradeのみ受け付ける）
-      res.writeHead(426, { "Content-Type": "text/plain" })
-      res.end("Upgrade Required")
-    })
+    // 外部HTTPサーバーが注入されていない場合のみ内部サーバーを作成
+    if (externalServer) {
+      httpServer = externalServer
+    } else {
+      httpServer = createServer((_req, res) => {
+        // HTTP直アクセスは拒否（WebSocket upgradeのみ受け付ける）
+        res.writeHead(426, { "Content-Type": "text/plain" })
+        res.end("Upgrade Required")
+      })
+    }
 
     wss = new WebSocketServer({ noServer: true })
 
@@ -130,9 +139,14 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
       broadcast(event)
     })
 
-    httpServer.listen(port, () => {
-      log.info(`[SESSION_WS] WebSocketサーバー起動 (port: ${port}, 認証: ${token ? "あり" : "なし"})`)
-    })
+    // 外部HTTPサーバー使用時はlisten不要（呼び出し元が管理）
+    if (!externalServer) {
+      httpServer.listen(port, () => {
+        log.info(`[SESSION_WS] WebSocketサーバー起動 (port: ${port}, 認証: ${token ? "あり" : "なし"})`)
+      })
+    } else {
+      log.info(`[SESSION_WS] WebSocketサーバー起動（外部HTTPサーバー共有, 認証: ${token ? "あり" : "なし"})`)
+    }
   }
 
   function stop(): void {
@@ -150,10 +164,11 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
       wss = null
     }
 
-    if (httpServer) {
+    // 外部HTTPサーバー使用時はclose不要（呼び出し元が管理）
+    if (httpServer && !externalServer) {
       httpServer.close()
-      httpServer = null
     }
+    httpServer = null
 
     log.info("[SESSION_WS] WebSocketサーバー停止")
   }

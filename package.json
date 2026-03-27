@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "electron-vite build",
-    "start": "electron .",
+    "start": "electron-vite build && tsx src/headless/index.ts",
+    "start:electron": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
     "headless": "tsx src/headless/index.ts"
