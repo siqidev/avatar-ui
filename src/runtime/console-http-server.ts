@@ -56,9 +56,9 @@ window.fieldApi = {
   fsWrite: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
   fsImportFile: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
   fsMutate: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  terminalInput: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  terminalResize: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  terminalSnapshot: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
+  terminalInput: function() { return Promise.resolve(); },
+  terminalResize: function() { return Promise.resolve(); },
+  terminalSnapshot: function() { return Promise.resolve(""); },
   onIntegrityAlert: function() {},
   onTerminalData: function() {},
   onTerminalState: function() {},
@@ -117,9 +117,10 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
     )
 
     // ポリフィルスクリプトタグ挿入（theme-init.jsの直後）
+    // ビルド出力のパスは "./theme-init.js" または "/theme-init.js" の可能性がある
     html = html.replace(
-      '<script src="/theme-init.js"></script>',
-      '<script src="/theme-init.js"></script>\n  <script src="/field-api-polyfill.js"></script>',
+      /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u,
+      '$1\n  <script src="./field-api-polyfill.js"></script>',
     )
 
     cachedIndexHtml = html
