@@ -120,7 +120,22 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
         handleClientMessage(ws, data)
       })
 
+      // ping/pong: 接続の健全性監視（cloudflareアイドルタイムアウト対策）
+      let alive = true
+      const pingTimer = setInterval(() => {
+        if (!alive) {
+          log.info("[SESSION_WS] pong未応答 — 切断")
+          ws.terminate()
+          return
+        }
+        alive = false
+        ws.ping()
+      }, 30_000) // 30秒ごと
+
+      ws.on("pong", () => { alive = true })
+
       ws.on("close", () => {
+        clearInterval(pingTimer)
         log.info(`[SESSION_WS] クライアント切断 (残${wss?.clients.size ?? 0}台)`)
         // 全クライアント切断時にWS承認者を解除
         if (wss && wss.clients.size === 0 && unregisterWsApprover) {
@@ -130,6 +145,7 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
       })
 
       ws.on("error", (err) => {
+        clearInterval(pingTimer)
         log.error(`[SESSION_WS] WebSocketエラー: ${err.message}`)
       })
     })

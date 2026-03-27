@@ -20,6 +20,7 @@ export type SessionClientCallbacks = {
   onApprovalResolved?: (payload: ApprovalResolvedPayload) => void
   onError?: (error: Error) => void
   onClose?: () => void
+  onReconnect?: () => void
 }
 
 export type SessionClient = {
@@ -29,6 +30,11 @@ export type SessionClient = {
   sendApprovalRespond: (requestId: string, decision: "approve" | "deny") => void
 }
 
+// --- 自動再接続設定 ---
+
+const RECONNECT_BASE_MS = 3_000
+const RECONNECT_MAX_MS = 60_000
+
 // --- クライアント生成 ---
 
 export function createSessionClient(
@@ -36,6 +42,9 @@ export function createSessionClient(
   callbacks: SessionClientCallbacks,
 ): SessionClient {
   let ws: WebSocket | null = null
+  let intentionalClose = false
+  let reconnectDelay = RECONNECT_BASE_MS
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
   function handleMessage(event: MessageEvent): void {
     try {
@@ -62,23 +71,57 @@ export function createSessionClient(
     }
   }
 
-  function connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      ws = new WebSocket(url)
-      ws.onopen = () => resolve()
-      ws.onmessage = handleMessage
-      ws.onerror = () => {
-        if (ws?.readyState !== WebSocket.OPEN) {
-          reject(new Error("WebSocket接続失敗"))
-        } else {
-          callbacks.onError?.(new Error("WebSocketエラー"))
-        }
+  function setupWs(resolve?: () => void, reject?: (err: Error) => void): void {
+    ws = new WebSocket(url)
+    ws.onopen = () => {
+      reconnectDelay = RECONNECT_BASE_MS // 成功時にリセット
+      resolve?.()
+    }
+    ws.onmessage = handleMessage
+    ws.onerror = () => {
+      if (ws?.readyState !== WebSocket.OPEN) {
+        reject?.(new Error("WebSocket接続失敗"))
+      } else {
+        callbacks.onError?.(new Error("WebSocketエラー"))
       }
-      ws.onclose = () => callbacks.onClose?.()
+    }
+    ws.onclose = () => {
+      callbacks.onClose?.()
+      // 意図的なclose以外は自動再接続
+      if (!intentionalClose) {
+        scheduleReconnect()
+      }
+    }
+  }
+
+  function scheduleReconnect(): void {
+    if (reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      setupWs(
+        () => { callbacks.onReconnect?.() },
+        () => {
+          // 再接続失敗: 指数バックオフで再試行
+          reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS)
+          scheduleReconnect()
+        },
+      )
+    }, reconnectDelay)
+  }
+
+  function connect(): Promise<void> {
+    intentionalClose = false
+    return new Promise((resolve, reject) => {
+      setupWs(resolve, reject)
     })
   }
 
   function close(): void {
+    intentionalClose = true
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     ws?.close()
     ws = null
   }
