@@ -2,6 +2,8 @@
 // Electron非依存 — src/runtime/ はElectronを参照しない
 
 import type { ToolName, ToolApprovalRequest, ToolApprovalDecision } from "../shared/tool-approval-schema.js"
+import { publish } from "./session-event-bus.js"
+import { createSessionEvent } from "../shared/session-event-schema.js"
 import * as log from "../logger.js"
 
 // --- 型定義 ---
@@ -55,6 +57,7 @@ export function unregisterApprover(approverId: string): void {
     if (entry.deliveredTo.size === 0) {
       pending.delete(requestId)
       entry.resolve({ approved: false, reason: "NO_APPROVER" })
+      publishResolved(entry.envelope.toolName, entry.envelope.args, requestId, false, "NO_APPROVER")
       log.info(`[APPROVAL_HUB] 全承認者離脱 — 拒否: ${requestId}`)
     }
   }
@@ -70,6 +73,7 @@ export function request(
   // 承認者がいない → 即deny
   if (currentApprovers.length === 0) {
     log.info(`[APPROVAL_HUB] 承認者なし — 拒否 (${toolName})`)
+    publishResolved(toolName, args, "no-id", false, "NO_APPROVER")
     return Promise.resolve({ approved: false, reason: "NO_APPROVER" })
   }
 
@@ -95,9 +99,10 @@ export function request(
             log.error(`[APPROVAL_HUB] 配送失敗(async): ${approver.approverId} — ${err}`)
             deliveredTo.delete(approver.approverId)
             // 配送成功先が0になったら即deny
-            const entry = pending.get(requestId)
-            if (entry && entry.deliveredTo.size === 0) {
+            const e = pending.get(requestId)
+            if (e && e.deliveredTo.size === 0) {
               pending.delete(requestId)
+              publishResolved(toolName, args, requestId, false, "NO_APPROVER")
               resolve({ approved: false, reason: "NO_APPROVER" })
             }
           })
@@ -116,6 +121,14 @@ export function request(
 
     pending.set(requestId, { envelope, resolve, deliveredTo })
     log.info(`[APPROVAL_HUB] リクエスト送信: ${toolName} (${requestId}) → ${deliveredTo.size}件`)
+
+    // event busにapproval.requestedを発行
+    publish(createSessionEvent("approval.requested", {
+      requestId,
+      toolName,
+      args,
+      requestedAt: envelope.requestedAt,
+    }))
   })
 }
 
@@ -131,10 +144,11 @@ export function respond(
 
   pending.delete(requestId)
   const approved = decision === "approve"
-  entry.resolve({
-    approved,
-    reason: approved ? "USER_APPROVED" : "USER_DENIED",
-  })
+  const reason = approved ? "USER_APPROVED" as const : "USER_DENIED" as const
+  entry.resolve({ approved, reason })
+
+  // event busにapproval.resolvedを発行
+  publishResolved(entry.envelope.toolName, entry.envelope.args, requestId, approved, reason)
 
   log.info(`[APPROVAL_HUB] ${decision}: ${requestId}`)
   return { ok: true }
@@ -153,6 +167,25 @@ export function cancelAll(): void {
     entry.resolve({ approved: false, reason: "NO_APPROVER" })
     pending.delete(id)
   }
+}
+
+// --- 内部ヘルパー ---
+
+/** approval.resolvedイベントをevent busに発行する */
+function publishResolved(
+  toolName: ToolName,
+  args: Record<string, unknown>,
+  requestId: string,
+  approved: boolean,
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER",
+): void {
+  publish(createSessionEvent("approval.resolved", {
+    requestId,
+    toolName,
+    args,
+    approved,
+    reason,
+  }))
 }
 
 // テスト用: 状態リセット

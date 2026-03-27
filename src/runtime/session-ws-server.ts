@@ -9,6 +9,8 @@ import { createSessionEvent } from "../shared/session-event-schema.js"
 import type { SessionEvent } from "../shared/session-event-schema.js"
 import type { SessionStatePayload, HistoryItem } from "../shared/session-event-schema.js"
 import { streamPostSchema } from "../shared/ipc-schema.js"
+import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
+import { registerApprover, unregisterApprover, respond as hubRespond } from "./approval-hub.js"
 import * as log from "../logger.js"
 
 // --- 型定義 ---
@@ -49,6 +51,7 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
   let httpServer: HttpServer | null = null
   let wss: WebSocketServer | null = null
   let unsubscribe: (() => void) | null = null
+  let unregisterWsApprover: (() => void) | null = null
 
   function start(): void {
     httpServer = createServer((_req, res) => {
@@ -81,6 +84,19 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
     wss.on("connection", (ws) => {
       log.info(`[SESSION_WS] クライアント接続 (計${wss!.clients.size}台)`)
 
+      // WS承認者を登録（初回クライアント接続時のみ）
+      if (!unregisterWsApprover) {
+        unregisterWsApprover = registerApprover({
+          approverId: "ws",
+          label: "WebSocket",
+          sendRequest: (req) => {
+            // approval.requestedはevent bus経由で全クライアントに配信済み
+            // ここではhubの配送契約を満たすためのno-op（実際の配信はbus→broadcastが担う）
+            log.info(`[SESSION_WS] 承認リクエスト配送: ${req.toolName} (${req.requestId})`)
+          },
+        })
+      }
+
       // 初回: session.stateを送信
       try {
         const snapshot = getStateSnapshot()
@@ -97,6 +113,11 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
 
       ws.on("close", () => {
         log.info(`[SESSION_WS] クライアント切断 (残${wss?.clients.size ?? 0}台)`)
+        // 全クライアント切断時にWS承認者を解除
+        if (wss && wss.clients.size === 0 && unregisterWsApprover) {
+          unregisterWsApprover()
+          unregisterWsApprover = null
+        }
       })
 
       ws.on("error", (err) => {
@@ -117,6 +138,8 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
   function stop(): void {
     unsubscribe?.()
     unsubscribe = null
+    unregisterWsApprover?.()
+    unregisterWsApprover = null
 
     // 全クライアントを切断
     if (wss) {
@@ -168,6 +191,18 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
           return
         }
         onStreamPost(result.data.text, result.data.correlationId, result.data.actor)
+        return
+      }
+
+      // tool.approval.respond: ツール承認応答
+      if (parsed.type === "tool.approval.respond") {
+        const result = toolApprovalRespondSchema.safeParse(parsed)
+        if (!result.success) {
+          ws.send(JSON.stringify({ type: "error", message: "tool.approval.respond バリデーション失敗" }))
+          return
+        }
+        const respondResult = hubRespond(result.data.requestId, result.data.decision)
+        ws.send(JSON.stringify({ type: "tool.approval.result", ...respondResult }))
         return
       }
 
