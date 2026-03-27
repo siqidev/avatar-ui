@@ -25,7 +25,7 @@ export type SessionClientCallbacks = {
 export type SessionClient = {
   connect: () => Promise<void>
   close: () => void
-  sendStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => void
+  sendStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => boolean
   sendApprovalRespond: (requestId: string, decision: "approve" | "deny") => void
 }
 
@@ -83,9 +83,10 @@ export function createSessionClient(
     ws = null
   }
 
-  function sendStreamPost(text: string, correlationId: string, actor: "human" | "ai"): void {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
+  function sendStreamPost(text: string, correlationId: string, actor: "human" | "ai"): boolean {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false
     ws.send(JSON.stringify({ type: "stream.post", text, correlationId, actor }))
+    return true
   }
 
   function sendApprovalRespond(requestId: string, decision: "approve" | "deny"): void {

@@ -182,5 +182,8 @@ export async function handleStreamPost(text: string, correlationId: string, acto
   } catch (err) {
     warn("RECIPROCITY_STREAM_ERROR",
       `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
+    // エラー時もstream.itemを送信してUIを復帰させる
+    emitStreamItem("ai", `エラー: ${err instanceof Error ? err.message : String(err)}`,
+      correlationId, "user", "console")
   }
 }

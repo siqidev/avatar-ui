@@ -697,10 +697,9 @@ let sessionClient: SessionClient | null = null
         payload.channel,
       )
 
-      if (!payload.source || payload.source === "user") {
-        inputEl.disabled = false
-        formEl.querySelector("button")!.disabled = false
-      }
+      // AI応答受信時にタイムアウトをクリア + input復帰
+      if (payload.correlationId) clearStreamTimeout(payload.correlationId)
+      if (payload.actor === "ai") unlockInput()
 
       if (!streamPaneInput.hasFocus) {
         streamPaneInput.ipcEvents = [
@@ -905,9 +904,35 @@ function renderApprovalRequest(requestId: string, toolName: string, args: Record
   messagesEl.scrollTop = messagesEl.scrollHeight
 }
 
+// 送信タイムアウト管理（応答がない場合にUI復帰）
+const STREAM_TIMEOUT_MS = 30_000
+const pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+function clearStreamTimeout(correlationId: string): void {
+  const tid = pendingTimeouts.get(correlationId)
+  if (tid) {
+    clearTimeout(tid)
+    pendingTimeouts.delete(correlationId)
+  }
+}
+
+function unlockInput(): void {
+  inputEl.disabled = false
+  formEl.querySelector("button")!.disabled = false
+}
+
 // 送信ロジック（手入力・デモモード共用）
 function submitMessage(text: string): string {
   const correlationId = crypto.randomUUID()
+
+  // WS送信（失敗時はUIロックしない）
+  const sent = sessionClient?.sendStreamPost(text, correlationId, "human")
+  if (!sent) {
+    appendMessage("human", text)
+    appendMessage("ai", "送信失敗: サーバーとの接続が切れています。ページを再読み込みしてください。")
+    return correlationId
+  }
+
   inputEl.value = ""
   inputEl.disabled = true
   formEl.querySelector("button")!.disabled = true
@@ -916,7 +941,16 @@ function submitMessage(text: string): string {
   updateStreamPaneVisual()
 
   showThinking()
-  sessionClient?.sendStreamPost(text, correlationId, "human")
+
+  // タイムアウト: 30秒以内に応答がなければUI復帰
+  const tid = setTimeout(() => {
+    pendingTimeouts.delete(correlationId)
+    removeThinking()
+    unlockInput()
+    appendMessage("ai", "応答タイムアウト: サーバーからの応答がありません。")
+  }, STREAM_TIMEOUT_MS)
+  pendingTimeouts.set(correlationId, tid)
+
   return correlationId
 }
 
