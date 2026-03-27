@@ -72,6 +72,8 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
       },
 
       onStreamItem: (payload) => {
+        // human発話はスキップ（Botが代弁すると不自然）
+        if (payload.actor === "human") return
         // 自チャネル起源のメッセージはmirror防止（将来のDiscord入力対応時）
         if (payload.channel === "discord") return
 
