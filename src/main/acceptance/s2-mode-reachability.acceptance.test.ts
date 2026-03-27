@@ -8,6 +8,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import { createWindowMock, createFireHelper, setupTempDataDir, cleanupTempDataDir } from "./_harness.js"
 import type { MockWindow } from "./_harness.js"
+import type { SessionEvent } from "../../shared/session-event-schema.js"
 
 // --- モック宣言（field-runtimeは実物、深い依存をモック） ---
 
@@ -56,11 +57,7 @@ vi.mock("../../x/x-forwarding-policy.js", () => ({
 
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
-    sendXEvent: vi.fn(),
   })),
 }))
 
@@ -78,11 +75,15 @@ vi.mock("../../logger.js", () => ({
 describe("S2: モード可達性", () => {
   let fire: (channel: string, ...args: unknown[]) => unknown
   let mockWin: MockWindow
-  let mockProjection: Record<string, Mock>
   let mockSendMessage: Mock
   let cronCallback: () => void
   let observationHandler: (event: Record<string, unknown>) => void
   let tempDir: string
+  // イベントバスから収集したイベント
+  let capturedEvents: SessionEvent[]
+  let unsubscribe: () => void
+  // handleStreamPost（stream.postのIPC廃止に伴い直接呼出）
+  let handleStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => Promise<void>
 
   beforeEach(async () => {
     vi.resetModules()
@@ -116,18 +117,23 @@ describe("S2: モード可達性", () => {
     const integrity = await import("../integrity-manager.js")
     integrity._resetForTest()
 
+    // イベントバス購読（session-event-busは非モック。publishされたイベントを収集する）
+    const eventBus = await import("../../runtime/session-event-bus.js")
+    eventBus._resetForTest()
+    capturedEvents = []
+    unsubscribe = eventBus.subscribe((event) => capturedEvents.push(event))
+
     const electron = await import("electron")
     const ipcHandlers = await import("../ipc-handlers.js")
-    const channelProjection = await import("../channel-projection.js")
     const chatService = await import("../../services/chat-session-service.js")
     const cron = await import("node-cron")
     const obsServer = await import("../../roblox/observation-server.js")
 
     mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
+    handleStreamPost = ipcHandlers.handleStreamPost
 
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
-    mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
     mockSendMessage = vi.mocked(chatService.sendMessage)
 
     // cronコールバック取得（Pulse）
@@ -145,6 +151,7 @@ describe("S2: モード可達性", () => {
   })
 
   afterEach(() => {
+    unsubscribe?.()
     cleanupTempDataDir()
   })
 
@@ -153,40 +160,47 @@ describe("S2: モード可達性", () => {
     await new Promise(resolve => setTimeout(resolve, 10))
   }
 
+  // イベントバスから stream.item を抽出
+  function streamItems() {
+    return capturedEvents
+      .filter((e) => e.kind === "stream.item")
+      .map((e) => e.payload as import("../../shared/session-event-schema.js").StreamItemPayload)
+  }
+
+  // イベントバスから monitor.item を抽出
+  function monitorItems() {
+    return capturedEvents
+      .filter((e) => e.kind === "monitor.item")
+      .map((e) => e.payload as import("../../shared/session-event-schema.js").MonitorItemPayload)
+  }
+
   // --- human起点: stream.post ---
 
-  it("human起点: stream.post → processStream → sendStreamReply(source='user')", async () => {
+  it("human起点: handleStreamPost → processStream → stream.item(source='user')", async () => {
     mockSendMessage.mockResolvedValueOnce({
       text: "*Avatar says in Roblox chat:* \"やあ Sito！\"",
       displayText: "やあ Sito！",
       toolCalls: [],
     })
 
-    fire("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "user-test-123",
-      text: "こんにちは",
-    })
+    await handleStreamPost("こんにちは", "user-test-123", "human")
 
     await flushQueue()
 
     // sendMessageが呼ばれる
     expect(mockSendMessage).toHaveBeenCalledOnce()
 
-    // sendStreamReplyがsource="user"で呼ばれる
-    const replyCall = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).actor === "ai",
-    )
-    expect(replyCall).toBeDefined()
-    expect(replyCall![0].source).toBe("user")
-    expect(replyCall![0].correlationId).toBe("user-test-123")
-    expect(replyCall![0].text).toBe("やあ Sito！")
+    // stream.itemがsource="user"で発行される（human入力 + ai応答の2件）
+    const aiReply = streamItems().find((p) => p.actor === "ai")
+    expect(aiReply).toBeDefined()
+    expect(aiReply!.source).toBe("user")
+    expect(aiReply!.correlationId).toBe("user-test-123")
+    expect(aiReply!.text).toBe("やあ Sito！")
   })
 
   // --- ai起点: Pulse ---
 
-  it("ai起点: Pulse応答 → sendStreamReply(source='pulse')", async () => {
+  it("ai起点: Pulse応答 → stream.item(source='pulse')", async () => {
     expect(cronCallback).toBeDefined()
     mockSendMessage.mockResolvedValueOnce({
       text: "Pulse内部応答",
@@ -200,20 +214,15 @@ describe("S2: モード可達性", () => {
     // sendMessageが呼ばれる（Pulse用）
     expect(mockSendMessage).toHaveBeenCalledOnce()
 
-    // sendStreamReplyがsource="pulse"で呼ばれる（human + aiの2回）
-    const replyCalls = mockProjection.sendStreamReply.mock.calls
-    // attachで呼ばれた分を除外（sendFieldStateは別メソッド）
-    expect(replyCalls.length).toBeGreaterThanOrEqual(2)
+    // stream.itemがsource="pulse"で発行される（human + aiの2件）
+    const pulseStreams = streamItems().filter((p) => p.source === "pulse")
+    expect(pulseStreams.length).toBeGreaterThanOrEqual(2)
 
-    const humanPulse = replyCalls.find(
-      (c) => { const o = c[0] as Record<string, unknown>; return o.actor === "human" && o.source === "pulse" },
-    )
-    const aiPulse = replyCalls.find(
-      (c) => { const o = c[0] as Record<string, unknown>; return o.actor === "ai" && o.source === "pulse" },
-    )
+    const humanPulse = pulseStreams.find((p) => p.actor === "human")
+    const aiPulse = pulseStreams.find((p) => p.actor === "ai")
     expect(humanPulse).toBeDefined()
     expect(aiPulse).toBeDefined()
-    expect(aiPulse![0].text).toBe("Pulse表示文")
+    expect(aiPulse!.text).toBe("Pulse表示文")
   })
 
   // --- ai起点: 観測 ---
@@ -232,27 +241,22 @@ describe("S2: モード可達性", () => {
     })
     await flushQueue()
 
-    // Monitorに観測イベント表示
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalled()
+    // Monitorに観測イベント(monitor.item)が発行される
+    const monitors = monitorItems()
+    expect(monitors.some((m) => m.eventType === "player_chat")).toBe(true)
 
     // 観測入力はStreamに出ない（Monitorの役割）
-    const humanObs = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => {
-        const o = c[0] as Record<string, unknown>
-        return o.source === "observation" && o.actor === "human"
-      },
+    const humanObs = streamItems().find(
+      (p) => p.source === "observation" && p.actor === "human",
     )
     expect(humanObs).toBeUndefined()
 
     // AI応答はStreamに出る（対話の役割）
-    const aiObs = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => {
-        const o = c[0] as Record<string, unknown>
-        return o.source === "observation" && o.actor === "ai"
-      },
+    const aiObs = streamItems().find(
+      (p) => p.source === "observation" && p.actor === "ai",
     )
     expect(aiObs).toBeDefined()
-    expect(aiObs![0].text).toBe("観測表示文")
+    expect(aiObs!.text).toBe("観測表示文")
   })
 
   // --- correlationId形式の区別 ---
@@ -262,15 +266,15 @@ describe("S2: モード可達性", () => {
     cronCallback()
     await flushQueue()
 
-    const pulseReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => { const o = c[0] as Record<string, unknown>; return o.source === "pulse" && o.actor === "human" },
+    const pulseReply = streamItems().find(
+      (p) => p.source === "pulse" && p.actor === "human",
     )
     expect(pulseReply).toBeDefined()
-    expect(pulseReply![0].correlationId).toMatch(/^pulse-\d+$/)
+    expect(pulseReply!.correlationId).toMatch(/^pulse-\d+$/)
 
     // 観測（AI応答のcorrelationIdで確認）
     vi.mocked(mockSendMessage).mockClear()
-    mockProjection.sendStreamReply.mockClear()
+    capturedEvents = []
 
     observationHandler({
       type: "player_chat",
@@ -278,14 +282,11 @@ describe("S2: モード可達性", () => {
     })
     await flushQueue()
 
-    const obsReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => {
-        const o = c[0] as Record<string, unknown>
-        return o.source === "observation" && o.actor === "ai"
-      },
+    const obsReply = streamItems().find(
+      (p) => p.source === "observation" && p.actor === "ai",
     )
     expect(obsReply).toBeDefined()
-    expect(obsReply![0].correlationId).toMatch(/^obs-\d+$/)
+    expect(obsReply!.correlationId).toMatch(/^obs-\d+$/)
   })
 
   // --- isFieldActiveゲート ---
@@ -310,7 +311,7 @@ describe("S2: モード可達性", () => {
 
   // --- Pulse PULSE_OK抑制 ---
 
-  it("Pulse PULSE_OK抑制: 応答がPULSE_OK接頭辞ならonReplyが呼ばれない", async () => {
+  it("Pulse PULSE_OK抑制: 応答がPULSE_OK接頭辞ならstream.itemが発行されない", async () => {
     mockSendMessage.mockResolvedValueOnce({
       text: "PULSE_OK: 異常なし",
       displayText: "PULSE_OK: 異常なし",
@@ -323,10 +324,8 @@ describe("S2: モード可達性", () => {
     // sendMessageは呼ばれる
     expect(mockSendMessage).toHaveBeenCalledOnce()
 
-    // sendStreamReplyはsource="pulse"で呼ばれない（PULSE_OK抑制）
-    const pulseReply = mockProjection.sendStreamReply.mock.calls.find(
-      (c) => (c[0] as Record<string, unknown>).source === "pulse",
-    )
+    // stream.itemはsource="pulse"で発行されない（PULSE_OK抑制）
+    const pulseReply = streamItems().find((p) => p.source === "pulse")
     expect(pulseReply).toBeUndefined()
   })
 
@@ -344,15 +343,14 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     // Monitorには表示（知覚は常時ON）
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "player_chat" }),
-    )
+    const monitors = monitorItems()
+    expect(monitors.some((m) => m.eventType === "player_chat")).toBe(true)
 
     // AIには転送しない（注意+表出は停止）
     expect(mockSendMessage).not.toHaveBeenCalled()
 
     // Streamにも出ない
-    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+    expect(streamItems()).toHaveLength(0)
 
     // 元に戻す
     settingsStore.updateSettings({ resonance: true })
@@ -368,12 +366,11 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     // Monitorに表示（Roblox世界のログ）
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "roblox_log" }),
-    )
+    const monitors = monitorItems()
+    expect(monitors.some((m) => m.eventType === "roblox_log")).toBe(true)
 
     // Streamには送らない（対話ではない）
-    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+    expect(streamItems()).toHaveLength(0)
 
     // AIには送らない
     expect(mockSendMessage).not.toHaveBeenCalled()
@@ -393,9 +390,8 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     // Monitorには表示（知覚は常時ON）
-    expect(mockProjection.sendObservationEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "player_proximity" }),
-    )
+    const monitors = monitorItems()
+    expect(monitors.some((m) => m.eventType === "player_proximity")).toBe(true)
 
     // AIには転送しない（自己起因）
     expect(mockSendMessage).not.toHaveBeenCalled()

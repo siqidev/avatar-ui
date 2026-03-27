@@ -159,6 +159,11 @@ export function getApproverCount(): number {
   return approvers.size
 }
 
+/** 現在のpendingリクエスト一覧を取得する（session.state用） */
+export function getPendingRequests(): ApprovalEnvelope[] {
+  return [...pending.values()].map((e) => e.envelope)
+}
+
 /** 全pendingリクエストを取消す（シャットダウン時） */
 export function cancelAll(): void {
   if (pending.size === 0) return

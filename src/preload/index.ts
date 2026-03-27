@@ -16,18 +16,21 @@ import type {
   TerminalResizeArgs,
   TerminalSnapshot,
 } from "../shared/terminal-schema.js"
-import type { ToolApprovalRespond } from "../shared/tool-approval-schema.js"
 import type { DemoScript } from "../shared/demo-script-schema.js"
 
 // Renderer に公開する最小API
 // ipcRendererの直接公開は禁止。1チャネル1メソッドで公開する
+// セッション系（stream, monitor, approval）はWebSocket経由に移行済み
 contextBridge.exposeInMainWorld("fieldApi", {
-  // Renderer → Main（送信: fire-and-forget）
-  attach: () => ipcRenderer.send("channel.attach"),
+  // Renderer → Main（場のライフサイクル: request-response）
+  // attach: FSM遷移を保証するためinvoke（WS接続前に完了を待つ）
+  attach: (): Promise<void> => ipcRenderer.invoke("channel.attach"),
   detach: () => ipcRenderer.send("channel.detach"),
-  postStream: (text: string, correlationId: string) =>
-    ipcRenderer.send("stream.post", { type: "stream.post", actor: "human", correlationId, text }),
   terminate: () => ipcRenderer.send("field.terminate"),
+
+  // Renderer → Main（WS接続情報取得）
+  sessionWsConfig: (): Promise<{ port: number; token?: string }> =>
+    ipcRenderer.invoke("session.ws.config"),
 
   // Renderer → Main（ファイル操作: request-response）
   fsRootName: (): Promise<string> => ipcRenderer.invoke("fs.rootName"),
@@ -50,27 +53,13 @@ contextBridge.exposeInMainWorld("fieldApi", {
   terminalSnapshot: (): Promise<TerminalSnapshot> =>
     ipcRenderer.invoke("terminal.snapshot"),
 
-  // Renderer → Main（ツール承認応答: request-response）
-  respondToolApproval: (args: ToolApprovalRespond): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke("tool.approval.respond", args),
-
-  // Main → Renderer（イベント購読）
-  onFieldState: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("field.state", (_e, data) => cb(data)),
-  onStreamReply: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("stream.reply", (_e, data) => cb(data)),
+  // Main → Renderer（IPC残置: Console固有イベント）
   onIntegrityAlert: (cb: (data: unknown) => void) =>
     ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
-  onObservation: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("observation.event", (_e, data) => cb(data)),
-  onXEvent: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("x.event", (_e, data) => cb(data)),
   onTerminalData: (cb: (data: unknown) => void) =>
     ipcRenderer.on("terminal.data", (_e, data) => cb(data)),
   onTerminalState: (cb: (data: unknown) => void) =>
     ipcRenderer.on("terminal.state", (_e, data) => cb(data)),
-  onToolApprovalRequest: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("tool.approval.request", (_e, data) => cb(data)),
 
   // Main → Renderer（設定変更）
   onThemeChange: (cb: (theme: string) => void) =>

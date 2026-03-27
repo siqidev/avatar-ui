@@ -37,11 +37,7 @@ vi.mock("../../runtime/session-event-bus.js", () => ({
 
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
-    sendXEvent: vi.fn(),
   })),
 }))
 
@@ -64,6 +60,7 @@ describe("S1: 場契約整合性", () => {
   let mockProjection: Record<string, Mock>
   let isFrozen: () => boolean
   let startPulseMock: Mock
+  let handleStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => Promise<void>
 
   beforeEach(async () => {
     vi.resetModules()
@@ -87,24 +84,22 @@ describe("S1: 場契約整合性", () => {
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
     // ハンドラ発火ヘルパー
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
 
     // 外部参照
     getFieldState = ipcHandlers.getFieldState
     safeDetach = ipcHandlers.safeDetach
     mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
     startPulseMock = vi.mocked(fieldRuntime.startPulse)
+    handleStreamPost = ipcHandlers.handleStreamPost
   })
 
   // --- 正常遷移 ---
 
-  it("正常遷移: attach→active → sendFieldState投影", () => {
+  it("正常遷移: attach→active", () => {
     fire("channel.attach")
 
     expect(getFieldState()).toBe("active")
-    expect(mockProjection.sendFieldState).toHaveBeenCalledOnce()
-    const call = mockProjection.sendFieldState.mock.calls[0][0]
-    expect(call.state).toBe("active")
   })
 
   it("正常遷移: attach→active→detach→paused", () => {
@@ -163,16 +158,12 @@ describe("S1: 場契約整合性", () => {
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
     expect(isFrozen()).toBe(true)
 
-    // stream.postを発火（凍結中なので処理されないはず）
-    fire("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "test-id",
-      text: "テスト",
-    })
+    // handleStreamPostを直接呼ぶ（凍結中なので処理されないはず）
+    await handleStreamPost("テスト", "test-id", "human")
 
-    // sendStreamReplyが呼ばれていない
-    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+    // processStreamが呼ばれていない（凍結中なので早期リターン）
+    const fieldRuntime = await import("../field-runtime.js")
+    expect(vi.mocked(fieldRuntime.processStream)).not.toHaveBeenCalled()
   })
 
   // --- safeDetach冪等性 ---

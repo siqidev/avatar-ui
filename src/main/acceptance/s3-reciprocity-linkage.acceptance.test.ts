@@ -55,11 +55,7 @@ vi.mock("../../x/x-forwarding-policy.js", () => ({
 
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
-    sendXEvent: vi.fn(),
   })),
 }))
 
@@ -78,6 +74,7 @@ describe("S3: 往復連接性", () => {
   let fire: (channel: string, ...args: unknown[]) => unknown
   let mockSendMessage: Mock
   let tempDir: string
+  let ipcHandlers: typeof import("../ipc-handlers.js")
 
   beforeEach(async () => {
     vi.resetModules()
@@ -104,7 +101,7 @@ describe("S3: 往復連接性", () => {
     integrity._resetForTest()
 
     const electron = await import("electron")
-    const ipcHandlers = await import("../ipc-handlers.js")
+    ipcHandlers = await import("../ipc-handlers.js")
     const chatService = await import("../../services/chat-session-service.js")
 
     mockSendMessage = vi.mocked(chatService.sendMessage)
@@ -112,7 +109,7 @@ describe("S3: 往復連接性", () => {
     const mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
 
     // 場をactiveにする
     fire("channel.attach")
@@ -121,15 +118,6 @@ describe("S3: 往復連接性", () => {
   afterEach(() => {
     cleanupTempDataDir()
   })
-
-  function makeStreamPost(id: string, text: string) {
-    return {
-      type: "stream.post",
-      actor: "human",
-      correlationId: id,
-      text,
-    }
-  }
 
   // --- 直列化: 同時2件 ---
 
@@ -162,9 +150,9 @@ describe("S3: 往復連接性", () => {
       })
     })
 
-    // 同時に2件投入
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
-    fire("stream.post", makeStreamPost("id-2", "テスト2"))
+    // 同時に2件投入（fire-and-forget: Promiseをawaitしない）
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
+    ipcHandlers.handleStreamPost("テスト2", "id-2", "human")
 
     // 1件目が開始されるのを待つ
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -197,7 +185,7 @@ describe("S3: 往復連接性", () => {
     })
 
     // 1件目を投入（実行開始、await中）
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // 2件目を投入（キュー待ち）
@@ -234,9 +222,9 @@ describe("S3: 往復連接性", () => {
       toolCalls: [],
     })
 
-    // 同時に2件投入
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
-    fire("stream.post", makeStreamPost("id-2", "テスト2"))
+    // 同時に2件投入（fire-and-forget）
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
+    ipcHandlers.handleStreamPost("テスト2", "id-2", "human")
 
     await new Promise(resolve => setTimeout(resolve, 20))
 
@@ -256,7 +244,7 @@ describe("S3: 往復連接性", () => {
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // stream.postを発火
-    fire("stream.post", makeStreamPost("id-frozen", "凍結中テスト"))
+    ipcHandlers.handleStreamPost("凍結中テスト", "id-frozen", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // ipc-handlers側のisFrozen()ガードで弾かれるため、sendMessageは呼ばれない
@@ -304,7 +292,7 @@ describe("S3: 往復連接性", () => {
     expect(callOrder).toEqual(["pulse-start"]) // Pulseが実行中
 
     // Pulse実行中にstream.postを投入
-    fire("stream.post", makeStreamPost("id-user", "ユーザー入力"))
+    ipcHandlers.handleStreamPost("ユーザー入力", "id-user", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(callOrder).toEqual(["pulse-start"]) // まだPulse実行中、userは待ち
 

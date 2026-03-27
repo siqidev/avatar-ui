@@ -138,10 +138,19 @@ export const serverSettingsSchema = z.object({
 })
 export type ServerSettings = z.infer<typeof serverSettingsSchema>
 
+export const pendingApprovalSchema = z.object({
+  requestId: z.string().min(1),
+  toolName: toolNameSchema,
+  args: z.record(z.string(), z.unknown()),
+  requestedAt: z.string(),
+})
+export type PendingApproval = z.infer<typeof pendingApprovalSchema>
+
 export const sessionStatePayloadSchema = z.object({
   fieldState: fieldStateValueSchema,
   settings: serverSettingsSchema,
   history: z.array(historyItemSchema),
+  pendingApprovals: z.array(pendingApprovalSchema).default([]),
 })
 export type SessionStatePayload = z.infer<typeof sessionStatePayloadSchema>
 

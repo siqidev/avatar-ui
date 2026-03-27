@@ -389,6 +389,7 @@ describe("session-event-schema", () => {
         history: [
           { type: "stream", actor: "human", text: "入力" },
         ],
+        pendingApprovals: [],
       })
       expect(event.kind).toBe("session.state")
       expect(event.payload.history).toHaveLength(1)

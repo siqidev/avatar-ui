@@ -37,11 +37,7 @@ vi.mock("../../runtime/session-event-bus.js", () => ({
 
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
-    sendXEvent: vi.fn(),
   })),
 }))
 
@@ -60,9 +56,10 @@ describe("S5: ライフサイクル完走", () => {
   let fire: (channel: string, ...args: unknown[]) => unknown
   let mockWin: MockWindow
   let getFieldState: () => string
-  let mockProjection: Record<string, Mock>
   let updateFieldStateMock: Mock
   let resetToNewFieldMock: Mock
+  let processStreamMock: Mock
+  let ipcHandlers: typeof import("../ipc-handlers.js")
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -74,18 +71,17 @@ describe("S5: ライフサイクル完走", () => {
     integrity._resetForTest()
 
     const electron = await import("electron")
-    const ipcHandlers = await import("../ipc-handlers.js")
-    const channelProjection = await import("../channel-projection.js")
+    ipcHandlers = await import("../ipc-handlers.js")
     const fieldRuntime = await import("../field-runtime.js")
 
     mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
     getFieldState = ipcHandlers.getFieldState
-    mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
     updateFieldStateMock = vi.mocked(fieldRuntime.updateFieldState)
     resetToNewFieldMock = vi.mocked(fieldRuntime.resetToNewField)
+    processStreamMock = vi.mocked(fieldRuntime.processStream)
   })
 
   // --- 完全走行 ---
@@ -129,20 +125,15 @@ describe("S5: ライフサイクル完走", () => {
 
   // --- terminated後の動作 ---
 
-  it("terminated後stream.post拒否: isActive=falseで処理されない", () => {
+  it("terminated後stream.post拒否: isActive=falseで処理されない", async () => {
     fire("channel.attach")
     fire("field.terminate")
     expect(getFieldState()).toBe("terminated")
 
-    fire("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "test-id",
-      text: "テスト",
-    })
+    await ipcHandlers.handleStreamPost("テスト入力", "test-corr", "human")
 
-    // 非アクティブなのでsendStreamReplyは呼ばれない
-    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+    // 非アクティブなのでprocessStreamは呼ばれない
+    expect(processStreamMock).not.toHaveBeenCalled()
   })
 
   it("terminated後attach→新規場: resetToNewField + generated→active", () => {
@@ -154,10 +145,6 @@ describe("S5: ライフサイクル完走", () => {
     fire("channel.attach")
     expect(resetToNewFieldMock).toHaveBeenCalledOnce()
     expect(getFieldState()).toBe("active")
-
-    // sendFieldStateが呼ばれる（新規場の状態を投影）
-    const lastCall = mockProjection.sendFieldState.mock.calls.at(-1)?.[0]
-    expect(lastCall.state).toBe("active")
   })
 
   // isFieldActiveゲートの各段階動作はS2で実物を使って検証済み（end-to-end）

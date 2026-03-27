@@ -10,6 +10,8 @@ import { initCanvasPane } from "./canvas-pane.js"
 import type { CanvasPaneController } from "./canvas-pane.js"
 import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
 import { DemoPlayer } from "./demo-player.js"
+import { createSessionClient } from "./session-client.js"
+import type { SessionClient } from "./session-client.js"
 
 import type {
   FsImportFileArgs,
@@ -33,31 +35,31 @@ import type { DemoScript } from "../shared/demo-script-schema.js"
 declare global {
   interface Window {
     fieldApi: {
-      attach: () => void
+      // 場のライフサイクル（IPC）
+      attach: () => Promise<void>
       detach: () => void
-      postStream: (text: string, correlationId: string) => void
       terminate: () => void
+      // WS接続情報
+      sessionWsConfig: () => Promise<{ port: number; token?: string }>
+      // ファイル操作（IPC）
       fsRootName: () => Promise<string>
       fsList: (args: FsListArgs) => Promise<FsListResult>
       fsRead: (args: FsReadArgs) => Promise<FsReadResult>
       fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
       fsImportFile: (args: FsImportFileArgs) => Promise<FsImportFileResult>
       fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
+      // Terminal（IPC）
       terminalInput: (args: TerminalInputArgs) => Promise<{ ok: boolean }>
       terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
       terminalSnapshot: () => Promise<TerminalSnapshot>
-      onFieldState: (cb: (data: unknown) => void) => void
-      onStreamReply: (cb: (data: unknown) => void) => void
+      // IPC残置イベント
       onIntegrityAlert: (cb: (data: unknown) => void) => void
-      onObservation: (cb: (data: unknown) => void) => void
-      onXEvent: (cb: (data: unknown) => void) => void
       onTerminalData: (cb: (data: unknown) => void) => void
       onTerminalState: (cb: (data: unknown) => void) => void
-      onToolApprovalRequest: (cb: (data: unknown) => void) => void
-      respondToolApproval: (args: { requestId: string; decision: "approve" | "deny" }) => Promise<{ ok: boolean }>
-      getFilePath: (file: File) => string
       onThemeChange: (cb: (theme: string) => void) => void
       onLocaleChange: (cb: (locale: string) => void) => void
+      // ユーティリティ
+      getFilePath: (file: File) => string
       loadDemoScript: () => Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }>
     }
   }
@@ -600,95 +602,157 @@ function appendMessage(
   }
 }
 
-// === IPC接続 ===
-window.fieldApi.attach()
+// === セッション接続（WS経由） ===
+// sessionClientはモジュールスコープで保持（submitMessage等からアクセスするため）
+let sessionClient: SessionClient | null = null
 
-window.fieldApi.onFieldState((data) => {
-  const msg = data as {
-    state: string
-    avatarName: string
-    userName: string
-    lastMessages?: Array<{
-      actor: string
-      text: string
-      source?: string
-      channel?: string
-      toolCalls?: ToolCallDisplay[]
-    }>
-    lastObservations?: Array<{ eventType: string; formatted: string; timestamp: string }>
-    lastXEvents?: Array<{ eventType: string; formatted: string; timestamp: string }>
-  }
-  statusEl.textContent = msg.state
-  avatarLabel = `${msg.avatarName.toLowerCase()}>`
-  userLabel = `${msg.userName.toLowerCase()}>`
+;(async () => {
+  // 1. FSM遷移を保証（attach完了後にWS接続）
+  await window.fieldApi.attach()
 
-  // Avatarペインのヘッダーとalt属性を更新
-  const avatarPaneHeader = document.querySelector("#pane-avatar .pane-header span")
-  if (avatarPaneHeader) avatarPaneHeader.textContent = msg.avatarName
-  avatarImg.alt = msg.avatarName
+  // 2. WS接続情報を取得して接続
+  const wsConfig = await window.fieldApi.sessionWsConfig()
+  const wsUrl = wsConfig.token
+    ? `ws://localhost:${wsConfig.port}?token=${wsConfig.token}`
+    : `ws://localhost:${wsConfig.port}`
 
-  streamPaneInput.ipcEvents = [{ type: "field.state", state: msg.state }]
-  updateStreamPaneVisual()
+  sessionClient = createSessionClient(wsUrl, {
+    // session.state: 初回接続時に場の状態+履歴を受信
+    onSessionState: (payload) => {
+      statusEl.textContent = payload.fieldState
+      avatarLabel = `${payload.settings.avatarName.toLowerCase()}>`
+      userLabel = `${payload.settings.userName.toLowerCase()}>`
 
-  if (msg.lastMessages && msg.lastMessages.length > 0) {
-    enableStream = false
-    if (streamingAbort) streamingAbort()
-    messagesEl.innerHTML = ""
-    for (const m of msg.lastMessages) {
-      appendMessage(m.actor, m.text, m.source, m.toolCalls, m.channel)
-    }
-    enableStream = true
-  }
+      // Avatarペインのヘッダーとalt属性を更新
+      const avatarPaneHeader = document.querySelector("#pane-avatar .pane-header span")
+      if (avatarPaneHeader) avatarPaneHeader.textContent = payload.settings.avatarName
+      avatarImg.alt = payload.settings.avatarName
 
-  // Roblox Monitor履歴の復元（ハイライトなし）
-  if (msg.lastObservations && msg.lastObservations.length > 0) {
-    for (const obs of msg.lastObservations) {
-      appendObservation(obs.eventType, obs.formatted, obs.timestamp)
-    }
-  }
+      streamPaneInput.ipcEvents = [{ type: "field.state", state: payload.fieldState }]
+      updateStreamPaneVisual()
 
-  // X Monitor履歴の復元（ハイライトなし）
-  if (msg.lastXEvents && msg.lastXEvents.length > 0) {
-    for (const ev of msg.lastXEvents) {
-      appendXEvent(ev.eventType, ev.formatted, ev.timestamp)
-    }
-  }
+      // 履歴の復元
+      const streamItems = payload.history.filter((h) => h.type === "stream")
+      if (streamItems.length > 0) {
+        enableStream = false
+        if (streamingAbort) streamingAbort()
+        messagesEl.innerHTML = ""
+        for (const m of streamItems) {
+          if (m.type === "stream") {
+            appendMessage(m.actor, m.text, m.source, m.toolCalls as ToolCallDisplay[], m.channel)
+          }
+        }
+        enableStream = true
+      }
 
-  // Spaceペイン初期化（場がアクティブ時）+ Canvas連携
-  if (msg.state === "active" && !spaceInitialized) {
-    spaceInitialized = true
-    initFilesystemPane({
-      onFileOpen: (path) => {
-        canvas.openFile({ path, actor: "human", origin: "space" }).catch(() => {})
-      },
-    }).catch(() => { spaceInitialized = false })
-  }
-})
+      // Roblox Monitor履歴の復元
+      const robloxItems = payload.history.filter((h) => h.type === "monitor" && h.channel === "roblox")
+      for (const obs of robloxItems) {
+        if (obs.type === "monitor") {
+          appendObservation(obs.eventType, obs.formatted, obs.timestamp)
+        }
+      }
 
-window.fieldApi.onStreamReply((data) => {
-  const reply = data as {
-    actor: string
-    text: string
-    source?: string
-    channel?: string
-    toolCalls?: ToolCallDisplay[]
-  }
-  removeThinking()
-  appendMessage(reply.actor, reply.text, reply.source, reply.toolCalls, reply.channel)
+      // X Monitor履歴の復元
+      const xItems = payload.history.filter((h) => h.type === "monitor" && h.channel === "x")
+      for (const ev of xItems) {
+        if (ev.type === "monitor") {
+          appendXEvent(ev.eventType, ev.formatted, ev.timestamp)
+        }
+      }
 
-  if (!reply.source || reply.source === "user") {
-    inputEl.disabled = false
-    formEl.querySelector("button")!.disabled = false
-  }
+      // pending承認リクエストの復元
+      if (payload.pendingApprovals) {
+        for (const req of payload.pendingApprovals) {
+          renderApprovalRequest(req.requestId, req.toolName, req.args)
+        }
+      }
 
-  if (!streamPaneInput.hasFocus) {
-    streamPaneInput.ipcEvents = [
-      ...streamPaneInput.ipcEvents.filter((e) => e.type !== "stream.reply"),
-      { type: "stream.reply" },
-    ]
-    updateStreamPaneVisual()
-  }
-})
+      // Spaceペイン初期化（場がアクティブ時）+ Canvas連携
+      if (payload.fieldState === "active" && !spaceInitialized) {
+        spaceInitialized = true
+        initFilesystemPane({
+          onFileOpen: (path) => {
+            canvas.openFile({ path, actor: "human", origin: "space" }).catch(() => {})
+          },
+        }).catch(() => { spaceInitialized = false })
+      }
+    },
+
+    // stream.item: リアルタイムのストリームメッセージ
+    onStreamItem: (payload) => {
+      removeThinking()
+      appendMessage(
+        payload.actor,
+        payload.displayText ?? payload.text,
+        payload.source,
+        payload.toolCalls as ToolCallDisplay[],
+        payload.channel,
+      )
+
+      if (!payload.source || payload.source === "user") {
+        inputEl.disabled = false
+        formEl.querySelector("button")!.disabled = false
+      }
+
+      if (!streamPaneInput.hasFocus) {
+        streamPaneInput.ipcEvents = [
+          ...streamPaneInput.ipcEvents.filter((e) => e.type !== "stream.reply"),
+          { type: "stream.reply" },
+        ]
+        updateStreamPaneVisual()
+      }
+
+      // デモモード: AI応答完了をストリーミング表示完了後に通知
+      if (payload.actor === "ai" && payload.correlationId && streamEndCallback) {
+        const cid = payload.correlationId
+        void currentStreamingPromise.then(() => {
+          streamEndCallback?.(cid)
+        })
+      }
+    },
+
+    // monitor.item: Roblox/Xモニター
+    onMonitorItem: (payload) => {
+      if (payload.channel === "roblox") {
+        appendObservation(payload.eventType, payload.formatted, payload.timestamp)
+        robloxPane.dataset.state = "active"
+        setTimeout(() => { robloxPane.dataset.state = "normal" }, 3000)
+      } else if (payload.channel === "x") {
+        appendXEvent(payload.eventType, payload.formatted, payload.timestamp)
+        xPane.dataset.state = "active"
+        setTimeout(() => { xPane.dataset.state = "normal" }, 3000)
+      }
+    },
+
+    // approval.requested: ツール承認リクエスト
+    onApprovalRequested: (payload) => {
+      renderApprovalRequest(payload.requestId, payload.toolName, payload.args)
+    },
+
+    // approval.resolved: ツール承認解決（他のクライアントが承認した場合）
+    onApprovalResolved: (payload) => {
+      const el = document.querySelector(`[data-approval-id="${payload.requestId}"]`) as HTMLElement | null
+      if (el && !el.classList.contains("resolved")) {
+        el.classList.add("resolved")
+        const btns = el.querySelectorAll("button")
+        for (const btn of btns) btn.disabled = true
+        const resultEl = document.createElement("div")
+        resultEl.className = "tool-call-result"
+        resultEl.textContent = payload.approved ? t("approved_result") : t("denied_result")
+        el.appendChild(resultEl)
+      }
+    },
+
+    onError: (err) => {
+      console.error("[SESSION_WS]", err.message)
+    },
+  })
+
+  await sessionClient.connect()
+})()
+
+// stream.reply IPC → WS onStreamItemに移行済み
 
 window.fieldApi.onIntegrityAlert((data) => {
   const alert = data as { code: string; message: string }
@@ -737,15 +801,7 @@ function appendObservation(eventType: string, formatted: string, timestamp: stri
   robloxBody.scrollTop = robloxBody.scrollHeight
 }
 
-window.fieldApi.onObservation((data) => {
-  const obs = data as { eventType: string; formatted: string; timestamp: string }
-  appendObservation(obs.eventType, obs.formatted, obs.timestamp)
-
-  robloxPane.dataset.state = "active"
-  setTimeout(() => {
-    robloxPane.dataset.state = "normal"
-  }, 3000)
-})
+// observation.event IPC → WS onMonitorItemに移行済み
 
 // === X Monitorペイン ===
 const MAX_X_ENTRIES = 50
@@ -783,32 +839,19 @@ function appendXEvent(eventType: string, formatted: string, timestamp: string): 
   xBody.scrollTop = xBody.scrollHeight
 }
 
-window.fieldApi.onXEvent((data) => {
-  const ev = data as { eventType: string; formatted: string; timestamp: string }
-  appendXEvent(ev.eventType, ev.formatted, ev.timestamp)
+// x.event IPC → WS onMonitorItemに移行済み
 
-  xPane.dataset.state = "active"
-  setTimeout(() => {
-    xPane.dataset.state = "normal"
-  }, 3000)
-})
-
-// === ツール承認リクエスト ===
-window.fieldApi.onToolApprovalRequest((data) => {
-  const req = data as {
-    requestId: string
-    toolName: string
-    args: Record<string, unknown>
-  }
-
+// === ツール承認リクエスト表示（WS onApprovalRequested + session.state復元から呼ばれる） ===
+function renderApprovalRequest(requestId: string, toolName: string, args: Record<string, unknown>): void {
   const div = document.createElement("div")
   div.className = "tool-call-approval"
+  div.dataset.approvalId = requestId
 
   const nameEl = document.createElement("span")
   nameEl.className = "tool-call-name"
-  nameEl.textContent = req.toolName
+  nameEl.textContent = toolName
 
-  const argsStr = Object.entries(req.args)
+  const argsStr = Object.entries(args)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join(" ")
   const argsEl = document.createElement("span")
@@ -836,7 +879,7 @@ window.fieldApi.onToolApprovalRequest((data) => {
     resultEl.textContent = decision === "approve" ? t("approved_result") : t("denied_result")
     div.appendChild(resultEl)
 
-    window.fieldApi.respondToolApproval({ requestId: req.requestId, decision })
+    sessionClient?.sendApprovalRespond(requestId, decision)
   }
 
   approveBtn.addEventListener("click", () => respond("approve"))
@@ -849,7 +892,7 @@ window.fieldApi.onToolApprovalRequest((data) => {
   div.appendChild(actionsEl)
   messagesEl.appendChild(div)
   messagesEl.scrollTop = messagesEl.scrollHeight
-})
+}
 
 // 送信ロジック（手入力・デモモード共用）
 function submitMessage(text: string): string {
@@ -863,7 +906,7 @@ function submitMessage(text: string): string {
   updateStreamPaneVisual()
 
   showThinking()
-  window.fieldApi.postStream(text, correlationId)
+  sessionClient?.sendStreamPost(text, correlationId, "human")
   return correlationId
 }
 
@@ -904,16 +947,7 @@ const demoPlayer = new DemoPlayer({
   offStreamEnd: () => { streamEndCallback = null },
 })
 
-// stream.replyでAI応答完了を検知 → ストリーミング表示完了後にデモプレイヤーに通知
-window.fieldApi.onStreamReply((data) => {
-  const reply = data as { actor: string; correlationId?: string }
-  if (reply.actor === "ai" && reply.correlationId && streamEndCallback) {
-    const cid = reply.correlationId
-    void currentStreamingPromise.then(() => {
-      streamEndCallback?.(cid)
-    })
-  }
-})
+// stream.reply IPC（デモモード用）→ WS onStreamItemに統合済み
 
 document.addEventListener("keydown", async (e) => {
   if (e.key !== "F5") return
@@ -937,6 +971,7 @@ document.addEventListener("keydown", async (e) => {
 }, true) // captureフェーズ（Electronのリロードを抑止）
 
 window.addEventListener("beforeunload", () => {
+  sessionClient?.close()
   window.fieldApi.detach()
 })
 

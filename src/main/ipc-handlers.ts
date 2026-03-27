@@ -1,8 +1,6 @@
 import { ipcMain } from "electron"
 import type { BrowserWindow } from "electron"
-import { streamPostSchema } from "../shared/ipc-schema.js"
 import type { FieldState } from "../shared/ipc-schema.js"
-import type { ChannelId } from "../shared/channel.js"
 import type { SessionStatePayload, HistoryItem } from "../shared/session-event-schema.js"
 import { transition, isActive } from "./field-fsm.js"
 import {
@@ -15,17 +13,13 @@ import {
   getState,
   updateFieldState,
   resetToNewField,
-  appendMessage,
   emitStreamItem,
   publishXToolResults,
 } from "./field-runtime.js"
 import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
-import { subscribe } from "../runtime/session-event-bus.js"
-import type { SessionEvent } from "../shared/session-event-schema.js"
 import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
-import { registerApprover, unregisterApprover, respond as hubRespond } from "../runtime/approval-hub.js"
-import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
+import { getPendingRequests } from "../runtime/approval-hub.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -54,7 +48,7 @@ export function safeDetach(): void {
 }
 
 // 場の状態スナップショット（SessionStatePayload形式）を返す
-// WSサーバーの初回接続時配信 + Console attach時の投影に使用
+// WSサーバーの初回接続時配信に使用
 export function getStateSnapshot(): SessionStatePayload {
   const config = getConfig()
   const restored = getState()
@@ -86,6 +80,14 @@ export function getStateSnapshot(): SessionStatePayload {
     timestamp: e.timestamp,
   }))
 
+  // pending承認リクエストを含める
+  const pendingApprovals = getPendingRequests().map((e) => ({
+    requestId: e.requestId,
+    toolName: e.toolName,
+    args: e.args,
+    requestedAt: e.requestedAt,
+  }))
+
   return {
     fieldState: fieldState as SessionStatePayload["fieldState"],
     settings: {
@@ -93,10 +95,11 @@ export function getStateSnapshot(): SessionStatePayload {
       userName: config.userName,
     },
     history: [...streamHistory, ...robloxHistory, ...xHistory],
+    pendingApprovals,
   }
 }
 
-// stream.post共通処理（IPC/WS両方から呼ばれる）
+// stream.post共通処理（WS経由で呼ばれる）
 export async function handleStreamPost(text: string, correlationId: string, actor: "human" | "ai"): Promise<void> {
   if (isFrozen()) {
     log.error("[STREAM] stream.post拒否: 凍結中")
@@ -108,7 +111,8 @@ export async function handleStreamPost(text: string, correlationId: string, acto
     return
   }
 
-  appendMessage({ actor, text, source: "user", channel: "console" })
+  // human発話をevent busに発行（永続化+publish）
+  emitStreamItem(actor, text, correlationId, "user", "console")
   log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
 
   try {
@@ -125,16 +129,13 @@ export async function handleStreamPost(text: string, correlationId: string, acto
 // IPCハンドラを登録する
 export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): void {
 
-  // ChannelProjection: Console（Electron BrowserWindow）チャネルを生成
+  // ChannelProjection: integrity.alertのみ使用（session系はWS経由に移行済み）
   const projection: ChannelProjection = createConsoleProjection(getMainWindow)
 
   // IntegrityManager: alertSink登録（検知→投影経由でRenderer通知）
   setAlertSink((code, message) => {
     projection.sendIntegrityAlert(code, message)
   })
-
-  // Console承認者の登録解除関数（attach/detach時に管理）
-  let unregisterConsoleApprover: (() => void) | null = null
 
   // FieldRuntime初期化
   let runtimeReady = false
@@ -152,47 +153,14 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
 
   // Pulse/Observation開始（Runtime初期化成功時のみ）
   if (runtimeReady) {
-    // Event Bus → ChannelProjection（Console）: イベント配信の購読
-    subscribe((event: SessionEvent) => {
-      switch (event.kind) {
-        case "stream.item":
-          projection.sendStreamReply({
-            actor: event.payload.actor,
-            correlationId: event.payload.correlationId,
-            text: event.payload.text,
-            source: event.payload.source,
-            channel: event.payload.channel as ChannelId,
-            toolCalls: event.payload.toolCalls ?? [],
-          })
-          break
-        case "monitor.item":
-          if (event.payload.channel === "roblox") {
-            projection.sendObservationEvent({
-              eventType: event.payload.eventType,
-              payload: event.payload.payload ?? {},
-              formatted: event.payload.formatted,
-              timestamp: event.payload.timestamp,
-            })
-          } else if (event.payload.channel === "x") {
-            projection.sendXEvent({
-              eventType: event.payload.eventType,
-              payload: event.payload.payload ?? {},
-              formatted: event.payload.formatted,
-              timestamp: event.payload.timestamp,
-            })
-          }
-          break
-      }
-    })
-
     startPulse()
     startXpulse()
     startObservation()
     startXWebhook()
   }
 
-  // channel.attach: ウィンドウ接続
-  ipcMain.on("channel.attach", (event) => {
+  // channel.attach: ウィンドウ接続（FSM遷移のみ。セッションデータはWS経由で配信）
+  ipcMain.handle("channel.attach", () => {
     // terminated → 新規場にリセット（接続契約: 旧場は終了済み）
     if (fieldState === "terminated") {
       resetToNewField()
@@ -211,69 +179,21 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     } catch (err) {
       report("FIELD_CONTRACT_VIOLATION",
         `attach失敗: ${err instanceof Error ? err.message : String(err)}`)
-      return
     }
-
-    // Console承認者を登録（既存があれば先に解除）
-    unregisterConsoleApprover?.()
-    const sender = event.sender
-    unregisterConsoleApprover = registerApprover({
-      approverId: `console:${sender.id}`,
-      label: "Console GUI",
-      sendRequest: (req) => {
-        if (!sender.isDestroyed()) {
-          sender.send("tool.approval.request", req)
-        }
-      },
-    })
-
-    // sender破棄時に自動解除
-    sender.once("destroyed", () => {
-      unregisterConsoleApprover?.()
-      unregisterConsoleApprover = null
-    })
-
-    // 場の状態 + 永続化された履歴を投影
-    const config = getConfig()
-    const restored = getState()
-
-    projection.sendFieldState({
-      state: fieldState,
-      avatarName: config.avatarName,
-      userName: config.userName,
-      history: restored.field.messageHistory,
-      observationHistory: restored.field.observationHistory,
-      xEventHistory: restored.field.xEventHistory,
-    })
   })
 
   // channel.detach: ウィンドウ切断
   ipcMain.on("channel.detach", () => {
-    // Console承認者を解除（他の承認者がいればpending継続）
-    unregisterConsoleApprover?.()
-    unregisterConsoleApprover = null
     safeDetach()
   })
 
-  // stream.post: ストリームメッセージ受信
-  ipcMain.on("stream.post", async (_event, raw: unknown) => {
-    const result = streamPostSchema.safeParse(raw)
-    if (!result.success) {
-      log.error(`[IPC] stream.post バリデーション失敗: ${JSON.stringify(result.error.issues)}`)
-      return
+  // session.ws.config: WS接続情報を返す
+  ipcMain.handle("session.ws.config", () => {
+    const config = getConfig()
+    return {
+      port: config.sessionWsPort,
+      token: config.sessionWsToken,
     }
-    const { text, correlationId, actor } = result.data
-    await handleStreamPost(text, correlationId, actor)
-  })
-
-  // tool.approval.respond: ツール承認応答（Renderer→Main）
-  ipcMain.handle("tool.approval.respond", (_event, raw: unknown) => {
-    const parsed = toolApprovalRespondSchema.safeParse(raw)
-    if (!parsed.success) {
-      log.error(`[IPC] tool.approval.respond バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-      return { ok: false, reason: "VALIDATION_ERROR" }
-    }
-    return hubRespond(parsed.data.requestId, parsed.data.decision)
   })
 
   // field.terminate: 場の終了

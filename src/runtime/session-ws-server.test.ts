@@ -26,6 +26,7 @@ function defaultSnapshot(): SessionStatePayload {
     fieldState: "active",
     settings: { avatarName: "TestAvatar", userName: "TestUser" },
     history: [],
+    pendingApprovals: [],
   }
 }
 
@@ -161,6 +162,7 @@ describe("session-ws-server", () => {
       getStateSnapshot: () => ({
         fieldState: "active",
         settings: { avatarName: "Spectra", userName: "Sito" },
+        pendingApprovals: [],
         history: [
           { type: "stream", actor: "human", text: "こんにちは" },
           { type: "monitor", channel: "roblox", eventType: "chat", formatted: "[chat] test", timestamp: "2026-01-01T00:00:00Z" },
