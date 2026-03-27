@@ -613,12 +613,15 @@ let sessionClient: SessionClient | null = null
 
   // 2. WS接続情報を取得して接続
   const wsConfig = await window.fieldApi.sessionWsConfig()
-  // ブラウザモード（HTTP配信）: location.hostnameを使用（VPS対応）
-  // Electronモード（file://）: localhost固定
+  // Electronモード（file://）: ws://localhost:PORT
+  // ブラウザHTTP（ローカル）: ws://localhost:PORT
+  // ブラウザHTTPS（トンネル経由）: wss://hostname（ポート不要、443経由）
   const wsHost = location.protocol === "file:" ? "localhost" : location.hostname
+  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:"
+  const wsPort = location.protocol === "https:" ? "" : `:${wsConfig.port}`
   const wsUrl = wsConfig.token
-    ? `ws://${wsHost}:${wsConfig.port}?token=${wsConfig.token}`
-    : `ws://${wsHost}:${wsConfig.port}`
+    ? `${wsProtocol}//${wsHost}${wsPort}?token=${wsConfig.token}`
+    : `${wsProtocol}//${wsHost}${wsPort}`
 
   sessionClient = createSessionClient(wsUrl, {
     // session.state: 初回接続時に場の状態+履歴を受信
