@@ -10,10 +10,8 @@ src/
   logger.ts                   ロギング（info/error/fatal → data/app.log）
   main/
     index.ts                  Electron Mainエントリーポイント
-    field-runtime.ts          FieldRuntime（場のロジック統合）
     ipc-handlers.ts           IPC受信→FieldRuntimeオーケストレーション
     field-fsm.ts              場FSM（純関数transition）
-    integrity-manager.ts      健全性管理（warn/report/凍結ラッチ）
     channel-projection.ts     媒体投影（integrityアラートのIPC送信のみ）
     message-recorder.ts       履歴記録（永続化付き）
     menu.ts                   カスタムメニュー（テーマ・モデル・言語radio + 共振checkbox + About）
@@ -40,6 +38,8 @@ src/
       blink.png               アバター画像（瞬きフレーム、150ms表示）
       talk.png                アバター画像（発話）
   runtime/                    Electron非依存のランタイム基盤
+    field-runtime.ts          FieldRuntime（場のロジック統合）
+    integrity-manager.ts      健全性管理（warn/report/凍結ラッチ）
     session-event-bus.ts      セッションイベントバス（pub/sub。FieldRuntime→購読者配信）
     session-ws-server.ts      セッションWebSocketサーバー（event bus→外部クライアント配信）
     approval-hub.ts           承認ハブ（複数承認者 first-response-wins）

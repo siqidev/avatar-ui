@@ -3,11 +3,11 @@ import { recordMessage } from "./message-recorder.js"
 import { _resetConfigForTest } from "../config.js"
 
 // field-runtime の appendMessage をモック
-vi.mock("./field-runtime.js", () => ({
+vi.mock("../runtime/field-runtime.js", () => ({
   appendMessage: vi.fn(),
 }))
 
-import { appendMessage } from "./field-runtime.js"
+import { appendMessage } from "../runtime/field-runtime.js"
 const mockAppendMessage = vi.mocked(appendMessage)
 
 describe("message-recorder", () => {

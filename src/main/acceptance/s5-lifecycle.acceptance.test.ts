@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
   ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
-vi.mock("../field-runtime.js", () => ({
+vi.mock("../../runtime/field-runtime.js", () => ({
   initRuntime: vi.fn(),
   processStream: vi.fn().mockResolvedValue({
     text: "応答",
@@ -67,12 +67,12 @@ describe("S5: ライフサイクル完走", () => {
     const config = await import("../../config.js")
     config._resetConfigForTest({ XAI_API_KEY: "test-key" })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
 
     const electron = await import("electron")
     ipcHandlers = await import("../ipc-handlers.js")
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
 
     mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)

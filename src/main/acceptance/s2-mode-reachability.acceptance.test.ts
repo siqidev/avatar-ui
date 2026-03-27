@@ -114,7 +114,7 @@ describe("S2: モード可達性", () => {
     settingsStore.loadSettings(tempDir)
     settingsStore.updateSettings({ resonance: true })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
 
     // イベントバス購読（session-event-busは非モック。publishされたイベントを収集する）

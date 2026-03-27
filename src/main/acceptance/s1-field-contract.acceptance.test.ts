@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
   ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
-vi.mock("../field-runtime.js", () => ({
+vi.mock("../../runtime/field-runtime.js", () => ({
   initRuntime: vi.fn(),
   processStream: vi.fn().mockResolvedValue({
     text: "応答",
@@ -70,7 +70,7 @@ describe("S1: 場契約整合性", () => {
     const config = await import("../../config.js")
     config._resetConfigForTest({ XAI_API_KEY: "test-key" })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
     isFrozen = integrity.isFrozen
 
@@ -78,7 +78,7 @@ describe("S1: 場契約整合性", () => {
     const electron = await import("electron")
     const ipcHandlers = await import("../ipc-handlers.js")
     const channelProjection = await import("../channel-projection.js")
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
 
     mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
@@ -154,7 +154,7 @@ describe("S1: 場契約整合性", () => {
     fire("channel.attach") // generated→active
 
     // 強制凍結
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
     expect(isFrozen()).toBe(true)
 
@@ -162,7 +162,7 @@ describe("S1: 場契約整合性", () => {
     await handleStreamPost("テスト", "test-id", "human")
 
     // processStreamが呼ばれていない（凍結中なので早期リターン）
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
     expect(vi.mocked(fieldRuntime.processStream)).not.toHaveBeenCalled()
   })
 

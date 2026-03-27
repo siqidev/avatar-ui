@@ -97,7 +97,7 @@ describe("S3: 往復連接性", () => {
       stateFile: path.join(tempDir, "state.json"),
     })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
 
     const electron = await import("electron")
@@ -191,11 +191,11 @@ describe("S3: 往復連接性", () => {
     // 2件目を投入（キュー待ち）
     // processStreamが返すPromiseをキャプチャ（stream.postハンドラはfire-and-forget）
     // 代わりにfield-runtimeのprocessStreamを直接呼ぶ
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
     const pendingPromise = fieldRuntime.processStream("テスト2")
 
     // 凍結する
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // 1件目を完了（キューが2件目に移る→凍結チェック→スキップ→reject）
@@ -232,7 +232,7 @@ describe("S3: 往復連接性", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(2)
 
     // 凍結はしていない（warnはfreezeしない）
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     expect(integrity.isFrozen()).toBe(false)
   })
 
@@ -240,7 +240,7 @@ describe("S3: 往復連接性", () => {
 
   it("凍結時スキップ: 凍結後のstream.postはenqueueされない", async () => {
     // 先に凍結する
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // stream.postを発火

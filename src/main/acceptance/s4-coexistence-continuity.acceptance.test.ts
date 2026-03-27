@@ -80,7 +80,7 @@ async function setupRuntime() {
     stateFile: path.join(tempDir, "state.json"),
   })
 
-  const integrity = await import("../integrity-manager.js")
+  const integrity = await import("../../runtime/integrity-manager.js")
   integrity._resetForTest()
 
   const electron = await import("electron")

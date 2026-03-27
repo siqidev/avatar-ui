@@ -64,7 +64,7 @@ v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monito
 | src/config.ts | getConfig()遅延singleton（唯一のprocess.env入口） |
 | src/services/chat-session-service.ts | Grok Responses API呼出+ツール実行ループ |
 | src/main/index.ts | Electron Mainエントリーポイント |
-| src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
+| src/runtime/field-runtime.ts | FieldRuntime（場のロジック統合） |
 | src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
 | src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |

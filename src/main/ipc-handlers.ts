@@ -15,10 +15,10 @@ import {
   resetToNewField,
   emitStreamItem,
   publishXToolResults,
-} from "./field-runtime.js"
+} from "../runtime/field-runtime.js"
 import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
-import { setAlertSink, isFrozen, report, warn } from "./integrity-manager.js"
+import { setAlertSink, isFrozen, report, warn } from "../runtime/integrity-manager.js"
 import { getPendingRequests } from "../runtime/approval-hub.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"

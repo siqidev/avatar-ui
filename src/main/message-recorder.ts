@@ -4,7 +4,7 @@
 import type { Source } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
-import { appendMessage } from "./field-runtime.js"
+import { appendMessage } from "../runtime/field-runtime.js"
 
 // メッセージ履歴を記録する（永続化付き）
 export function recordMessage(

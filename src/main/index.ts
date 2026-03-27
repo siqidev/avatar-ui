@@ -6,7 +6,7 @@ import { registerIpcHandlers, safeDetach, getStateSnapshot, handleStreamPost } f
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
 import { spawnPty, dispose as disposeTerminal } from "../runtime/terminal-service.js"
-import { stopRuntime } from "./field-runtime.js"
+import { stopRuntime } from "../runtime/field-runtime.js"
 import { createSessionWsServer } from "../runtime/session-ws-server.js"
 import type { SessionWsServer } from "../runtime/session-ws-server.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
