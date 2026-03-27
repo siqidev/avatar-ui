@@ -65,7 +65,9 @@ v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monito
 | src/services/chat-session-service.ts | Grok Responses API呼出+ツール実行ループ |
 | src/main/index.ts | Electron Mainエントリーポイント |
 | src/runtime/field-runtime.ts | FieldRuntime（場のロジック統合） |
-| src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
+| src/runtime/field-orchestrator.ts | 場の起動・FSM遷移・stream処理統括 |
+| src/main/ipc-handlers.ts | IPC配線（orchestratorへのアダプタ） |
+| src/headless/index.ts | ヘッドレスエントリーポイント（VPS用） |
 | src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |

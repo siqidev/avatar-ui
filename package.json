@@ -8,7 +8,8 @@
     "build": "electron-vite build",
     "start": "electron .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "headless": "tsx src/headless/index.ts"
   },
   "author": "siqidev",
   "license": "MIT",
@@ -43,6 +44,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^40.6.1",
     "electron-vite": "^5.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
