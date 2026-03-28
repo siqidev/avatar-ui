@@ -40,7 +40,7 @@ declare global {
       detach: () => void
       terminate: () => void
       // WS接続情報
-      sessionWsConfig: () => Promise<{ port: number; token?: string }>
+      sessionWsConfig: () => Promise<{ port: number; token?: string; devMode?: boolean }>
       // ファイル操作（IPC）
       fsRootName: () => Promise<string>
       fsList: (args: FsListArgs) => Promise<FsListResult>
@@ -528,7 +528,7 @@ function appendMessage(
   const text = rawText.replace(/\\n/g, "\n")
   const div = document.createElement("div")
   div.className = `message message-${actor}`
-  if (source && actor === "ai") {
+  if (devMode && source && actor === "ai") {
     div.classList.add(`source-${source}`)
   }
 
@@ -565,23 +565,29 @@ function appendMessage(
 
   const label = document.createElement("span")
   label.className = "label"
-  const channelTag = channel === "x" ? "x" : channel === "roblox" ? "roblox" : null
-  if (actor === "human" && source === "observation" && channelTag) {
-    label.textContent = `[${channelTag}]`
-  } else if (actor === "human" && source === "observation") {
-    label.textContent = "[roblox]"
-  } else if (actor === "human" && source === "pulse") {
-    label.textContent = "[pulse]"
-  } else if (actor === "human") {
-    label.textContent = userLabel
-  } else if (source === "pulse") {
-    label.textContent = `[pulse] ${avatarLabel}`
-  } else if (source === "observation" && channelTag) {
-    label.textContent = `[${channelTag}] ${avatarLabel}`
-  } else if (source === "observation") {
-    label.textContent = `[roblox] ${avatarLabel}`
+  if (devMode) {
+    // DEV_MODE: ソースタグ付きラベル
+    const channelTag = channel === "x" ? "x" : channel === "roblox" ? "roblox" : null
+    if (actor === "human" && source === "observation" && channelTag) {
+      label.textContent = `[${channelTag}]`
+    } else if (actor === "human" && source === "observation") {
+      label.textContent = "[roblox]"
+    } else if (actor === "human" && source === "pulse") {
+      label.textContent = "[pulse]"
+    } else if (actor === "human") {
+      label.textContent = userLabel
+    } else if (source === "pulse") {
+      label.textContent = `[pulse] ${avatarLabel}`
+    } else if (source === "observation" && channelTag) {
+      label.textContent = `[${channelTag}] ${avatarLabel}`
+    } else if (source === "observation") {
+      label.textContent = `[roblox] ${avatarLabel}`
+    } else {
+      label.textContent = avatarLabel
+    }
   } else {
-    label.textContent = avatarLabel
+    // 通常モード: actor名のみ
+    label.textContent = actor === "human" ? userLabel : avatarLabel
   }
   div.appendChild(label)
 
@@ -605,6 +611,7 @@ function appendMessage(
 // === セッション接続（WS経由） ===
 // sessionClientはモジュールスコープで保持（submitMessage等からアクセスするため）
 let sessionClient: SessionClient | null = null
+let devMode = false
 
 ;(async () => {
   try {
@@ -613,6 +620,8 @@ let sessionClient: SessionClient | null = null
 
   // 2. WS接続情報を取得して接続
   const wsConfig = await window.fieldApi.sessionWsConfig()
+  devMode = wsConfig.devMode ?? false
+  if (devMode) document.body.classList.add("dev-mode")
   // Electronモード（file://）: ws://localhost:PORT
   // ブラウザHTTP（ローカル）: ws://localhost:PORT
   // ブラウザHTTPS（トンネル経由）: wss://hostname（ポート不要、443経由）

@@ -13,6 +13,7 @@ export type ConsoleHttpOptions = {
   port: number
   token: string | undefined
   rendererDir: string // out/renderer/ のパス
+  devMode: boolean
 }
 
 export type ConsoleHttpServer = {
@@ -39,7 +40,7 @@ const MIME_TYPES: Record<string, string> = {
 
 // --- ポリフィル生成 ---
 
-function generatePolyfill(wsPort: number, wsToken: string | undefined): string {
+function generatePolyfill(wsPort: number, wsToken: string | undefined, devMode: boolean): string {
   const tokenStr = wsToken ? `"${wsToken}"` : "undefined"
   return `// field-api-polyfill: ブラウザ用window.fieldApiスタブ
 // Electron preloadの代替。FS/Terminal系はブラウザでは未対応
@@ -48,7 +49,7 @@ window.fieldApi = {
   detach: function() {},
   terminate: function() {},
   sessionWsConfig: function() {
-    return Promise.resolve({ port: ${wsPort}, token: ${tokenStr} });
+    return Promise.resolve({ port: ${wsPort}, token: ${tokenStr}, devMode: ${devMode} });
   },
   fsRootName: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
   fsList: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
@@ -92,10 +93,10 @@ function extractHttpToken(req: IncomingMessage): string | null {
 // --- サーバー作成 ---
 
 export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHttpServer {
-  const { port, token, rendererDir } = options
+  const { port, token, rendererDir, devMode } = options
 
   // ポリフィルJSを事前生成
-  const polyfillJs = generatePolyfill(port, token)
+  const polyfillJs = generatePolyfill(port, token, devMode)
 
   // index.htmlをポリフィル付きで変換（キャッシュ）
   let cachedIndexHtml: string | null = null

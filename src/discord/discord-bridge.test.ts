@@ -30,7 +30,7 @@ describe("discord-message-renderer", () => {
       expect(result).toBe("応答テスト")
     })
 
-    it("pulse sourceタグ付き", () => {
+    it("pulse sourceでもタグなし", () => {
       const payload: StreamItemPayload = {
         actor: "ai",
         correlationId: "test-3",
@@ -40,7 +40,7 @@ describe("discord-message-renderer", () => {
         toolCalls: [],
       }
       const result = renderStreamItem(payload)
-      expect(result).toBe("[pulse] Pulse応答")
+      expect(result).toBe("Pulse応答")
     })
 
     it("displayTextが優先される", () => {

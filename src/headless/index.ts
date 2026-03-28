@@ -61,6 +61,7 @@ async function main(): Promise<void> {
     port: config.sessionWsPort,
     token: config.sessionWsToken,
     rendererDir,
+    devMode: config.devMode,
   })
 
   sessionWs = createSessionWsServer({

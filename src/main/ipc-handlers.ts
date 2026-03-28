@@ -65,6 +65,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     return {
       port: config.sessionWsPort,
       token: config.sessionWsToken,
+      devMode: config.devMode,
     }
   })
 
