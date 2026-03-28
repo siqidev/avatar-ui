@@ -119,9 +119,11 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     // ポリフィルスクリプトタグ挿入（theme-init.jsの直後）
     // ビルド出力のパスは "./theme-init.js" または "/theme-init.js" の可能性がある
+    // キャッシュバスター: 起動ごとにURLが変わるのでCDNキャッシュを回避
+    const cacheBuster = Date.now()
     html = html.replace(
       /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u,
-      '$1\n  <script src="./field-api-polyfill.js"></script>',
+      `$1\n  <script src="./field-api-polyfill.js?v=${cacheBuster}"></script>`,
     )
 
     cachedIndexHtml = html
