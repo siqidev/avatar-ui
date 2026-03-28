@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.5.0 — Server/Client Separation (2026-03-28)
+
+### Headless server
+
+- **Server/client architecture** — FieldRuntime/FSM/services decoupled from Electron. Runs as a standalone Node.js process (`npm start`)
+- **Headless entry point** (`src/headless/index.ts`) — Runtime + WS + HTTP + Discord + cloudflared in a single command
+- **Console UI browser delivery** (`console-http-server.ts`) — Static file HTTP serving from `out/renderer/` + `window.fieldApi` polyfill injection + CSP rewrite
+- **HTTP + WebSocket on single port** (SESSION_WS_PORT) — Unified connection endpoint
+- **Token authentication** (SESSION_WS_TOKEN) — Shared across HTTP (Cookie) and WS
+- **WS ping/pong** (30s interval) — Detects and closes half-open connections
+- **Client auto-reconnect** — Exponential backoff (3s → 60s) with automatic `wss://` upgrade for tunnel access
+- **Polyfill cache busting** — `Cache-Control: no-cache` + cache buster query parameter (Cloudflare CDN workaround)
+
+### Approval hub
+
+- **Approval hub** (`approval-hub.ts`) — Multiple approvers (Console WS, Discord), first-response-wins
+- **Discord bridge** (`discord-bridge.ts`) — Stream subscription + approval response via Discord buttons
+
+### XPulse
+
+- **XPulse** — Dedicated periodic Pulse for X posts (`XPULSE_CRON`, default: `0 5,9 * * *` = JST 14:00/18:00)
+- **Duplicate prevention** — Recent post history injection + text response suppression
+
+### UI improvements
+
+- **Pulse/XPulse human-side stream.item removed** — Only AI responses shown (cleaner Stream pane)
+- **Source tags** (`[pulse]`/`[roblox]` etc.) — Now DEV_MODE-only display
+- **spectra> label color** — Changed from grey to emerald green (state-ok)
+- **PULSE_CRON default** — Changed to `0 6 * * *` (once daily, JST 15:00)
+
+### Other
+
+- **Event bus architecture** — FieldRuntime callback → pub/sub event bus (`session-event-bus.ts`)
+- **Session WS migration** — All session communication (stream/monitor/approval/state) moved from Electron IPC to WebSocket
+- **Runtime module extraction** — `src/runtime/` for Electron-independent infrastructure
+- **Discord module** — `src/discord/` for Discord bridge lifecycle
+
+### Testing
+
+- 369 tests (38 test files), up from 313 tests (33 files) in v0.4.0
+
 ## v0.3.1 — Observation Pipeline + Avatar Motion (2026-03-14)
 
 ### Observation pipeline

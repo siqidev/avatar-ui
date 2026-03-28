@@ -1,7 +1,10 @@
+import { constants as fsConstants } from "node:fs"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { getConfig } from "../config.js"
 import type {
+  FsImportFileArgs,
+  FsImportFileResult,
   FsListArgs,
   FsListResult,
   FsReadArgs,
@@ -104,6 +107,33 @@ export async function fsWrite(args: FsWriteArgs): Promise<FsWriteResult> {
   return { path: args.path, bytes: stat.size, mtimeMs: stat.mtimeMs }
 }
 
+export async function fsImportFile(args: FsImportFileArgs): Promise<FsImportFileResult> {
+  if (!path.isAbsolute(args.sourcePath)) {
+    throw new Error(`インポート元は絶対パスで指定してください: ${args.sourcePath}`)
+  }
+
+  const sourcePath = path.resolve(args.sourcePath)
+  const sourceStat = await fs.stat(sourcePath)
+  if (!sourceStat.isFile()) {
+    throw new Error(`インポート元はファイルである必要があります: ${args.sourcePath}`)
+  }
+
+  const resolvedDest = await assertInAvatarSpace(args.destPath)
+  await fs.mkdir(path.dirname(resolvedDest), { recursive: true })
+
+  try {
+    await fs.copyFile(sourcePath, resolvedDest, fsConstants.COPYFILE_EXCL)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`同名ファイルが既に存在します: ${args.destPath}`)
+    }
+    throw e
+  }
+
+  const stat = await fs.stat(resolvedDest)
+  return { path: args.destPath, bytes: stat.size, mtimeMs: stat.mtimeMs }
+}
+
 export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
   switch (args.op) {
     case "delete": {
@@ -122,6 +152,13 @@ export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
       const resolved = await assertInAvatarSpace(args.path)
       await fs.mkdir(resolved, { recursive: true })
       return { message: `ディレクトリを作成しました: ${args.path}` }
+    }
+    case "copy": {
+      const resolvedFrom = await assertInAvatarSpace(args.path)
+      const resolvedTo = await assertInAvatarSpace(args.destPath)
+      await fs.mkdir(path.dirname(resolvedTo), { recursive: true })
+      await fs.cp(resolvedFrom, resolvedTo, { recursive: true })
+      return { message: `コピーしました: ${args.path} → ${args.destPath}` }
     }
   }
 }

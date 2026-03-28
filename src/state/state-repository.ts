@@ -13,8 +13,17 @@ export type PersistedToolCall = {
 export type PersistedMessage = {
   actor: "human" | "ai"
   text: string
-  source?: "user" | "pulse" | "observation"
+  source?: "user" | "pulse" | "xpulse" | "observation"
+  channel?: "console" | "roblox" | "x"
   toolCalls?: PersistedToolCall[]
+}
+
+// --- Monitor履歴型（UI再描画専用、会話文脈には使わない） ---
+
+export type PersistedMonitorEvent = {
+  eventType: string
+  formatted: string
+  timestamp: string // ISO8601
 }
 
 // --- State型: 場側 + 参与者側を概念分離（接続契約に準拠） ---
@@ -22,6 +31,8 @@ export type PersistedMessage = {
 export type FieldPersistence = {
   state: string // FieldState。"generated" | "active" | "paused" | "resumed" | "terminated"
   messageHistory: PersistedMessage[]
+  observationHistory: PersistedMonitorEvent[]
+  xEventHistory: PersistedMonitorEvent[]
 }
 
 export type ParticipantPersistence = {
@@ -41,6 +52,8 @@ const CURRENT_SCHEMA_VERSION = 1
 const MAX_HISTORY_ENTRIES = 120
 const MAX_MESSAGE_CHARS = 4000
 const MAX_TOOL_RESULT_CHARS = 800
+const MAX_MONITOR_ENTRIES = 50
+const MAX_MONITOR_FORMATTED_CHARS = 500
 
 // --- デフォルト状態 ---
 
@@ -50,6 +63,8 @@ export function defaultState(): State {
     field: {
       state: "generated",
       messageHistory: [],
+      observationHistory: [],
+      xEventHistory: [],
     },
     participant: {
       lastResponseId: null,
@@ -87,6 +102,8 @@ function parseStateFile(filePath: string): State {
       field: {
         state: typeof field?.state === "string" ? field.state : "generated",
         messageHistory: Array.isArray(field?.messageHistory) ? field.messageHistory as PersistedMessage[] : [],
+        observationHistory: Array.isArray(field?.observationHistory) ? field.observationHistory as PersistedMonitorEvent[] : [],
+        xEventHistory: Array.isArray(field?.xEventHistory) ? field.xEventHistory as PersistedMonitorEvent[] : [],
       },
       participant: {
         lastResponseId: typeof participant?.lastResponseId === "string" ? participant.lastResponseId : null,
@@ -188,6 +205,27 @@ export function pushMessage(
 
   // 件数上限
   while (history.length > MAX_HISTORY_ENTRIES) {
+    history.shift()
+  }
+}
+
+// --- Monitor履歴のヘルパー ---
+
+export function pushMonitorEvent(
+  history: PersistedMonitorEvent[],
+  event: PersistedMonitorEvent,
+): void {
+  const trimmedFormatted = event.formatted.length > MAX_MONITOR_FORMATTED_CHARS
+    ? event.formatted.substring(0, MAX_MONITOR_FORMATTED_CHARS)
+    : event.formatted
+
+  history.push({
+    eventType: event.eventType,
+    formatted: trimmedFormatted,
+    timestamp: event.timestamp,
+  })
+
+  while (history.length > MAX_MONITOR_ENTRIES) {
     history.shift()
   }
 }

@@ -38,8 +38,10 @@ export type ToMainMessage = z.infer<typeof toMainSchema>
 
 // --- Main → Renderer ---
 
-export const sourceSchema = z.enum(["user", "pulse", "observation"])
+export const sourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
 export type Source = z.infer<typeof sourceSchema>
+
+export const channelIdSchema = z.enum(["console", "roblox", "x"])
 
 export const toolCallIpcSchema = z.object({
   name: z.string(),
@@ -53,7 +55,14 @@ export const streamReplySchema = z.object({
   correlationId: z.string().min(1),
   text: z.string(),
   source: sourceSchema,
+  channel: channelIdSchema.default("console"),
   toolCalls: z.array(toolCallIpcSchema).default([]),
+})
+
+export const monitorEventIpcSchema = z.object({
+  eventType: z.string(),
+  formatted: z.string(),
+  timestamp: z.string(),
 })
 
 export const fieldStateSchema = z.object({
@@ -65,8 +74,11 @@ export const fieldStateSchema = z.object({
     actor: actorSchema,
     text: z.string(),
     source: sourceSchema.optional(),
+    channel: channelIdSchema.optional(),
     toolCalls: z.array(toolCallIpcSchema).optional(),
   })).optional(),
+  lastObservations: z.array(monitorEventIpcSchema).optional(),
+  lastXEvents: z.array(monitorEventIpcSchema).optional(),
 })
 
 // 健全性管理: AlertCode（不変条件と対応づけた検知コード）
@@ -94,12 +106,21 @@ export const observationEventIpcSchema = z.object({
   timestamp: z.string(),
 })
 
+export const xEventIpcSchema = z.object({
+  type: z.literal("x.event"),
+  eventType: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  formatted: z.string(),
+  timestamp: z.string(),
+})
+
 // Main → Renderer の全メッセージ
 export const toRendererSchema = z.discriminatedUnion("type", [
   streamReplySchema,
   fieldStateSchema,
   integrityAlertSchema,
   observationEventIpcSchema,
+  xEventIpcSchema,
 ])
 
 export type ToRendererMessage = z.infer<typeof toRendererSchema>

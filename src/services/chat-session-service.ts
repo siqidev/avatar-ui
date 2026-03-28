@@ -6,8 +6,10 @@ import type {
 } from "openai/resources/responses/responses"
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import type { Source } from "../shared/ipc-schema.js"
-import { getConfig, isCollectionsEnabled, isRobloxEnabled } from "../config.js"
-import { getSettings } from "../main/settings-store.js"
+import type { ChannelId } from "../shared/channel.js"
+import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled } from "../config.js"
+import { getAllowedTools, isToolAllowed } from "./input-gate.js"
+import { getSettings } from "../runtime/settings-store.js"
 import { saveMemoryToolDef } from "../tools/save-memory-tool.js"
 import {
   robloxActionToolDef,
@@ -20,23 +22,24 @@ import {
   fsMutateToolDef,
 } from "../tools/filesystem-tool.js"
 import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
-import { requestApproval } from "../main/tool-approval-service.js"
+import { xPostToolDef, xPostArgsSchema } from "../tools/x-post-tool.js"
+import { xReplyToolDef, xReplyArgsSchema } from "../tools/x-reply-tool.js"
+import { createPost, createReply } from "../x/x-api-repository.js"
+import { requestApproval } from "../runtime/tool-approval-service.js"
 import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
-  execCommand,
-  waitForExit,
-  getCommandOutput,
+  execAiCommand,
+  isAiBusy,
+  getScrollback,
   getSnapshot,
-  getCwd,
-  isBusy,
-} from "../main/terminal-service.js"
+} from "../runtime/terminal-service.js"
 import {
   fsListArgsSchema,
   fsReadArgsSchema,
   fsWriteArgsSchema,
   fsMutateArgsSchema,
 } from "../shared/fs-schema.js"
-import { fsList, fsRead, fsWrite, fsMutate } from "../main/filesystem-service.js"
+import { fsList, fsRead, fsWrite, fsMutate } from "../runtime/filesystem-service.js"
 import {
   saveMemoryArgsSchema,
   createMemoryRecord,
@@ -139,14 +142,15 @@ const API_CALL_TIMEOUT_MS = 20_000
 const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as const
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
-// source: 入力の出自（意味論識別用。ツール可否の分岐には使用しない）
+// source/channel: InputGateでツール権限を制御
 export async function sendMessage(
   client: OpenAI,
   state: State,
   beingPrompt: string,
   userInput: string,
   forceSystemPrompt = false,
-  _source?: Source,
+  source: Source = "user",
+  channel: ChannelId = "console",
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
@@ -162,7 +166,7 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(config)
+  const tools = buildTools(config, source, channel)
 
   let response: Response
   try {
@@ -214,6 +218,22 @@ export async function sendMessage(
       log.info(`[TOOL_CALL] ${call.name}: ${call.args}`)
       const parsedArgs = JSON.parse(call.args) as Record<string, unknown>
 
+      // InputGate: 入力文脈で許可されていないツールはreject（二重防御の2段目）
+      if (!isToolAllowed(call.name, source, channel)) {
+        const gateResult = JSON.stringify({
+          status: "denied",
+          message: `このツールは${channel}チャネルの${source}入力からは使用できません`,
+        })
+        log.info(`[INPUT_GATE] ${call.name} 拒否: source=${source} channel=${channel}`)
+        allToolCalls.push({ name: call.name, args: parsedArgs, result: gateResult })
+        toolResults.push({
+          type: "function_call_output",
+          call_id: call.callId,
+          output: gateResult,
+        } as ResponseInput[number])
+        continue
+      }
+
       // 承認ゲート: auto-approveリスト外のツールはユーザー承認を待つ
       const approval = await requestApproval(call.name as ToolName, parsedArgs)
       let result: string
@@ -260,28 +280,36 @@ export async function sendMessage(
   }
 }
 
-// ツール定義を組み立てる
-function buildTools(config: import("../config.js").AppConfig): Tool[] {
-  const tools: Tool[] = [
-    saveMemoryToolDef,
-    fsListToolDef,
-    fsReadToolDef,
-    fsWriteToolDef,
-    fsMutateToolDef,
+// ツール定義を組み立てる（InputGateで入力文脈に応じてフィルタリング）
+function buildTools(config: import("../config.js").AppConfig, source: Source, channel: ChannelId): Tool[] {
+  const allowed = getAllowedTools(source, channel)
+
+  // 全ツール定義のマッピング（name → Tool）
+  const allTools: Array<{ name: string; def: Tool; condition: boolean }> = [
+    { name: "save_memory", def: saveMemoryToolDef, condition: true },
+    { name: "fs_list", def: fsListToolDef, condition: true },
+    { name: "fs_read", def: fsReadToolDef, condition: true },
+    { name: "fs_write", def: fsWriteToolDef, condition: true },
+    { name: "fs_mutate", def: fsMutateToolDef, condition: true },
+    { name: "terminal", def: terminalToolDef, condition: config.avatarShell },
+    { name: "roblox_action", def: robloxActionToolDef, condition: isRobloxEnabled(config) },
+    { name: "x_post", def: xPostToolDef, condition: isXEnabled(config) },
+    { name: "x_reply", def: xReplyToolDef, condition: isXEnabled(config) },
   ]
-  // AVATAR_SHELL=on の場合のみAIにterminalツールを提供
-  if (config.avatarShell) {
-    tools.push(terminalToolDef)
-  }
+
+  // InputGateで許可されたツールのみ追加
+  const tools: Tool[] = allTools
+    .filter((t) => t.condition && allowed.includes(t.name as import("../shared/tool-approval-schema.js").ToolName))
+    .map((t) => t.def)
+
+  // file_search（Grok内部ツール、InputGate対象外）
   if (isCollectionsEnabled(config) && config.xaiCollectionId) {
     tools.push({
       type: "file_search",
       vector_store_ids: [config.xaiCollectionId],
     } as Tool)
   }
-  if (isRobloxEnabled(config)) {
-    tools.push(robloxActionToolDef)
-  }
+
   return tools
 }
 
@@ -328,6 +356,12 @@ async function handleToolCall(
   }
   if (call.name === "terminal") {
     return handleTerminal(call.args)
+  }
+  if (call.name === "x_post") {
+    return handleXPost(call.args)
+  }
+  if (call.name === "x_reply") {
+    return handleXReply(call.args)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -484,51 +518,62 @@ async function handleTerminal(argsJson: string): Promise<string> {
 
   const { cmd, timeoutMs } = validation.data
 
-  // cmd省略: 直近のコマンド出力を取得
+  // cmd省略: 直近のターミナル出力を取得
   if (!cmd) {
     const snapshot = getSnapshot()
-    const output = getCommandOutput()
+    const scrollback = getScrollback()
     return JSON.stringify({
       status: "output",
-      busy: snapshot.busy,
-      cwd: snapshot.cwd,
-      lastCmd: snapshot.lastCmd ?? null,
-      lastExitCode: snapshot.lastExitCode ?? null,
-      output: output.lines,
-      truncated: output.truncated,
+      alive: snapshot.alive,
+      output: scrollback.lines,
+      truncated: scrollback.truncated,
     })
   }
 
-  // cmd指定: コマンド実行
-  if (isBusy()) {
+  // cmd指定: コマンド実行（共有PTYに書き込み、完了を待つ）
+  if (isAiBusy()) {
     return JSON.stringify({ status: "error", reason: "TERMINAL_BUSY" })
   }
 
-  const correlationId = crypto.randomUUID()
-  const execResult = execCommand({
-    actor: "ai",
-    correlationId,
-    cmd,
-    timeoutMs,
-  })
+  const result = await execAiCommand(cmd, timeoutMs)
 
-  if (!execResult.accepted) {
-    return JSON.stringify({ status: "error", reason: execResult.reason })
-  }
-
-  // 完了を待つ
-  const exitPromise = waitForExit()
-  if (exitPromise) await exitPromise
-
-  // 結果を返す
-  const snapshot = getSnapshot()
-  const output = getCommandOutput()
   return JSON.stringify({
     status: "executed",
     cmd,
-    exitCode: snapshot.lastExitCode ?? null,
-    cwd: snapshot.cwd,
-    output: output.lines,
-    truncated: output.truncated,
+    exitCode: result.exitCode,
+    output: result.output,
+    truncated: result.truncated,
   })
+}
+
+// x_postツールの実行
+async function handleXPost(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = xPostArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`x_post引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const result = await createPost(validation.data.text)
+  if (!result.success) {
+    throw new Error(`Xポスト作成失敗: ${result.error}`)
+  }
+
+  return JSON.stringify({ status: "posted", tweet_id: result.tweetId })
+}
+
+// x_replyツールの実行（X連携有効時に利用可能、TOOL_AUTO_APPROVEで自動実行を制御）
+async function handleXReply(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = xReplyArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`x_reply引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const result = await createReply(validation.data.text, validation.data.reply_to_tweet_id)
+  if (!result.success) {
+    throw new Error(`X返信作成失敗: ${result.error}`)
+  }
+
+  return JSON.stringify({ status: "replied", tweet_id: result.tweetId, reply_to: validation.data.reply_to_tweet_id })
 }

@@ -40,12 +40,22 @@ vi.mock("../../roblox/observation-formatter.js", () => ({
   formatObservation: vi.fn().mockReturnValue("[Chat] test: hello"),
 }))
 
+vi.mock("../../x/x-webhook-server.js", () => ({
+  startXWebhookServer: vi.fn().mockReturnValue({ close: vi.fn() }),
+}))
+
+vi.mock("../../x/x-event-formatter.js", () => ({
+  formatXEvent: vi.fn().mockReturnValue("[X] @user: hello"),
+  formatXEventForAI: vi.fn().mockReturnValue("[X_MENTION] @user: hello"),
+}))
+
+vi.mock("../../x/x-forwarding-policy.js", () => ({
+  shouldForwardXEventToAI: vi.fn().mockReturnValue(true),
+}))
+
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
   })),
 }))
 
@@ -64,6 +74,7 @@ describe("S3: 往復連接性", () => {
   let fire: (channel: string, ...args: unknown[]) => unknown
   let mockSendMessage: Mock
   let tempDir: string
+  let ipcHandlers: typeof import("../ipc-handlers.js")
 
   beforeEach(async () => {
     vi.resetModules()
@@ -86,11 +97,11 @@ describe("S3: 往復連接性", () => {
       stateFile: path.join(tempDir, "state.json"),
     })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
 
     const electron = await import("electron")
-    const ipcHandlers = await import("../ipc-handlers.js")
+    ipcHandlers = await import("../ipc-handlers.js")
     const chatService = await import("../../services/chat-session-service.js")
 
     mockSendMessage = vi.mocked(chatService.sendMessage)
@@ -98,7 +109,7 @@ describe("S3: 往復連接性", () => {
     const mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
 
     // 場をactiveにする
     fire("channel.attach")
@@ -107,15 +118,6 @@ describe("S3: 往復連接性", () => {
   afterEach(() => {
     cleanupTempDataDir()
   })
-
-  function makeStreamPost(id: string, text: string) {
-    return {
-      type: "stream.post",
-      actor: "human",
-      correlationId: id,
-      text,
-    }
-  }
 
   // --- 直列化: 同時2件 ---
 
@@ -148,9 +150,9 @@ describe("S3: 往復連接性", () => {
       })
     })
 
-    // 同時に2件投入
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
-    fire("stream.post", makeStreamPost("id-2", "テスト2"))
+    // 同時に2件投入（fire-and-forget: Promiseをawaitしない）
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
+    ipcHandlers.handleStreamPost("テスト2", "id-2", "human")
 
     // 1件目が開始されるのを待つ
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -183,17 +185,17 @@ describe("S3: 往復連接性", () => {
     })
 
     // 1件目を投入（実行開始、await中）
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // 2件目を投入（キュー待ち）
     // processStreamが返すPromiseをキャプチャ（stream.postハンドラはfire-and-forget）
     // 代わりにfield-runtimeのprocessStreamを直接呼ぶ
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
     const pendingPromise = fieldRuntime.processStream("テスト2")
 
     // 凍結する
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // 1件目を完了（キューが2件目に移る→凍結チェック→スキップ→reject）
@@ -220,9 +222,9 @@ describe("S3: 往復連接性", () => {
       toolCalls: [],
     })
 
-    // 同時に2件投入
-    fire("stream.post", makeStreamPost("id-1", "テスト1"))
-    fire("stream.post", makeStreamPost("id-2", "テスト2"))
+    // 同時に2件投入（fire-and-forget）
+    ipcHandlers.handleStreamPost("テスト1", "id-1", "human")
+    ipcHandlers.handleStreamPost("テスト2", "id-2", "human")
 
     await new Promise(resolve => setTimeout(resolve, 20))
 
@@ -230,7 +232,7 @@ describe("S3: 往復連接性", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(2)
 
     // 凍結はしていない（warnはfreezeしない）
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     expect(integrity.isFrozen()).toBe(false)
   })
 
@@ -238,11 +240,11 @@ describe("S3: 往復連接性", () => {
 
   it("凍結時スキップ: 凍結後のstream.postはenqueueされない", async () => {
     // 先に凍結する
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
 
     // stream.postを発火
-    fire("stream.post", makeStreamPost("id-frozen", "凍結中テスト"))
+    ipcHandlers.handleStreamPost("凍結中テスト", "id-frozen", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
 
     // ipc-handlers側のisFrozen()ガードで弾かれるため、sendMessageは呼ばれない
@@ -290,7 +292,7 @@ describe("S3: 往復連接性", () => {
     expect(callOrder).toEqual(["pulse-start"]) // Pulseが実行中
 
     // Pulse実行中にstream.postを投入
-    fire("stream.post", makeStreamPost("id-user", "ユーザー入力"))
+    ipcHandlers.handleStreamPost("ユーザー入力", "id-user", "human")
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(callOrder).toEqual(["pulse-start"]) // まだPulse実行中、userは待ち
 

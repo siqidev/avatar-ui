@@ -1,6 +1,5 @@
 [
-  { "msg": "do you know where you are right now?", "postDelay": 5 },
-  { "msg": "scan the area", "postDelay": 7 },
-  { "msg": "come to me", "postDelay": 6 },
-  { "msg": "remember this moment" }
+  { "msg": "ターミナルで今日の東京の天気調べて", "postDelay": 5 },
+  { "msg": "その天気をもとに今日の日記を書いてSpaceに保存して", "postDelay": 8 },
+  { "msg": "日記の要約をXにポストして", "postDelay": 3 }
 ]

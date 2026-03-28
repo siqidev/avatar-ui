@@ -14,7 +14,10 @@ export const fsListToolDef: Tool = {
     properties: {
       path: {
         type: "string",
-        description: "一覧表示するディレクトリのパス（Avatar Spaceルートからの相対パス。ルートは '.'）",
+        description:
+          "一覧表示するディレクトリのパス（Avatar Spaceルートからの相対パス。ルートは '.'）。" +
+          "例: ルート直下のtechフォルダなら 'tech'、その中のファイルなら 'tech/file.md'。" +
+          "パスにAvatar Spaceルート自体の名前（'space'等）を含めないこと。",
       },
     },
   },
@@ -35,7 +38,9 @@ export const fsReadToolDef: Tool = {
     properties: {
       path: {
         type: "string",
-        description: "読み取るファイルのパス（Avatar Spaceルートからの相対パス）",
+        description:
+          "読み取るファイルのパス（Avatar Spaceルートからの相対パス）。" +
+          "例: 'tech/ai-compute-scaling.md'。ルート名自体は含めない。",
       },
       offset: {
         type: "number",

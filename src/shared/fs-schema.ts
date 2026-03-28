@@ -60,6 +60,23 @@ export const fsWriteResultSchema = z.object({
 
 export type FsWriteResult = z.infer<typeof fsWriteResultSchema>
 
+// --- fs.importFile ---
+
+export const fsImportFileArgsSchema = z.object({
+  sourcePath: z.string().min(1),
+  destPath: z.string().min(1),
+})
+
+export type FsImportFileArgs = z.infer<typeof fsImportFileArgsSchema>
+
+export const fsImportFileResultSchema = z.object({
+  path: z.string(),
+  bytes: z.number(),
+  mtimeMs: z.number(),
+})
+
+export type FsImportFileResult = z.infer<typeof fsImportFileResultSchema>
+
 // --- fs.mutate ---
 
 export const fsMutateDeleteSchema = z.object({
@@ -78,10 +95,17 @@ export const fsMutateMkdirSchema = z.object({
   path: z.string().min(1),
 })
 
+export const fsMutateCopySchema = z.object({
+  op: z.literal("copy"),
+  path: z.string().min(1),
+  destPath: z.string().min(1),
+})
+
 export const fsMutateArgsSchema = z.discriminatedUnion("op", [
   fsMutateDeleteSchema,
   fsMutateRenameSchema,
   fsMutateMkdirSchema,
+  fsMutateCopySchema,
 ])
 
 export type FsMutateArgs = z.infer<typeof fsMutateArgsSchema>
@@ -98,5 +122,6 @@ export const FS_CHANNELS = {
   list: "fs.list",
   read: "fs.read",
   write: "fs.write",
+  importFile: "fs.importFile",
   mutate: "fs.mutate",
 } as const

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import * as fs from "node:fs"
-import { loadState, saveState, defaultState, pushMessage } from "./state-repository.js"
-import type { PersistedMessage } from "./state-repository.js"
+import { loadState, saveState, defaultState, pushMessage, pushMonitorEvent } from "./state-repository.js"
+import type { PersistedMessage, PersistedMonitorEvent } from "./state-repository.js"
 import { _resetConfigForTest } from "../config.js"
 
 const TEST_DATA_DIR = "data-test-state"
@@ -168,6 +168,32 @@ describe("state-repository", () => {
       expect(history[0].source).toBe("pulse")
       expect(history[0].toolCalls).toHaveLength(1)
       expect(history[0].toolCalls![0].args).toEqual({ text: "記憶内容", importance: 0.7 })
+    })
+  })
+
+  describe("pushMonitorEvent", () => {
+    it("イベントを追加できる", () => {
+      const history: PersistedMonitorEvent[] = []
+      pushMonitorEvent(history, { eventType: "chat", formatted: "[Chat] test", timestamp: "2026-03-17T10:00:00Z" })
+      expect(history).toHaveLength(1)
+      expect(history[0].eventType).toBe("chat")
+      expect(history[0].formatted).toBe("[Chat] test")
+      expect(history[0].timestamp).toBe("2026-03-17T10:00:00Z")
+    })
+
+    it("長すぎるformattedを切り詰める（500文字上限）", () => {
+      const history: PersistedMonitorEvent[] = []
+      pushMonitorEvent(history, { eventType: "chat", formatted: "x".repeat(600), timestamp: "2026-03-17T10:00:00Z" })
+      expect(history[0].formatted).toHaveLength(500)
+    })
+
+    it("50件を超えると古いものから削除される", () => {
+      const history: PersistedMonitorEvent[] = []
+      for (let i = 0; i < 60; i++) {
+        pushMonitorEvent(history, { eventType: "chat", formatted: `msg_${i}`, timestamp: `2026-03-17T10:${String(i).padStart(2, "0")}:00Z` })
+      }
+      expect(history).toHaveLength(50)
+      expect(history[0].formatted).toBe("msg_10")
     })
   })
 })
