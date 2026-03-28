@@ -69,6 +69,9 @@ v0.4.0（Xチャネル統合）実装済み。Xペイン一級市民化、Monito
 | src/main/ipc-handlers.ts | IPC配線（orchestratorへのアダプタ） |
 | src/headless/index.ts | ヘッドレスエントリーポイント（Console UI HTTP配信+WS+Runtime統合起動） |
 | src/runtime/console-http-server.ts | Console UI HTTP配信（ブラウザ用ポリフィル注入） |
+| src/runtime/session-ws-server.ts | セッションWSサーバー（event bus→クライアント配信、ping/pong） |
+| src/runtime/approval-hub.ts | 承認ハブ（Console・Discord両対応、first-response-wins） |
+| src/discord/discord-bridge.ts | Discord窓口（stream購読+承認応答） |
 | src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |

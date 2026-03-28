@@ -55,7 +55,7 @@ const envSchema = z.object({
   DISCORD_CHANNEL_ID: z.string().min(1).optional(),
 
   // --- Pulse ---
-  PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
+  PULSE_CRON: z.string().min(1).default("0 6 * * *"),
   // --- XPulse（X投稿用Pulse） ---
   XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
 

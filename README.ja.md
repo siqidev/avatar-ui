@@ -97,11 +97,11 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
 | `USER_NAME` | | `User` | ユーザーの表示名 |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
-| `PULSE_CRON` | | `*/30 * * * *` | AI起点Pulseの発火間隔 |
+| `PULSE_CRON` | | `0 6 * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | `zsh` | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
-| `DEV_MODE` | | `off` | 開発者モード（`on` = 詳細ログ + Roblox Monitor全表示） |
+| `DEV_MODE` | | `off` | 開発者モード（on = 詳細ログ + ソースタグ表示 + Roblox Monitor全表示） |
 
 ### オプション: 長期記憶（Collections API）
 

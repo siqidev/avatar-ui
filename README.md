@@ -101,11 +101,11 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | Display name for the avatar |
 | `USER_NAME` | | `User` | Display name for the human |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
-| `PULSE_CRON` | | `*/30 * * * *` | AI-initiated pulse interval |
+| `PULSE_CRON` | | `0 6 * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | `zsh` | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
-| `DEV_MODE` | | `off` | Developer mode (`on` = verbose logs + full Roblox Monitor) |
+| `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
 
 ### Optional: Long-term memory (Collections API)
 
