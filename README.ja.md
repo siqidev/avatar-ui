@@ -86,6 +86,10 @@ cp PULSE.example.md PULSE.md
 ### 4. 起動
 
 ```bash
+# ヘッドレスモード（VPS / ローカル共通。ブラウザで http://localhost:3002 にアクセス）
+npm start
+
+# Electron GUIモード（ローカル開発向け）
 npm run dev
 ```
 
@@ -102,6 +106,9 @@ npm run dev
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
 | `DEV_MODE` | | `off` | 開発者モード（on = 詳細ログ + ソースタグ表示 + Roblox Monitor全表示） |
+| `SESSION_WS_PORT` | | `3002` | WebSocketサーバーポート（Console UI通信用） |
+| `SESSION_WS_TOKEN` | | — | WebSocket認証トークン（セキュリティ用、任意） |
+| `XPULSE_CRON` | | `0 5,9 * * *` | X投稿Pulseの発火間隔（cron形式、UTC。デフォルト = JST 14:00/18:00） |
 
 ### オプション: 長期記憶（Collections API）
 

@@ -106,6 +106,9 @@ npm run dev
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
 | `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
+| `SESSION_WS_PORT` | | `3002` | WebSocket server port (Console UI communication) |
+| `SESSION_WS_TOKEN` | | — | WebSocket authentication token (optional, for security) |
+| `XPULSE_CRON` | | `0 5,9 * * *` | X posting pulse interval (cron, UTC. Default = JST 14:00/18:00) |
 
 ### Optional: Long-term memory (Collections API)
 
