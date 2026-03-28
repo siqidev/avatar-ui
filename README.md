@@ -27,11 +27,13 @@
 
 A coexistence interface for physical beings and information beings.
 
-AVATAR UI (AUI) is a desktop application where an AI avatar and a human share a persistent "field" — maintaining continuous reciprocal interaction across sessions, across restarts, and across media (console + Roblox + X).
+AVATAR UI (AUI) is an application where an AI avatar and a human share a persistent "field" — maintaining continuous reciprocal interaction across sessions, across restarts, and across media (console + Roblox + X + Discord).
 
 ## Features
 
-- **Console UI** — 7-pane Electron interface (Avatar / Space / Canvas / X / Stream / Terminal / Roblox)
+- **Console UI** — 7-pane interface (Avatar / Space / Canvas / X / Stream / Terminal / Roblox)
+- **Headless mode** — Run as a server, access from any browser
+- **Discord integration** — Monitor conversations and approve tools remotely
 - **Avatar motion** — Pixel art avatar expression (idle motion + blink + lip-sync)
 - **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
@@ -128,7 +130,7 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_OBSERVATION_SECRET` | Auth token (must match Config.luau) |
 | `ROBLOX_OWNER_DISPLAY_NAME` | Owner display name for observation formatting |
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
-| `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed by Electron) |
+| `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed at startup) |
 
 ### Optional: Discord integration
 
@@ -176,7 +178,7 @@ A [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connectio
 4. Copy the tunnel token and set `CLOUDFLARED_TOKEN` in `.env`
 5. Set the tunnel URL in `roblox/modules/Config.luau` as `observationUrl`
 
-AVATAR UI automatically starts/stops `cloudflared` with the Electron app. No separate process needed.
+AVATAR UI automatically starts/stops `cloudflared` at startup. No separate process needed.
 
 ## Roblox Setup
 
@@ -248,22 +250,27 @@ Key concepts:
 - **Reciprocity loop** — Serialized queue ensuring human, Pulse, and observation inputs are processed in order
 - **Integrity management** — `warn()` for transient errors (continues), `report()` for contract violations (freezes)
 - **Session persistence** — `data/state.json` with atomic writes, 1-generation backup, and corruption recovery
+- **Execution modes** — Same FieldRuntime runs in both Electron and headless modes
 
 ## Project Structure
 
 ```
 src/
   config.ts           Environment → AppConfig (single source)
-  main/               Electron Main (FieldRuntime, IPC, services)
+  headless/           Headless entry point
+  main/               Electron Main (IPC, menu)
+  runtime/            Field logic (FieldRuntime, approval hub, WS, HTTP)
   preload/            contextBridge API
-  renderer/           7-pane UI
+  renderer/           7-pane UI + WS client
   services/           Grok Responses API client
-  roblox/             Roblox projector, observer, tool definitions
-  tools/              LLM tool definitions (fs, terminal, memory, roblox)
-  shared/             Zod schemas shared across processes
+  discord/            Discord gateway
+  roblox/             Roblox projector, observer
+  x/                  X API, webhook
+  tools/              LLM tool definitions (fs, terminal, memory, x)
+  shared/             Shared schemas
   state/              State persistence (state.json)
 roblox/               Luau scripts for Roblox Studio (Rojo-managed)
-docs/                 PROJECT.md, PLAN.md, architecture.md
+docs/                 PLAN.md, architecture.md
 ```
 
 ## Security
@@ -272,7 +279,8 @@ docs/                 PROJECT.md, PLAN.md, architecture.md
 
 | Principle | Description |
 |-----------|-------------|
-| **Single-user local** | Designed for single-user local operation |
+| **Single-user** | Designed for single-user operation (local or remote) |
+| **WS authentication** | `SESSION_WS_TOKEN` enables token auth for WebSocket connections |
 | **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard + symlink resolution) |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
