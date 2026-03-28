@@ -146,9 +146,9 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
       }
     }
 
-    // ポリフィルJS
+    // ポリフィルJS（設定値を含むためキャッシュ禁止）
     if (pathname === "/field-api-polyfill.js") {
-      res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" })
+      res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" })
       res.end(polyfillJs)
       return
     }
@@ -157,7 +157,7 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
     if (pathname === "/" || pathname === "/index.html") {
       try {
         const html = getIndexHtml()
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" })
         res.end(html)
       } catch (err) {
         res.writeHead(500, { "Content-Type": "text/plain" })
