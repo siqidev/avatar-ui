@@ -503,8 +503,11 @@ body {
 }
 
 .message .label {
-  color: var(--fg-dim);
   margin-right: 8px;
+}
+
+.message-ai .label {
+  color: var(--state-ok);
 }
 
 .message-human .label {
