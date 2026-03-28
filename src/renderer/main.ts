@@ -528,7 +528,7 @@ function appendMessage(
   const text = rawText.replace(/\\n/g, "\n")
   const div = document.createElement("div")
   div.className = `message message-${actor}`
-  if (devMode && source && actor === "ai") {
+  if (devMode && source) {
     div.classList.add(`source-${source}`)
   }
 
