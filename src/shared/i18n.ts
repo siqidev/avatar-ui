@@ -101,10 +101,6 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "memorySaved": { ja: "ローカルに保存しました", en: "Saved locally" },
   "intentProjected": { ja: "記録・投影完了", en: "Recorded and projected" },
 
-  // --- Main: ipc-handlers ---
-  "pulseCheck": { ja: "定期確認", en: "Pulse check" },
-  "xpulseCheck": { ja: "X投稿確認", en: "XPulse check" },
-
   // --- Main: observation-formatter ---
   "obs.chat": {
     ja: "[Roblox観測] {0}がRoblox内チャットで話しかけた: 「{1}」\nRoblox内で応答するにはroblox_actionのnpc sayを使うこと。",

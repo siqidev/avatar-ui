@@ -305,7 +305,6 @@ export function startPulse(): void {
         updateParticipantChain(state.participant.lastResponseId)
         if (!result.text.startsWith(config.pulseOkPrefix)) {
           log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
-          emitStreamItem("human", t("pulseCheck"), correlationId, "pulse", "console")
           emitStreamItem("ai", result.text, correlationId, "pulse", "console", result.toolCalls, result.displayText)
           publishXToolResults(result.toolCalls)
         } else {
@@ -382,7 +381,6 @@ export function startXpulse(): void {
           log.info("[XPULSE] 対応不要")
         } else if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
           log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
-          emitStreamItem("human", t("xpulseCheck"), correlationId, "xpulse", "x")
           emitStreamItem("ai", result.text, correlationId, "xpulse", "x", result.toolCalls, result.displayText)
           publishXToolResults(result.toolCalls)
         } else {

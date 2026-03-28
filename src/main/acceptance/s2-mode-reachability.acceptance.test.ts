@@ -214,13 +214,11 @@ describe("S2: モード可達性", () => {
     // sendMessageが呼ばれる（Pulse用）
     expect(mockSendMessage).toHaveBeenCalledOnce()
 
-    // stream.itemがsource="pulse"で発行される（human + aiの2件）
+    // stream.itemがsource="pulse"で発行される（ai応答のみ、human側は不要）
     const pulseStreams = streamItems().filter((p) => p.source === "pulse")
-    expect(pulseStreams.length).toBeGreaterThanOrEqual(2)
+    expect(pulseStreams).toHaveLength(1)
 
-    const humanPulse = pulseStreams.find((p) => p.actor === "human")
     const aiPulse = pulseStreams.find((p) => p.actor === "ai")
-    expect(humanPulse).toBeDefined()
     expect(aiPulse).toBeDefined()
     expect(aiPulse!.text).toBe("Pulse表示文")
   })
@@ -267,7 +265,7 @@ describe("S2: モード可達性", () => {
     await flushQueue()
 
     const pulseReply = streamItems().find(
-      (p) => p.source === "pulse" && p.actor === "human",
+      (p) => p.source === "pulse" && p.actor === "ai",
     )
     expect(pulseReply).toBeDefined()
     expect(pulseReply!.correlationId).toMatch(/^pulse-\d+$/)
