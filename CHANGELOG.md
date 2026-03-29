@@ -30,16 +30,23 @@
 - **spectra> label color** — Changed from grey to emerald green (state-ok)
 - **PULSE_CRON default** — Changed to `0 6 * * *` (once daily, JST 15:00)
 
+### Security
+
+- **InputGate role-based access control** — Owner identification per channel (Discord/Roblox/X). External users restricted to same-medium response tools only (hardcoded whitelist, not configurable via .env)
+- **Fail-closed design** — If owner ID env vars are unset, all input from that channel is treated as external
+- **New env vars** — `DISCORD_OWNER_ID`, `ROBLOX_OWNER_USER_ID`, `X_OWNER_USER_ID`
+
 ### Other
 
 - **Event bus architecture** — FieldRuntime callback → pub/sub event bus (`session-event-bus.ts`)
 - **Session WS migration** — All session communication (stream/monitor/approval/state) moved from Electron IPC to WebSocket
 - **Runtime module extraction** — `src/runtime/` for Electron-independent infrastructure
 - **Discord module** — `src/discord/` for Discord bridge lifecycle
+- **TERMINAL_SHELL auto-detect** — Default shell now detected from `$SHELL` instead of hardcoded `zsh` (Linux compatibility)
 
 ### Testing
 
-- 369 tests (38 test files), up from 313 tests (33 files) in v0.4.0
+- 390 tests (39 test files), up from 313 tests (33 files) in v0.4.0
 
 ## v0.3.1 — Observation Pipeline + Avatar Motion (2026-03-14)
 
