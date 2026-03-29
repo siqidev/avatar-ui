@@ -1,6 +1,6 @@
 import { z } from "zod/v4"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, basename } from "node:path"
 import { mkdirSync, existsSync } from "node:fs"
 import { TOOL_NAMES } from "./shared/tool-approval-schema.js"
 
@@ -65,7 +65,7 @@ const envSchema = z.object({
   XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
 
   // --- Terminal ---
-  TERMINAL_SHELL: z.string().min(1).default("zsh"),
+  TERMINAL_SHELL: z.string().min(1).default(basename(process.env.SHELL ?? "/bin/bash")),
   // AIのシェル実行権限（デフォルトoff: AIはterminalツールを使えない）
   AVATAR_SHELL: z
     .string()
