@@ -7,6 +7,7 @@ import type {
 import type { State, PersistedMessage } from "../state/state-repository.js"
 import type { Source } from "../shared/ipc-schema.js"
 import type { ChannelId } from "../shared/channel.js"
+import type { InputRole } from "./input-role-resolver.js"
 import { getConfig, isCollectionsEnabled, isRobloxEnabled, isXEnabled } from "../config.js"
 import { getAllowedTools, isToolAllowed } from "./input-gate.js"
 import { getSettings } from "../runtime/settings-store.js"
@@ -151,6 +152,7 @@ export async function sendMessage(
   forceSystemPrompt = false,
   source: Source = "user",
   channel: ChannelId = "console",
+  inputRole: InputRole = "owner",
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
@@ -166,7 +168,7 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(config, source, channel)
+  const tools = buildTools(config, source, channel, inputRole)
 
   let response: Response
   try {
@@ -219,12 +221,12 @@ export async function sendMessage(
       const parsedArgs = JSON.parse(call.args) as Record<string, unknown>
 
       // InputGate: 入力文脈で許可されていないツールはreject（二重防御の2段目）
-      if (!isToolAllowed(call.name, source, channel)) {
+      if (!isToolAllowed(call.name, source, channel, inputRole)) {
         const gateResult = JSON.stringify({
           status: "denied",
-          message: `このツールは${channel}チャネルの${source}入力からは使用できません`,
+          message: `このツールは${channel}チャネルの${source}入力（${inputRole}）からは使用できません`,
         })
-        log.info(`[INPUT_GATE] ${call.name} 拒否: source=${source} channel=${channel}`)
+        log.info(`[INPUT_GATE] ${call.name} 拒否: source=${source} channel=${channel} role=${inputRole}`)
         allToolCalls.push({ name: call.name, args: parsedArgs, result: gateResult })
         toolResults.push({
           type: "function_call_output",
@@ -281,8 +283,8 @@ export async function sendMessage(
 }
 
 // ツール定義を組み立てる（InputGateで入力文脈に応じてフィルタリング）
-function buildTools(config: import("../config.js").AppConfig, source: Source, channel: ChannelId): Tool[] {
-  const allowed = getAllowedTools(source, channel)
+function buildTools(config: import("../config.js").AppConfig, source: Source, channel: ChannelId, role: InputRole = "owner"): Tool[] {
+  const allowed = getAllowedTools(source, channel, role)
 
   // 全ツール定義のマッピング（name → Tool）
   const allTools: Array<{ name: string; def: Tool; condition: boolean }> = [

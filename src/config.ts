@@ -53,6 +53,11 @@ const envSchema = z.object({
   // --- Discord ---
   DISCORD_BOT_TOKEN: z.string().min(1).optional(),
   DISCORD_CHANNEL_ID: z.string().min(1).optional(),
+  DISCORD_OWNER_ID: z.string().regex(/^\d+$/, "DISCORD_OWNER_ID は数値で指定してください").optional(),
+
+  // --- オーナーID ---
+  ROBLOX_OWNER_USER_ID: z.string().regex(/^\d+$/, "ROBLOX_OWNER_USER_ID は数値で指定してください").optional(),
+  X_OWNER_USER_ID: z.string().regex(/^\d+$/, "X_OWNER_USER_ID は数値で指定してください").optional(),
 
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("0 6 * * *"),
@@ -144,6 +149,11 @@ export type AppConfig = {
   // Discord
   discordBotToken: string | undefined
   discordChannelId: string | undefined
+  discordOwnerId: string | undefined
+
+  // オーナーID（role判定用）
+  robloxOwnerUserId: string | undefined
+  xOwnerUserId: string | undefined
 
   // Terminal
   terminalShell: string
@@ -234,6 +244,11 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // Discord
     discordBotToken: env.DISCORD_BOT_TOKEN,
     discordChannelId: env.DISCORD_CHANNEL_ID,
+    discordOwnerId: env.DISCORD_OWNER_ID,
+
+    // オーナーID
+    robloxOwnerUserId: env.ROBLOX_OWNER_USER_ID,
+    xOwnerUserId: env.X_OWNER_USER_ID,
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,

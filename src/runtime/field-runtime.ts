@@ -3,6 +3,8 @@ import * as http from "node:http"
 import * as fs from "node:fs"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
+import { resolveRobloxRole, resolveXRole } from "../services/input-role-resolver.js"
+import type { InputRole } from "../services/input-role-resolver.js"
 import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage, pushMonitorEvent } from "../state/state-repository.js"
@@ -264,13 +266,13 @@ export function emitStreamItem(
 }
 
 // ストリームメッセージを処理する（stream.post → sendMessage → stream.reply）
-export function processStream(text: string, source: import("../shared/ipc-schema.js").Source = "user", channel: import("../shared/channel.js").ChannelId = "console"): Promise<SendMessageResult> {
+export function processStream(text: string, source: import("../shared/ipc-schema.js").Source = "user", channel: import("../shared/channel.js").ChannelId = "console", inputRole: InputRole = "owner"): Promise<SendMessageResult> {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
   return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const result = await sendMessage(client, state, beingPrompt, text, false, source, channel)
+        const result = await sendMessage(client, state, beingPrompt, text, false, source, channel, inputRole)
         // lastResponseIdはsendMessage内でstate.participant.lastResponseIdに更新済み
         updateParticipantChain(state.participant.lastResponseId)
         resolve(result)
@@ -475,11 +477,12 @@ export function startObservation(): void {
         return
       }
 
+      const robloxRole = resolveRobloxRole(event.payload.userId as string | number | undefined, config)
       enqueue(async () => {
         try {
           const aiInput = t("obs.aiPrefix", event.type, formatted)
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox")
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox", robloxRole)
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→OBSERVATION] (${correlationId}) ${result.text.substring(0, 100)}`)
           emitStreamItem("ai", result.text, correlationId, "observation", "roblox", result.toolCalls, result.displayText)
@@ -539,11 +542,12 @@ export function startXWebhook(): void {
         return
       }
 
+      const xRole = resolveXRole(event.userId, config)
       enqueue(async () => {
         try {
           const aiInput = formatXEventForAI(event)
           log.info(`[X→AI] (${correlationId}) ${formatted}`)
-          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x")
+          const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x", xRole)
           updateParticipantChain(state.participant.lastResponseId)
           log.info(`[AI→X] (${correlationId}) ${result.text.substring(0, 100)}`)
           emitStreamItem("ai", result.text, correlationId, "observation", "x", result.toolCalls, result.displayText)

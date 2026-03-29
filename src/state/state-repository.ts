@@ -1,6 +1,7 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { getConfig } from "../config.js"
+import type { ChannelId } from "../shared/channel.js"
 
 // --- 永続化メッセージ型（UI再同期 + チェーン断裂時の復旧素材） ---
 
@@ -14,7 +15,7 @@ export type PersistedMessage = {
   actor: "human" | "ai"
   text: string
   source?: "user" | "pulse" | "xpulse" | "observation"
-  channel?: "console" | "roblox" | "x"
+  channel?: ChannelId
   toolCalls?: PersistedToolCall[]
 }
 

@@ -129,6 +129,7 @@ Both `ROBLOX_API_KEY` and `ROBLOX_UNIVERSE_ID` must be set to enable.
 | `ROBLOX_UNIVERSE_ID` | Universe ID from game settings |
 | `ROBLOX_OBSERVATION_SECRET` | Auth token (must match Config.luau) |
 | `ROBLOX_OWNER_DISPLAY_NAME` | Owner display name for observation formatting |
+| `ROBLOX_OWNER_USER_ID` | Owner's Roblox UserID (numeric, for owner identification. Unset = all external) |
 | `ROBLOX_OBSERVATION_PORT` | Observation server port (default: `3000`) |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (auto-managed at startup) |
 
@@ -140,6 +141,7 @@ Both variables must be set to enable.
 |----------|-------------|
 | `DISCORD_BOT_TOKEN` | Discord Bot token ([Developer Portal](https://discord.com/developers/)) |
 | `DISCORD_CHANNEL_ID` | Text channel ID for Spectra's messages |
+| `DISCORD_OWNER_ID` | Owner's Discord user ID (numeric, for owner identification. Unset = all external) |
 
 The Discord bot mirrors stream messages and tool approval requests to the specified channel. Approval can be done via Discord buttons. Bot requires `Guilds` intent only.
 
@@ -155,6 +157,7 @@ All 5 OAuth tokens + `X_USER_ID` must be set to enable.
 | `X_ACCESS_TOKEN_SECRET` | OAuth 1.0a Access Token Secret |
 | `X_WEBHOOK_SECRET` | Webhook signature verification secret (= Consumer Secret) |
 | `X_USER_ID` | Your avatar's X user ID (for self-post filtering) |
+| `X_OWNER_USER_ID` | Owner's X user ID (numeric, for owner identification. Unset = all external) |
 | `X_WEBHOOK_PORT` | Webhook server port (default: `3001`) |
 
 #### X App setup
@@ -285,6 +288,7 @@ docs/                 PLAN.md, architecture.md
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
 | **AI shell off by default** | `AVATAR_SHELL=off` — AI cannot execute shell commands unless explicitly enabled |
+| **InputGate (role-based)** | Owner identification per channel — external users can only use same-medium response tools (hardcoded whitelist, not configurable via .env) |
 
 **Warning**: Setting `AVATAR_SHELL=on` grants the AI unrestricted shell access on your machine. The AI can execute any command, read any file, and modify your system. Only enable this if you understand and accept the risks. When enabled, API keys are removed from the AI's shell environment to prevent accidental exposure.
 
