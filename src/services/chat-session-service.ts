@@ -144,6 +144,7 @@ const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as cons
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 // source/channel: InputGateでツール権限を制御
+// chain: falseで会話チェーンを引き継がない（XPulse等の独立タスク用）
 export async function sendMessage(
   client: OpenAI,
   state: State,
@@ -153,11 +154,13 @@ export async function sendMessage(
   source: Source = "user",
   channel: ChannelId = "console",
   inputRole: InputRole = "owner",
+  options?: { chain?: boolean },
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
   const model = getSettings().model
-  const lastResponseId = state.participant.lastResponseId
+  const useChain = options?.chain !== false
+  const lastResponseId = useChain ? state.participant.lastResponseId : null
 
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput =
@@ -206,7 +209,7 @@ export async function sendMessage(
     }
   }
 
-  state.participant.lastResponseId = response.id
+  if (useChain) state.participant.lastResponseId = response.id
 
   // ツール呼び出しループ（Grokがツールを呼んだら処理して再送信）
   const allToolCalls: ToolCallInfo[] = []
@@ -270,7 +273,7 @@ export async function sendMessage(
       store: true,
       previous_response_id: response.id,
     }, API_CALL_OPTIONS)
-    state.participant.lastResponseId = response.id
+    if (useChain) state.participant.lastResponseId = response.id
   }
 
   const text = response.output_text ?? t("noResponse")

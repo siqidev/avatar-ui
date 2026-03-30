@@ -377,8 +377,8 @@ export function startXpulse(): void {
         const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
+          "owner", { chain: false },
         )
-        updateParticipantChain(state.participant.lastResponseId)
         if (result.text.startsWith(config.xpulseOkPrefix)) {
           log.info("[XPULSE] 対応不要")
         } else if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
