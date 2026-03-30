@@ -22,14 +22,22 @@ export function createWindowMock(): MockWindow {
 
 // --- ipcMain ハンドラ発火ヘルパー ---
 
-// registerIpcHandlers() が ipcMain.on() で登録したハンドラを channel名で発火する
-export function createFireHelper(ipcMainOnMock: Mock) {
+// registerIpcHandlers() が ipcMain.on/handle() で登録したハンドラを channel名で発火する
+export function createFireHelper(ipcMainOnMock: Mock, ipcMainHandleMock?: Mock) {
   return (channel: string, ...args: unknown[]): unknown => {
-    const call = ipcMainOnMock.mock.calls.find(
-      (c) => c[0] === channel,
-    )
-    if (!call) throw new Error(`ハンドラ未登録: ${channel}`)
-    return call[1]({ sender: {} }, ...args)
+    // ipcMain.on → fire-and-forget
+    let call = ipcMainOnMock.mock.calls.find((c) => c[0] === channel)
+    if (call) {
+      return call[1]({ sender: { id: 1, isDestroyed: () => false, once: vi.fn(), send: vi.fn() } }, ...args)
+    }
+    // ipcMain.handle → request-response
+    if (ipcMainHandleMock) {
+      call = ipcMainHandleMock.mock.calls.find((c) => c[0] === channel)
+      if (call) {
+        return call[1]({ sender: { id: 1, isDestroyed: () => false, once: vi.fn(), send: vi.fn() } }, ...args)
+      }
+    }
+    throw new Error(`ハンドラ未登録: ${channel}`)
   }
 }
 
@@ -54,6 +62,8 @@ export function mockDefaultState() {
     field: {
       state: "generated",
       messageHistory: [] as Array<{ actor: string; text: string; source?: string; toolCalls?: Array<{ name: string; result: string }> }>,
+      observationHistory: [] as Array<{ eventType: string; formatted: string; timestamp: string }>,
+      xEventHistory: [] as Array<{ eventType: string; formatted: string; timestamp: string }>,
     },
     participant: {
       lastResponseId: null as string | null,

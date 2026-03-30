@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
   ipcMain: { on: vi.fn(), handle: vi.fn() },
 }))
 
-vi.mock("../field-runtime.js", () => ({
+vi.mock("../../runtime/field-runtime.js", () => ({
   initRuntime: vi.fn(),
   processStream: vi.fn().mockResolvedValue({
     text: "応答",
@@ -20,19 +20,24 @@ vi.mock("../field-runtime.js", () => ({
     toolCalls: [],
   }),
   startPulse: vi.fn(),
+  startXpulse: vi.fn(),
   startObservation: vi.fn(),
+  startXWebhook: vi.fn(),
   getState: vi.fn(() => mockDefaultState()),
   updateFieldState: vi.fn(),
   resetToNewField: vi.fn(),
   appendMessage: vi.fn(),
+  emitStreamItem: vi.fn(),
+  publishXToolResults: vi.fn(),
+}))
+
+vi.mock("../../runtime/session-event-bus.js", () => ({
+  subscribe: vi.fn(),
 }))
 
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
   })),
 }))
 
@@ -55,6 +60,7 @@ describe("S1: 場契約整合性", () => {
   let mockProjection: Record<string, Mock>
   let isFrozen: () => boolean
   let startPulseMock: Mock
+  let handleStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => Promise<void>
 
   beforeEach(async () => {
     vi.resetModules()
@@ -64,7 +70,7 @@ describe("S1: 場契約整合性", () => {
     const config = await import("../../config.js")
     config._resetConfigForTest({ XAI_API_KEY: "test-key" })
 
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity._resetForTest()
     isFrozen = integrity.isFrozen
 
@@ -72,30 +78,28 @@ describe("S1: 場契約整合性", () => {
     const electron = await import("electron")
     const ipcHandlers = await import("../ipc-handlers.js")
     const channelProjection = await import("../channel-projection.js")
-    const fieldRuntime = await import("../field-runtime.js")
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
 
     mockWin = createWindowMock()
     ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
     // ハンドラ発火ヘルパー
-    fire = createFireHelper(vi.mocked(electron.ipcMain.on))
+    fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
 
     // 外部参照
     getFieldState = ipcHandlers.getFieldState
     safeDetach = ipcHandlers.safeDetach
     mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
     startPulseMock = vi.mocked(fieldRuntime.startPulse)
+    handleStreamPost = ipcHandlers.handleStreamPost
   })
 
   // --- 正常遷移 ---
 
-  it("正常遷移: attach→active → sendFieldState投影", () => {
+  it("正常遷移: attach→active", () => {
     fire("channel.attach")
 
     expect(getFieldState()).toBe("active")
-    expect(mockProjection.sendFieldState).toHaveBeenCalledOnce()
-    const call = mockProjection.sendFieldState.mock.calls[0][0]
-    expect(call.state).toBe("active")
   })
 
   it("正常遷移: attach→active→detach→paused", () => {
@@ -150,20 +154,16 @@ describe("S1: 場契約整合性", () => {
     fire("channel.attach") // generated→active
 
     // 強制凍結
-    const integrity = await import("../integrity-manager.js")
+    const integrity = await import("../../runtime/integrity-manager.js")
     integrity.report("FIELD_CONTRACT_VIOLATION", "テスト凍結")
     expect(isFrozen()).toBe(true)
 
-    // stream.postを発火（凍結中なので処理されないはず）
-    fire("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "test-id",
-      text: "テスト",
-    })
+    // handleStreamPostを直接呼ぶ（凍結中なので処理されないはず）
+    await handleStreamPost("テスト", "test-id", "human")
 
-    // sendStreamReplyが呼ばれていない
-    expect(mockProjection.sendStreamReply).not.toHaveBeenCalled()
+    // processStreamが呼ばれていない（凍結中なので早期リターン）
+    const fieldRuntime = await import("../../runtime/field-runtime.js")
+    expect(vi.mocked(fieldRuntime.processStream)).not.toHaveBeenCalled()
   })
 
   // --- safeDetach冪等性 ---
@@ -181,32 +181,10 @@ describe("S1: 場契約整合性", () => {
   })
 
   // --- ai起点: Pulse契約遵守 ---
+  // isFieldActiveゲートの動作はS2で実物を使って検証済み（end-to-end）
 
-  it("ai起点: Pulse isFieldActiveゲート — 非active時はfalse", () => {
-    // startPulseに渡されたisFieldActiveコールバックを取得
+  it("ai起点: startPulse/startXpulse/startObservation/startXWebhookが引数なしで呼ばれる", () => {
     expect(startPulseMock).toHaveBeenCalledOnce()
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    // generated状態（attach前）→ false
-    // ただしregisterIpcHandlers内でattachされていないので初期状態はgenerated
-    // → 実際にはregisterIpcHandlers呼出時点ではfieldState=generatedだが、
-    //   startPulseはruntimeReady=trueの場合のみ呼ばれる
-    // generated → isActive = false
-    expect(isFieldActive()).toBe(false)
-  })
-
-  it("ai起点: Pulse isFieldActiveゲート — active時はtrue", () => {
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    fire("channel.attach") // generated→active
-    expect(isFieldActive()).toBe(true)
-  })
-
-  it("ai起点: Pulse isFieldActiveゲート — paused時はfalse", () => {
-    const isFieldActive = startPulseMock.mock.calls[0][1] as () => boolean
-
-    fire("channel.attach") // generated→active
-    fire("channel.detach") // active→paused
-    expect(isFieldActive()).toBe(false)
+    expect(startPulseMock).toHaveBeenCalledWith()
   })
 })

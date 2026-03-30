@@ -36,16 +36,21 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "send": { ja: "送信", en: "Send" },
 
   // --- Renderer: Filesystem (filesystem-pane.ts) ---
-  "newFile": { ja: "新規ファイル", en: "New File" },
-  "newFolder": { ja: "新規フォルダ", en: "New Folder" },
-  "rename": { ja: "リネーム", en: "Rename" },
+  "newFile": { ja: "新しいファイル...", en: "New File..." },
+  "newFolder": { ja: "新しいフォルダー...", en: "New Folder..." },
+  "rename": { ja: "名前の変更", en: "Rename" },
   "delete": { ja: "削除", en: "Delete" },
+  "cut": { ja: "切り取り", en: "Cut" },
+  "copy": { ja: "コピー", en: "Copy" },
+  "paste": { ja: "貼り付け", en: "Paste" },
+  "copyPath": { ja: "パスのコピー", en: "Copy Path" },
+  "copyRelativePath": { ja: "相対パスのコピー", en: "Copy Relative Path" },
   "fileName": { ja: "ファイル名", en: "File name" },
   "folderName": { ja: "フォルダ名", en: "Folder name" },
   "newName": { ja: "新しい名前", en: "New name" },
   "loadError": { ja: "読み込みエラー", en: "Load error" },
   "operationError": { ja: "操作エラー", en: "Operation error" },
-  "renameError": { ja: "リネームエラー", en: "Rename error" },
+  "renameError": { ja: "名前の変更エラー", en: "Rename error" },
   "deleteError": { ja: "削除エラー", en: "Delete error" },
   "createError": { ja: "作成エラー", en: "Create error" },
 
@@ -95,9 +100,6 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "noResponse": { ja: "(応答なし)", en: "(no response)" },
   "memorySaved": { ja: "ローカルに保存しました", en: "Saved locally" },
   "intentProjected": { ja: "記録・投影完了", en: "Recorded and projected" },
-
-  // --- Main: ipc-handlers ---
-  "pulseCheck": { ja: "定期確認", en: "Pulse check" },
 
   // --- Main: observation-formatter ---
   "obs.chat": {

@@ -2,19 +2,26 @@ import "dotenv/config"
 import { app, BrowserWindow } from "electron"
 import { join } from "node:path"
 import { getConfig, ensureDirectories } from "../config.js"
-import { registerIpcHandlers, safeDetach } from "./ipc-handlers.js"
+import { registerIpcHandlers, safeDetach, getStateSnapshot, handleStreamPost } from "./ipc-handlers.js"
 import { registerFsIpcHandlers } from "./fs-ipc-handlers.js"
 import { registerTerminalIpcHandlers } from "./terminal-ipc-handlers.js"
-import { dispose as disposeTerminal } from "./terminal-service.js"
-import { stopRuntime } from "./field-runtime.js"
+import { spawnPty, dispose as disposeTerminal } from "../runtime/terminal-service.js"
+import { stopRuntime } from "../runtime/field-runtime.js"
+import { createSessionWsServer } from "../runtime/session-ws-server.js"
+import type { SessionWsServer } from "../runtime/session-ws-server.js"
 import { startTunnel, stopTunnel } from "./tunnel-manager.js"
-import { loadSettings, getSettings } from "./settings-store.js"
+import { isDiscordEnabled } from "../config.js"
+import { createDiscordBridge } from "../discord/discord-bridge.js"
+import type { DiscordBridge } from "../discord/discord-bridge.js"
+import { loadSettings, getSettings } from "../runtime/settings-store.js"
 import { setLocale } from "../shared/i18n.js"
 import { buildAppMenu } from "./menu.js"
 import { registerDemoIpcHandlers } from "./demo-ipc-handlers.js"
 import * as log from "../logger.js"
 
 let mainWindow: BrowserWindow | null = null
+let sessionWs: SessionWsServer | null = null
+let discordBridge: DiscordBridge | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -86,8 +93,28 @@ app.whenReady().then(() => {
   }
 
   registerIpcHandlers(() => mainWindow)
+
+  // セッションWebSocketサーバー起動（SESSION_WS_TOKEN設定時のみ認証有効）
+  sessionWs = createSessionWsServer({
+    port: config.sessionWsPort,
+    token: config.sessionWsToken,
+    getStateSnapshot,
+    onStreamPost: handleStreamPost,
+  })
+  sessionWs.start()
+
+  // Discord窓口起動（DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID 設定時のみ）
+  if (isDiscordEnabled(config)) {
+    discordBridge = createDiscordBridge(config)
+    discordBridge.start().catch((err) => {
+      log.error(`[DISCORD] 起動失敗: ${err instanceof Error ? err.message : String(err)}`)
+      discordBridge = null
+    })
+  }
+
   registerFsIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow)
+  spawnPty()
   registerDemoIpcHandlers(app.getAppPath())
   createWindow()
   log.info("[ELECTRON] ウィンドウ起動")
@@ -109,6 +136,10 @@ app.on("window-all-closed", () => {
 // アプリ終了時にクリーンアップ
 app.on("before-quit", () => {
   safeDetach()
+  void discordBridge?.stop()
+  discordBridge = null
+  sessionWs?.stop()
+  sessionWs = null
   disposeTerminal()
   stopTunnel()
   stopRuntime()

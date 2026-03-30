@@ -1,12 +1,13 @@
 import { ipcMain } from "electron"
 import {
   FS_CHANNELS,
+  fsImportFileArgsSchema,
   fsListArgsSchema,
   fsReadArgsSchema,
   fsWriteArgsSchema,
   fsMutateArgsSchema,
 } from "../shared/fs-schema.js"
-import { fsList, fsRead, fsWrite, fsMutate, fsRootName } from "./filesystem-service.js"
+import { fsImportFile, fsList, fsRead, fsWrite, fsMutate, fsRootName } from "../runtime/filesystem-service.js"
 import * as log from "../logger.js"
 
 /** FS系IPCハンドラを登録する */
@@ -38,6 +39,15 @@ export function registerFsIpcHandlers(): void {
     }
     log.info(`[FS] write: ${parsed.data.path}`)
     return fsWrite(parsed.data)
+  })
+
+  ipcMain.handle(FS_CHANNELS.importFile, async (_event, raw: unknown) => {
+    const parsed = fsImportFileArgsSchema.safeParse(raw)
+    if (!parsed.success) {
+      throw new Error(`fs.importFile バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
+    }
+    log.info(`[FS] importFile: ${parsed.data.sourcePath} -> ${parsed.data.destPath}`)
+    return fsImportFile(parsed.data)
   })
 
   ipcMain.handle(FS_CHANNELS.mutate, async (_event, raw: unknown) => {

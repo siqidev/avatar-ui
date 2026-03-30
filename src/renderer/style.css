@@ -276,6 +276,15 @@ body {
   background: var(--bg-pane-alt);
 }
 
+.fs-entry-row.drag-source {
+  opacity: 0.45;
+}
+
+.fs-entry-row.drag-target-valid {
+  background: color-mix(in srgb, var(--line-focus) 18%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--line-focus) 50%, transparent);
+}
+
 .fs-entry-row.selected {
   background: var(--line-default);
 }
@@ -314,6 +323,12 @@ body {
 .fs-error:empty {
   display: none;
 }
+
+#pane-space .pane-body.fs-drop-root-valid {
+  background: color-mix(in srgb, var(--line-focus) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-focus) 30%, transparent);
+}
+
 
 /* インライン入力フィールド（prompt代替） */
 .fs-inline-input {
@@ -373,6 +388,12 @@ body {
   color: var(--fg-main);
 }
 
+.fs-context-separator {
+  height: 1px;
+  background: var(--line-default);
+  margin: 4px 0;
+}
+
 /* === Avatarペイン === */
 .avatar-display {
   display: flex;
@@ -410,40 +431,24 @@ body {
 
 .canvas-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
-/* Canvas: ファイル表示（行番号付きモノスペース） */
-.canvas-code {
-  padding: 4px 0;
+/* Canvas: 未保存マーカー */
+.canvas-dirty-dot {
+  font-size: 0.6em;
+  vertical-align: middle;
 }
 
-.canvas-code-row {
-  display: flex;
-  line-height: var(--line-height);
-  font-size: var(--font-size);
+/* Canvas: CodeMirror エディタ */
+.canvas-content .cm-editor {
+  height: 100%;
 }
 
-.canvas-code-row:hover {
-  background: var(--bg-pane-alt);
-}
-
-.canvas-line-no {
-  box-sizing: content-box;
-  color: var(--fg-dim);
-  text-align: right;
-  padding: 0 12px 0 8px;
-  flex-shrink: 0;
-  width: 3ch;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.canvas-line-text {
-  color: var(--fg-main);
-  white-space: pre;
-  padding-right: 10px;
+.canvas-content .cm-scroller {
+  overflow: auto;
 }
 
 /* Canvas: 画像表示 */
@@ -498,8 +503,11 @@ body {
 }
 
 .message .label {
-  color: var(--fg-dim);
   margin-right: 8px;
+}
+
+.message-ai .label {
+  color: var(--state-ok);
 }
 
 .message-human .label {
@@ -824,7 +832,6 @@ body {
 
 /* hover: line-defaultで視認性を確保（bg-pane-altとの差が微小なため） */
 [data-theme="classic"] .fs-entry-row:hover,
-[data-theme="classic"] .canvas-code-row:hover,
 [data-theme="classic"] .observation-entry:hover {
   background: var(--line-default);
 }

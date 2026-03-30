@@ -1,6 +1,6 @@
 import { z } from "zod/v4"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, basename } from "node:path"
 import { mkdirSync, existsSync } from "node:fs"
 import { TOOL_NAMES } from "./shared/tool-approval-schema.js"
 
@@ -14,6 +14,12 @@ const envSchema = z.object({
   ROBLOX_UNIVERSE_ID: z.string().min(1).optional(),
   ROBLOX_OBSERVATION_SECRET: z.string().min(1).optional(),
   CLOUDFLARED_TOKEN: z.string().min(1).optional(),
+  X_CONSUMER_KEY: z.string().min(1).optional(),
+  X_CONSUMER_SECRET: z.string().min(1).optional(),
+  X_ACCESS_TOKEN: z.string().min(1).optional(),
+  X_ACCESS_TOKEN_SECRET: z.string().min(1).optional(),
+  X_WEBHOOK_SECRET: z.string().min(1).optional(),
+  X_USER_ID: z.string().min(1).optional(),
 
   // --- 外部ID・名前 ---
   ROBLOX_OWNER_DISPLAY_NAME: z.string().min(1).optional(),
@@ -31,11 +37,35 @@ const envSchema = z.object({
     .regex(/^\d+$/, "ROBLOX_OBSERVATION_PORT は数値で指定してください")
     .default("3000"),
 
+  // --- X ---
+  X_WEBHOOK_PORT: z
+    .string()
+    .regex(/^\d+$/, "X_WEBHOOK_PORT は数値で指定してください")
+    .default("3001"),
+
+  // --- セッションWebSocket ---
+  SESSION_WS_PORT: z
+    .string()
+    .regex(/^\d+$/, "SESSION_WS_PORT は数値で指定してください")
+    .default("3002"),
+  SESSION_WS_TOKEN: z.string().min(1).optional(),
+
+  // --- Discord ---
+  DISCORD_BOT_TOKEN: z.string().min(1).optional(),
+  DISCORD_CHANNEL_ID: z.string().min(1).optional(),
+  DISCORD_OWNER_ID: z.string().regex(/^\d+$/, "DISCORD_OWNER_ID は数値で指定してください").optional(),
+
+  // --- オーナーID ---
+  ROBLOX_OWNER_USER_ID: z.string().regex(/^\d+$/, "ROBLOX_OWNER_USER_ID は数値で指定してください").optional(),
+  X_OWNER_USER_ID: z.string().regex(/^\d+$/, "X_OWNER_USER_ID は数値で指定してください").optional(),
+
   // --- Pulse ---
-  PULSE_CRON: z.string().min(1).default("*/30 * * * *"),
+  PULSE_CRON: z.string().min(1).default("0 6 * * *"),
+  // --- XPulse（X投稿用Pulse） ---
+  XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
 
   // --- Terminal ---
-  TERMINAL_SHELL: z.string().min(1).default("zsh"),
+  TERMINAL_SHELL: z.string().min(1).default(basename(process.env.SHELL ?? "/bin/bash")),
   // AIのシェル実行権限（デフォルトoff: AIはterminalツールを使えない）
   AVATAR_SHELL: z
     .string()
@@ -74,6 +104,12 @@ export type AppConfig = {
   robloxObservationSecret: string | undefined
   robloxOwnerDisplayName: string | undefined
   cloudflaredToken: string | undefined
+  xConsumerKey: string | undefined
+  xConsumerSecret: string | undefined
+  xAccessToken: string | undefined
+  xAccessTokenSecret: string | undefined
+  xWebhookSecret: string | undefined
+  xUserId: string | undefined
 
   // アイデンティティ
   avatarName: string
@@ -98,9 +134,26 @@ export type AppConfig = {
   pulseFile: string
   pulseOkPrefix: string
 
+  // XPulse（X投稿用Pulse）
+  xpulseCron: string
+  xpulseFile: string
+  xpulseOkPrefix: string
+
   // ネットワーク
   observationPort: number
   robloxOpenCloudBaseUrl: string
+  xWebhookPort: number
+  sessionWsPort: number
+  sessionWsToken: string | undefined
+
+  // Discord
+  discordBotToken: string | undefined
+  discordChannelId: string | undefined
+  discordOwnerId: string | undefined
+
+  // オーナーID（role判定用）
+  robloxOwnerUserId: string | undefined
+  xOwnerUserId: string | undefined
 
   // Terminal
   terminalShell: string
@@ -146,6 +199,12 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     robloxObservationSecret: env.ROBLOX_OBSERVATION_SECRET,
     robloxOwnerDisplayName: env.ROBLOX_OWNER_DISPLAY_NAME,
     cloudflaredToken: env.CLOUDFLARED_TOKEN,
+    xConsumerKey: env.X_CONSUMER_KEY,
+    xConsumerSecret: env.X_CONSUMER_SECRET,
+    xAccessToken: env.X_ACCESS_TOKEN,
+    xAccessTokenSecret: env.X_ACCESS_TOKEN_SECRET,
+    xWebhookSecret: env.X_WEBHOOK_SECRET,
+    xUserId: env.X_USER_ID,
 
     // アイデンティティ
     avatarName: env.AVATAR_NAME,
@@ -170,9 +229,26 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     pulseFile: "PULSE.md",
     pulseOkPrefix: "PULSE_OK",
 
+    // XPulse
+    xpulseCron: env.XPULSE_CRON,
+    xpulseFile: "XPULSE.md",
+    xpulseOkPrefix: "XPULSE_OK",
+
     // ネットワーク
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),
     robloxOpenCloudBaseUrl: "https://apis.roblox.com/cloud/v2",
+    xWebhookPort: Number(env.X_WEBHOOK_PORT),
+    sessionWsPort: Number(env.SESSION_WS_PORT),
+    sessionWsToken: env.SESSION_WS_TOKEN,
+
+    // Discord
+    discordBotToken: env.DISCORD_BOT_TOKEN,
+    discordChannelId: env.DISCORD_CHANNEL_ID,
+    discordOwnerId: env.DISCORD_OWNER_ID,
+
+    // オーナーID
+    robloxOwnerUserId: env.ROBLOX_OWNER_USER_ID,
+    xOwnerUserId: env.X_OWNER_USER_ID,
 
     // Terminal
     terminalShell: env.TERMINAL_SHELL,
@@ -228,3 +304,20 @@ export function isCollectionsEnabled(config: AppConfig): boolean {
 export function isRobloxEnabled(config: AppConfig): boolean {
   return Boolean(config.robloxApiKey && config.robloxUniverseId)
 }
+
+// Discord窓口が利用可能か判定
+export function isDiscordEnabled(config: AppConfig): boolean {
+  return Boolean(config.discordBotToken && config.discordChannelId)
+}
+
+// X連携が利用可能か判定（OAuth認証4キー + ユーザーID が全て設定されている場合）
+export function isXEnabled(config: AppConfig): boolean {
+  return Boolean(
+    config.xConsumerKey &&
+    config.xConsumerSecret &&
+    config.xAccessToken &&
+    config.xAccessTokenSecret &&
+    config.xUserId,
+  )
+}
+

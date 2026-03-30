@@ -3,7 +3,6 @@
 // 方式: 実ファイルI/O（tmpディレクトリ）+ vi.resetModules()でMain再起動をシミュレート
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import type { Mock } from "vitest"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { createWindowMock, createFireHelper, setupTempDataDir, cleanupTempDataDir } from "./_harness.js"
@@ -40,12 +39,22 @@ vi.mock("../../roblox/observation-formatter.js", () => ({
   formatObservation: vi.fn().mockReturnValue("[Chat] test: hello"),
 }))
 
+vi.mock("../../x/x-webhook-server.js", () => ({
+  startXWebhookServer: vi.fn().mockReturnValue({ close: vi.fn() }),
+}))
+
+vi.mock("../../x/x-event-formatter.js", () => ({
+  formatXEvent: vi.fn().mockReturnValue("[X] @user: hello"),
+  formatXEventForAI: vi.fn().mockReturnValue("[X_MENTION] @user: hello"),
+}))
+
+vi.mock("../../x/x-forwarding-policy.js", () => ({
+  shouldForwardXEventToAI: vi.fn().mockReturnValue(true),
+}))
+
 vi.mock("../channel-projection.js", () => ({
   createConsoleProjection: vi.fn(() => ({
-    sendStreamReply: vi.fn(),
-    sendFieldState: vi.fn(),
     sendIntegrityAlert: vi.fn(),
-    sendObservationEvent: vi.fn(),
   })),
 }))
 
@@ -71,20 +80,23 @@ async function setupRuntime() {
     stateFile: path.join(tempDir, "state.json"),
   })
 
-  const integrity = await import("../integrity-manager.js")
+  const integrity = await import("../../runtime/integrity-manager.js")
   integrity._resetForTest()
 
   const electron = await import("electron")
   const ipcHandlers = await import("../ipc-handlers.js")
-  const channelProjection = await import("../channel-projection.js")
 
   const mockWin = createWindowMock()
   ipcHandlers.registerIpcHandlers(() => mockWin as unknown as import("electron").BrowserWindow)
 
-  const fire = createFireHelper(vi.mocked(electron.ipcMain.on))
-  const mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value as Record<string, Mock>
+  const fire = createFireHelper(vi.mocked(electron.ipcMain.on), vi.mocked(electron.ipcMain.handle))
 
-  return { fire, mockProjection, getFieldState: ipcHandlers.getFieldState }
+  return {
+    fire,
+    getFieldState: ipcHandlers.getFieldState,
+    handleStreamPost: ipcHandlers.handleStreamPost,
+    getStateSnapshot: ipcHandlers.getStateSnapshot,
+  }
 }
 
 function readStateJson() {
@@ -116,18 +128,12 @@ describe("S4: 共存連続性", () => {
     vi.resetModules()
     vi.clearAllMocks()
 
-    const { fire } = await setupRuntime()
+    const { fire, handleStreamPost } = await setupRuntime()
 
     fire("channel.attach") // generated→active
 
-    // stream.postでメッセージ送信
-    fire("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "test-id",
-      text: "こんにちは",
-    })
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // stream.postでメッセージ送信（WS移行後はhandleStreamPost直接呼出）
+    await handleStreamPost("こんにちは", "test-id", "human")
 
     fire("channel.detach") // active→paused
 
@@ -144,15 +150,9 @@ describe("S4: 共存連続性", () => {
     // 1回目: 接続→メッセージ→切断
     vi.resetModules()
     vi.clearAllMocks()
-    const { fire: fire1 } = await setupRuntime()
+    const { fire: fire1, handleStreamPost: post1 } = await setupRuntime()
     fire1("channel.attach")
-    fire1("stream.post", {
-      type: "stream.post",
-      actor: "human",
-      correlationId: "test-id",
-      text: "テスト",
-    })
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await post1("テスト", "test-id", "human")
     fire1("channel.detach")
 
     // 2回目: Main再起動シミュレート
@@ -242,7 +242,7 @@ describe("S4: 共存連続性", () => {
 
   // --- messageHistory復元投影 ---
 
-  it("messageHistory復元投影: attach時にsendFieldStateにlastMessagesが含まれる", async () => {
+  it("messageHistory復元投影: attach後にgetStateSnapshotで履歴が取得できる", async () => {
     // 履歴付きのstate.jsonを作成
     writeStateJson({
       schemaVersion: 1,
@@ -258,16 +258,16 @@ describe("S4: 共存連続性", () => {
 
     vi.resetModules()
     vi.clearAllMocks()
-    const { fire, mockProjection } = await setupRuntime()
+    const { fire, getStateSnapshot } = await setupRuntime()
 
-    // attach: paused→resumed→active + 履歴投影
+    // attach: paused→resumed→active
     fire("channel.attach")
 
-    // sendFieldStateが呼ばれ、lastMessagesに履歴が含まれる
-    expect(mockProjection.sendFieldState).toHaveBeenCalled()
-    const call = mockProjection.sendFieldState.mock.calls[0][0]
-    expect(call.history.length).toBe(2)
-    expect(call.history[0].text).toBe("テスト入力")
-    expect(call.history[1].text).toBe("テスト応答")
+    // getStateSnapshotで履歴が正しく取得できる
+    const snapshot = getStateSnapshot()
+    const streamItems = snapshot.history.filter((h) => h.type === "stream")
+    expect(streamItems.length).toBe(2)
+    expect(streamItems[0].text).toBe("テスト入力")
+    expect(streamItems[1].text).toBe("テスト応答")
   })
 })

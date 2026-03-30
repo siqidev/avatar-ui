@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' ws://localhost:*" />
   <title>AUI Console</title>
   <script src="/theme-init.js"></script>
   <link rel="stylesheet" href="./style.css" />
@@ -41,7 +41,7 @@
 
     <div class="splitter-v" id="splitter-v1"></div>
 
-    <!-- 中央列: Canvas + Roblox -->
+    <!-- 中央列: Canvas + X + Roblox -->
     <div class="column" id="col-1">
       <div id="pane-canvas" class="pane" data-slot="canvas" data-state="normal">
         <div class="pane-header" draggable="true">
@@ -51,6 +51,16 @@
         <div class="pane-body">
           <div class="canvas-empty" id="canvas-empty">Canvas</div>
           <div class="canvas-content" id="canvas-content"></div>
+        </div>
+      </div>
+      <div class="splitter-h"></div>
+      <div id="pane-x" class="pane" data-slot="x" data-state="normal">
+        <div class="pane-header" draggable="true">
+          <span>X</span>
+          <span class="badge"></span>
+        </div>
+        <div class="pane-body">
+          <div class="pane-placeholder">X Monitor</div>
         </div>
       </div>
       <div class="splitter-h"></div>

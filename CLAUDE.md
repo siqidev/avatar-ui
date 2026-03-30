@@ -6,21 +6,18 @@
 ## SSOT参照順
 
 1. siqi/knowledge/tech/avatar-ui-project.md — プロジェクトの本質・概念設計・戦略・Decision Log（バージョン非依存）
-2. docs/PLAN.md — 計画・受入シナリオ・実装バックログ（バージョン固有）
+2. docs/PLAN.md — 到達状態・実装バックログ・受入シナリオ（リリースごとに上書き）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-13）
+## 現在の状況（2026-03-28）
 
 ### ブランチ戦略
-- **main**: リリース済みの安定版（v0.3.0タグ）
-- **dev**: v0.3.1開発ブランチ。mainから分岐し、安定したらmainにマージ
+- **main**: リリース済みの安定版
+- **dev**: 次バージョン開発ブランチ。mainから分岐し、安定したらmainにマージ
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.3.1リリース準備中。詳細はCHANGELOG.mdおよびdocs/PLAN.mdを参照。
-
-### 次のアクション
-v0.3.1をmainにマージ+タグ打ち後、v0.3.2の計画を策定。
+v0.5.0（サーバー/クライアント分離 B-lite）開発完了。ヘッドレスモード、Console UI HTTP配信、承認ハブ、Discord窓口、DEV_MODE制御、Pulse日次化を含む。詳細はdocs/PLAN.md。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
@@ -67,9 +64,15 @@ v0.3.1をmainにマージ+タグ打ち後、v0.3.2の計画を策定。
 | src/config.ts | getConfig()遅延singleton（唯一のprocess.env入口） |
 | src/services/chat-session-service.ts | Grok Responses API呼出+ツール実行ループ |
 | src/main/index.ts | Electron Mainエントリーポイント |
-| src/main/field-runtime.ts | FieldRuntime（場のロジック統合） |
-| src/main/ipc-handlers.ts | IPC受信→FieldRuntime |
-| src/main/settings-store.ts | ランタイム設定（テーマ・モデル → data/settings.json） |
+| src/runtime/field-runtime.ts | FieldRuntime（場のロジック統合） |
+| src/runtime/field-orchestrator.ts | 場の起動・FSM遷移・stream処理統括 |
+| src/main/ipc-handlers.ts | IPC配線（orchestratorへのアダプタ） |
+| src/headless/index.ts | ヘッドレスエントリーポイント（Console UI HTTP配信+WS+Runtime統合起動） |
+| src/runtime/console-http-server.ts | Console UI HTTP配信（ブラウザ用ポリフィル注入） |
+| src/runtime/session-ws-server.ts | セッションWSサーバー（event bus→クライアント配信、ping/pong） |
+| src/runtime/approval-hub.ts | 承認ハブ（Console・Discord両対応、first-response-wins） |
+| src/discord/discord-bridge.ts | Discord窓口（stream購読+承認応答） |
+| src/runtime/ | Electron非依存のランタイム基盤（承認ハブ・設定・ターミナル・FS） |
 | src/main/menu.ts | Electronカスタムメニュー（AUIメニュー） |
 | src/renderer/main.ts | Rendererエントリー |
 | src/tools/ | Grokツール定義 |

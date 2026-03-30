@@ -1,15 +1,10 @@
-// Terminalペイン — xterm.js + per-command spawn IPC
+// Terminalペイン — xterm.js + PTYパススルー
+// 全キー入力をPTYに転送。PTY出力をそのまま表示する純粋ターミナル。
 
-import { t } from "../shared/i18n.js"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
-import type {
-  TerminalOutputEvent,
-  TerminalLifecycleEvent,
-  TerminalSnapshotEvent,
-  TerminalSnapshot,
-} from "../shared/terminal-schema.js"
+import type { TerminalDataEvent, TerminalStateEvent } from "../shared/terminal-schema.js"
 
 // --- DOM参照 ---
 
@@ -35,8 +30,7 @@ const term = new Terminal({
   lineHeight: 1.45,
   theme: readTermTheme(),
   cursorBlink: true,
-  scrollback: 500,
-  convertEol: true,
+  scrollback: 1000,
 })
 
 /** テーマ変更時にxtermの色を再適用する */
@@ -47,20 +41,6 @@ export function applyTermTheme(): void {
 const fitAddon = new FitAddon()
 term.loadAddon(fitAddon)
 
-// --- 状態 ---
-
-let busy = false
-let currentCwd = ""
-let inputBuffer = ""
-
-// --- プロンプト描画 ---
-
-function writePrompt(): void {
-  const short = currentCwd.replace(/^\/Users\/[^/]+/, "~")
-  term.write(`\r\n\x1b[36m${short}\x1b[0m $ `)
-  inputBuffer = ""
-}
-
 // --- 公開コントローラ ---
 
 export function initTerminalPane(): void {
@@ -68,103 +48,34 @@ export function initTerminalPane(): void {
   fitAddon.fit()
 
   // リサイズ追従
-  const observer = new ResizeObserver(() => fitAddon.fit())
+  const observer = new ResizeObserver(() => {
+    fitAddon.fit()
+    // PTYにサイズを通知
+    void window.fieldApi.terminalResize({ cols: term.cols, rows: term.rows })
+  })
   observer.observe(containerEl)
 
-  // 初期スナップショット取得
-  void window.fieldApi.terminalSnapshot().then((snapshot: TerminalSnapshot) => {
-    currentCwd = snapshot.cwd
-    // スクロールバック復元
-    if (snapshot.scrollback.length > 0) {
-      term.write(snapshot.scrollback.join("\n"))
-    }
-    writePrompt()
-  })
+  // 初期サイズ通知
+  void window.fieldApi.terminalResize({ cols: term.cols, rows: term.rows })
 
-  // キー入力
+  // キー入力: すべてPTYに転送
   term.onData((data) => {
-    if (busy) {
-      // 実行中: stdinに転送
-      void window.fieldApi.terminalStdin({
-        actor: "human",
-        correlationId: crypto.randomUUID(),
-        data,
-      })
-      return
-    }
-
-    // コマンド入力モード
-    const code = data.charCodeAt(0)
-    if (data === "\r") {
-      // Enter: コマンド実行
-      term.write("\r\n")
-      const cmd = inputBuffer.trim()
-      if (!cmd) { writePrompt(); return }
-      inputBuffer = ""
-      busy = true
-
-      void window.fieldApi.terminalExec({
-        actor: "human",
-        correlationId: crypto.randomUUID(),
-        cmd,
-      }).then((result) => {
-        if (!result.accepted) {
-          term.write(`\x1b[31m${result.reason ?? t("rejected")}\x1b[0m\r\n`)
-          busy = false
-          writePrompt()
-        }
-      })
-    } else if (data === "\x7f") {
-      // Backspace
-      if (inputBuffer.length > 0) {
-        inputBuffer = inputBuffer.slice(0, -1)
-        term.write("\b \b")
-      }
-    } else if (code === 3) {
-      // Ctrl+C
-      if (busy) {
-        void window.fieldApi.terminalStop({
-          actor: "human",
-          correlationId: crypto.randomUUID(),
-        })
-      } else {
-        inputBuffer = ""
-        term.write("^C")
-        writePrompt()
-      }
-    } else if (code >= 32) {
-      // 通常文字
-      inputBuffer += data
-      term.write(data)
-    }
+    void window.fieldApi.terminalInput({ data })
   })
 
   // --- Main→Rendererイベント ---
 
-  window.fieldApi.onTerminalOutput((raw) => {
-    const event = raw as TerminalOutputEvent
-    if (event.stream === "stderr") {
-      term.write(`\x1b[31m${event.chunk}\x1b[0m`)
-    } else {
-      term.write(event.chunk)
-    }
+  // PTYからの生データ
+  window.fieldApi.onTerminalData((raw) => {
+    const event = raw as TerminalDataEvent
+    term.write(event.data)
   })
 
-  window.fieldApi.onTerminalLifecycle((raw) => {
-    const event = raw as TerminalLifecycleEvent
-    if (event.phase === "exited") {
-      busy = false
-      if (event.cwdAfter) currentCwd = event.cwdAfter
-      // 非ゼロ終了コード表示
-      if (event.exitCode !== 0 && event.exitCode !== null) {
-        term.write(`\x1b[31m[exit ${event.exitCode}]\x1b[0m`)
-      }
-      writePrompt()
+  // PTY状態変化
+  window.fieldApi.onTerminalState((raw) => {
+    const event = raw as TerminalStateEvent
+    if (event.state === "exited") {
+      term.write("\r\n\x1b[31m[PTY exited]\x1b[0m\r\n")
     }
-  })
-
-  window.fieldApi.onTerminalSnapshot((raw) => {
-    const event = raw as TerminalSnapshotEvent
-    currentCwd = event.snapshot.cwd
   })
 }
