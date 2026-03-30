@@ -56,7 +56,6 @@ src/
     input-gate.ts             InputGate（source+channel+roleベースのツール権限制御）
     input-role-resolver.ts    InputRole解決（各チャネルのオーナー判定）
   roblox/
-    roblox-action-tool.ts     AIツール定義（7カテゴリ）
     projector.ts              Robloxへの意図送信（Open Cloud Messaging）
     intent-log.ts             投影ログ（roblox-intents.jsonl）
     observation-server.ts     観測受信HTTPサーバー
@@ -66,7 +65,7 @@ src/
     roblox-messaging.ts       Open Cloud Messaging API呼出
   tools/
     filesystem-tool.ts        LLMツール: fs_list/fs_read/fs_write/fs_mutate
-    roblox-action-tool.ts     → src/roblox/ に配置
+    roblox-action-tool.ts     LLMツール: roblox_action（AIツール定義、7カテゴリ）
     terminal-tool.ts          LLMツール: terminal
     save-memory-tool.ts       LLMツール: save_memory
     x-post-tool.ts            LLMツール: x_post（Xポスト）
@@ -696,7 +695,7 @@ Window（標準）
 
 | ファイル | 内容 |
 |---------|------|
-| channel.ts | ChannelId型（"console" / "roblox" / "x"）のSSOT |
+| channel.ts | ChannelId型（"console" / "roblox" / "x" / "discord"）のSSOT |
 | ipc-schema.ts | IPC全メッセージのZodスキーマ + FieldState/FieldEvent/AlertCode型 |
 | fs-schema.ts | FS操作の引数・戻り値のZodスキーマ |
 | terminal-schema.ts | Terminal操作の引数・戻り値のZodスキーマ |
