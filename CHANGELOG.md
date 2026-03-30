@@ -46,7 +46,7 @@
 
 ### Testing
 
-- 390 tests (39 test files), up from 313 tests (33 files) in v0.4.0
+- 390 tests (39 test files), up from 313 tests (33 files) in v0.3.1
 
 ## v0.3.1 — Observation Pipeline + Avatar Motion (2026-03-14)
 
