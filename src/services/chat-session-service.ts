@@ -243,7 +243,16 @@ export async function sendMessage(
       const approval = await requestApproval(call.name as ToolName, parsedArgs)
       let result: string
       if (approval.approved) {
-        result = await handleToolCall(call, client, response.id)
+        try {
+          result = await handleToolCall(call, client, response.id)
+        } catch (err) {
+          // ツール実行エラーをAIに返して続行（ENOENT等は正常な探索行動）
+          result = JSON.stringify({
+            status: "error",
+            message: err instanceof Error ? err.message : String(err),
+          })
+          log.info(`[TOOL_ERROR] ${call.name}: ${result}`)
+        }
       } else {
         result = JSON.stringify({
           status: "denied",
