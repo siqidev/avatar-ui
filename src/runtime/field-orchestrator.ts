@@ -1,7 +1,9 @@
 // FieldOrchestrator: 場の起動・FSM遷移・stream処理を統括
 // Electron非依存。ipc-handlers.ts（Electron）とheadless/index.ts（Node.js）の両方から利用される
 
-import type { FieldState } from "../shared/ipc-schema.js"
+import type { FieldState, Source } from "../shared/ipc-schema.js"
+import type { ChannelId } from "../shared/channel.js"
+import type { InputRole } from "../services/input-role-resolver.js"
 import type { SessionStatePayload, HistoryItem } from "../shared/session-event-schema.js"
 import { transition, isActive } from "./field-fsm.js"
 import {
@@ -159,8 +161,15 @@ export function getStateSnapshot(): SessionStatePayload {
 
 // --- stream処理 ---
 
-// stream.post共通処理（WS経由で呼ばれる）
-export async function handleStreamPost(text: string, correlationId: string, actor: "human" | "ai"): Promise<void> {
+// stream.post共通処理（Console WS / Discord WS 両方から呼ばれる）
+export async function handleStreamPost(
+  text: string,
+  correlationId: string,
+  actor: "human" | "ai",
+  channel: ChannelId = "console",
+  source: Source = "user",
+  inputRole: InputRole = "owner",
+): Promise<void> {
   if (isFrozen()) {
     log.error("[STREAM] stream.post拒否: 凍結中")
     return
@@ -171,19 +180,19 @@ export async function handleStreamPost(text: string, correlationId: string, acto
     return
   }
 
-  emitStreamItem(actor, text, correlationId, "user", "console")
-  log.info(`[STREAM] ${actor}: ${text.substring(0, 80)}`)
+  emitStreamItem(actor, text, correlationId, source, channel)
+  log.info(`[STREAM] ${actor}(${channel}): ${text.substring(0, 80)}`)
 
   try {
-    const streamResult = await processStream(text)
+    const streamResult = await processStream(text, source, channel, inputRole)
     log.info(`[STREAM] ai: ${streamResult.text.substring(0, 80)}`)
-    emitStreamItem("ai", streamResult.text, correlationId, "user", "console", streamResult.toolCalls, streamResult.displayText)
+    emitStreamItem("ai", streamResult.text, correlationId, source, channel, streamResult.toolCalls, streamResult.displayText)
     publishXToolResults(streamResult.toolCalls)
   } catch (err) {
     warn("RECIPROCITY_STREAM_ERROR",
       `Stream処理エラー: ${err instanceof Error ? err.message : String(err)}`)
     // エラー時もstream.itemを送信してUIを復帰させる
     emitStreamItem("ai", `エラー: ${err instanceof Error ? err.message : String(err)}`,
-      correlationId, "user", "console")
+      correlationId, source, channel)
   }
 }

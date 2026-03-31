@@ -267,7 +267,7 @@ describe("session-ws-server", () => {
 
     // コールバック呼び出しを待つ
     await new Promise((r) => setTimeout(r, 50))
-    expect(onStreamPost).toHaveBeenCalledWith("WSからのメッセージ", "ws-corr-1", "human")
+    expect(onStreamPost).toHaveBeenCalledWith("WSからのメッセージ", "ws-corr-1", "human", undefined, undefined, undefined)
   })
 
   it("不正なstream.postはエラーメッセージを返す", async () => {

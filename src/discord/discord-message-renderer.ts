@@ -13,6 +13,13 @@ import type { StreamItemPayload, ApprovalRequestedPayload, ApprovalResolvedPaylo
 const DISCORD_MAX_LENGTH = 2000
 const SENSITIVE_KEYS = ["token", "secret", "apikey", "api_key", "authorization", "cookie", "password", "key"]
 
+// --- human発話 → Discord表示 ---
+
+export function renderHumanMessage(payload: StreamItemPayload): string {
+  const text = payload.displayText ?? payload.text
+  return truncate(`💬 **console** > ${text}`)
+}
+
 // --- stream.item → Discord本文 ---
 
 export function renderStreamItem(payload: StreamItemPayload): string {

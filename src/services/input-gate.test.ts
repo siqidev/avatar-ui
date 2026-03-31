@@ -65,15 +65,21 @@ describe("input-gate", () => {
       expect(tools).toEqual([])
     })
 
-    // --- source=user/pulse/xpulse は role を無視して常に全ツール ---
-    it("user/console/external でも全ツール（sourceがuser）", () => {
+    // --- role=external は source に関わらず制限される（role最優先） ---
+    it("user/console/external: roleがexternalなら制限される", () => {
       const tools = getAllowedTools("user", "console", "external")
-      expect(tools).toContain("terminal")
-      expect(tools).toContain("fs_write")
+      expect(tools).toEqual([])
     })
 
-    it("pulse/console/external でも全ツール（sourceがpulse）", () => {
-      const tools = getAllowedTools("pulse", "console", "external")
+    it("user/discord/external: roleがexternalなら制限される", () => {
+      const tools = getAllowedTools("user", "discord", "external")
+      expect(tools).toEqual([])
+    })
+
+    // --- pulse/xpulseは内部トリガーなのでexternalにならない（呼び出し元が常にowner） ---
+    // テストとしてはrole=ownerで確認（pulse+externalは実運用で発生しない）
+    it("pulse/console/owner: 全ツール許可", () => {
+      const tools = getAllowedTools("pulse", "console", "owner")
       expect(tools).toContain("x_post")
     })
   })

@@ -9,6 +9,9 @@ import { createSessionEvent } from "../shared/session-event-schema.js"
 import type { SessionEvent } from "../shared/session-event-schema.js"
 import type { SessionStatePayload, HistoryItem } from "../shared/session-event-schema.js"
 import { streamPostSchema } from "../shared/ipc-schema.js"
+import type { Source } from "../shared/ipc-schema.js"
+import type { ChannelId } from "../shared/channel.js"
+import type { InputRole } from "../services/input-role-resolver.js"
 import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { registerApprover, unregisterApprover, respond as hubRespond } from "./approval-hub.js"
 import * as log from "../logger.js"
@@ -21,7 +24,7 @@ export type SessionWsOptions = {
   // 依存注入: 場の状態スナップショット取得
   getStateSnapshot: () => SessionStatePayload
   // 依存注入: stream.post処理
-  onStreamPost?: (text: string, correlationId: string, actor: "human" | "ai") => void
+  onStreamPost?: (text: string, correlationId: string, actor: "human" | "ai", channel?: ChannelId, source?: Source, inputRole?: InputRole) => void
   // 外部HTTPサーバー（console-http-serverと同居する場合）
   // 指定時: createServer/listenをスキップし、upgradeハンドラのみ登録
   httpServer?: HttpServer
@@ -221,7 +224,7 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
           ws.send(JSON.stringify({ type: "error", message: "stream.post 未対応" }))
           return
         }
-        onStreamPost(result.data.text, result.data.correlationId, result.data.actor)
+        onStreamPost(result.data.text, result.data.correlationId, result.data.actor, result.data.channel, undefined, result.data.inputRole)
         return
       }
 

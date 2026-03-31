@@ -24,19 +24,24 @@ const ALL_TOOLS: readonly ToolName[] = [
 const EXTERNAL_WHITELIST: Readonly<Record<string, readonly ToolName[]>> = {
   roblox: ["roblox_action"],
   x: ["x_reply"],
-  // discord: なし（テキスト応答のみ）
-  // console: なし（externalがconsoleに来ることは通常ない）
+  // discord: テキスト応答のみ（同一媒体ツールなし）
+  // console: externalがconsoleに来ることは通常ない
 }
 
 // 入力文脈からの許可ツール一覧を取得する
 // buildTools()でツールリストのフィルタリングに使用
 export function getAllowedTools(source: Source, channel: ChannelId, role: InputRole = "owner"): readonly ToolName[] {
-  // owner / 内部トリガー（user/pulse/xpulse）→ 全ツール許可
-  if (role === "owner" || source === "user" || source === "pulse" || source === "xpulse") {
+  // external → 同一媒体の応答ツールのみ（roleが最優先、fail-closed）
+  if (role === "external") {
+    return EXTERNAL_WHITELIST[channel] ?? []
+  }
+
+  // owner / 内部トリガー → 全ツール許可
+  if (role === "owner" || source === "pulse" || source === "xpulse") {
     return ALL_TOOLS
   }
 
-  // external → 同一媒体の応答ツールのみ
+  // フォールバック: sourceが不明な場合もexternalとして扱う
   return EXTERNAL_WHITELIST[channel] ?? []
 }
 

@@ -133,11 +133,15 @@ payload: {
   "type": "stream.post",
   "actor": "human",
   "correlationId": "string",
-  "text": "メッセージテキスト"
+  "text": "メッセージテキスト",
+  "channel": "console",
+  "inputRole": "owner"
 }
 ```
 
 - `text` は1文字以上が必須
+- `channel`（省略可）: `"console"` | `"roblox"` | `"x"` | `"discord"`。省略時 `"console"`
+- `inputRole`（省略可）: `"owner"` | `"external"`。省略時 `"owner"`
 
 #### tool.approval.respond — 承認応答
 

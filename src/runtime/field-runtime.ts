@@ -5,6 +5,7 @@ import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { resolveRobloxRole, resolveXRole } from "../services/input-role-resolver.js"
 import type { InputRole } from "../services/input-role-resolver.js"
+import type { ChannelId } from "../shared/channel.js"
 import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage, pushMonitorEvent } from "../state/state-repository.js"
@@ -241,7 +242,7 @@ export function emitStreamItem(
   text: string,
   correlationId: string,
   source: "user" | "pulse" | "xpulse" | "observation",
-  channel: "console" | "roblox" | "x",
+  channel: ChannelId,
   toolCalls: ToolCallInfo[] = [],
   displayText?: string,
 ): void {
