@@ -34,6 +34,8 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
   let channel: TextChannel | null = null
   // requestId → Discord messageId（承認メッセージの更新に使用）
   const approvalMessages = new Map<string, string>()
+  // typing indicator用タイマー
+  let typingTimer: ReturnType<typeof setInterval> | null = null
 
   async function start(): Promise<void> {
     // 1. Discord Bot起動
@@ -90,6 +92,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
           return
         }
 
+        stopTyping()
         const content = renderStreamItem(payload)
         void sendToChannel(content)
       },
@@ -115,6 +118,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
   }
 
   async function stop(): Promise<void> {
+    stopTyping()
     sessionClient?.close()
     sessionClient = null
 
@@ -125,6 +129,25 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     channel = null
     approvalMessages.clear()
     log.info("[DISCORD] Bridge停止")
+  }
+
+  // --- Typing indicator ---
+
+  function startTyping(): void {
+    stopTyping()
+    if (!channel) return
+    void channel.sendTyping().catch(() => {})
+    // sendTypingは10秒で切れるので8秒ごとにリピート
+    typingTimer = setInterval(() => {
+      void channel?.sendTyping().catch(() => {})
+    }, 8_000)
+  }
+
+  function stopTyping(): void {
+    if (typingTimer) {
+      clearInterval(typingTimer)
+      typingTimer = null
+    }
   }
 
   // --- Discord投稿 ---
@@ -194,6 +217,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     const correlationId = `discord-${Date.now()}`
 
     log.info(`[DISCORD] メッセージ受信 (${role}): ${text.substring(0, 80)}`)
+    startTyping()
     sessionClient?.sendStreamPost(text, correlationId, role)
   }
 
