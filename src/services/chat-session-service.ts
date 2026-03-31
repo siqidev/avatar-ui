@@ -144,7 +144,8 @@ const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as cons
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 // source/channel: InputGateでツール権限を制御
-// chain: falseで会話チェーンを引き継がない（XPulse等の独立タスク用）
+// options.toolChoice: ツール使用ポリシー（"required"でツール呼び出し強制）
+// options.toolNames: 指定時、ツールリストをこの名前だけに絞る
 export async function sendMessage(
   client: OpenAI,
   state: State,
@@ -154,13 +155,12 @@ export async function sendMessage(
   source: Source = "user",
   channel: ChannelId = "console",
   inputRole: InputRole = "owner",
-  options?: { chain?: boolean },
+  options?: { toolChoice?: "auto" | "required" | "none"; toolNames?: string[] },
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
   const model = getSettings().model
-  const useChain = options?.chain !== false
-  const lastResponseId = useChain ? state.participant.lastResponseId : null
+  const lastResponseId = state.participant.lastResponseId
 
   // 初回 or forceSystemPrompt: systemロール + userロール、継続: userのみ + previous_response_id
   const input: ResponseInput =
@@ -171,7 +171,10 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(config, source, channel, inputRole)
+  let tools = buildTools(config, source, channel, inputRole)
+  if (options?.toolNames) {
+    tools = tools.filter((t) => "name" in t && options.toolNames!.includes(t.name as string))
+  }
 
   let response: Response
   try {
@@ -182,6 +185,9 @@ export async function sendMessage(
       store: true,
       ...(lastResponseId
         ? { previous_response_id: lastResponseId }
+        : {}),
+      ...(options?.toolChoice
+        ? { tool_choice: options.toolChoice }
         : {}),
     }, API_CALL_OPTIONS)
   } catch (err) {
@@ -209,7 +215,7 @@ export async function sendMessage(
     }
   }
 
-  if (useChain) state.participant.lastResponseId = response.id
+  state.participant.lastResponseId = response.id
 
   // ツール呼び出しループ（Grokがツールを呼んだら処理して再送信）
   const allToolCalls: ToolCallInfo[] = []
@@ -282,7 +288,7 @@ export async function sendMessage(
       store: true,
       previous_response_id: response.id,
     }, API_CALL_OPTIONS)
-    if (useChain) state.participant.lastResponseId = response.id
+    state.participant.lastResponseId = response.id
   }
 
   const text = response.output_text ?? t("noResponse")
