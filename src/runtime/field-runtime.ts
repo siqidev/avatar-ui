@@ -5,6 +5,7 @@ import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { resolveRobloxRole, resolveXRole } from "../services/input-role-resolver.js"
 import type { InputRole } from "../services/input-role-resolver.js"
+import type { ChannelId } from "../shared/channel.js"
 import { getSettings } from "./settings-store.js"
 import type { AppConfig } from "../config.js"
 import { loadState, saveState, pushMessage, pushMonitorEvent } from "../state/state-repository.js"
@@ -241,7 +242,7 @@ export function emitStreamItem(
   text: string,
   correlationId: string,
   source: "user" | "pulse" | "xpulse" | "observation",
-  channel: "console" | "roblox" | "x",
+  channel: ChannelId,
   toolCalls: ToolCallInfo[] = [],
   displayText?: string,
 ): void {
@@ -377,16 +378,14 @@ export function startXpulse(): void {
         const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
+          "owner", { toolChoice: "required", toolNames: ["x_post"] },
         )
         updateParticipantChain(state.participant.lastResponseId)
-        if (result.text.startsWith(config.xpulseOkPrefix)) {
-          log.info("[XPULSE] 対応不要")
-        } else if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
+        if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
           log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
           emitStreamItem("ai", result.text, correlationId, "xpulse", "x", result.toolCalls, result.displayText)
           publishXToolResults(result.toolCalls)
         } else {
-          // x_postを呼ばずにテキストだけ返した場合 — プロンプト不遵守として抑制
           log.info(`[XPULSE] x_post未使用の応答を抑制: ${result.text.substring(0, 100)}`)
         }
       } catch (err) {

@@ -5,6 +5,11 @@ import { z } from "zod/v4"
 export const actorSchema = z.enum(["human", "ai"])
 export type Actor = z.infer<typeof actorSchema>
 
+export const channelIdSchema = z.enum(["console", "roblox", "x", "discord"])
+
+export const sourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
+export type Source = z.infer<typeof sourceSchema>
+
 // --- Renderer → Main ---
 
 export const channelAttachSchema = z.object({
@@ -20,6 +25,8 @@ export const streamPostSchema = z.object({
   actor: actorSchema,
   correlationId: z.string().min(1),
   text: z.string().min(1),
+  channel: channelIdSchema.optional(),
+  inputRole: z.enum(["owner", "external"]).optional(),
 })
 
 export const fieldTerminateSchema = z.object({
@@ -37,11 +44,6 @@ export const toMainSchema = z.discriminatedUnion("type", [
 export type ToMainMessage = z.infer<typeof toMainSchema>
 
 // --- Main → Renderer ---
-
-export const sourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
-export type Source = z.infer<typeof sourceSchema>
-
-export const channelIdSchema = z.enum(["console", "roblox", "x"])
 
 export const toolCallIpcSchema = z.object({
   name: z.string(),

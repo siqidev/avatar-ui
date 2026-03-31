@@ -26,6 +26,7 @@ export type DiscordSessionClient = {
   connect: () => void
   close: () => void
   sendApprovalRespond: (requestId: string, decision: "approve" | "deny") => void
+  sendStreamPost: (text: string, correlationId: string, inputRole: "owner" | "external") => void
 }
 
 // --- 再接続バックオフ ---
@@ -132,5 +133,17 @@ export function createDiscordSessionClient(
     ws.send(JSON.stringify({ type: "tool.approval.respond", requestId, decision }))
   }
 
-  return { connect, close, sendApprovalRespond }
+  function sendStreamPost(text: string, correlationId: string, inputRole: "owner" | "external"): void {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({
+      type: "stream.post",
+      actor: "human",
+      correlationId,
+      text,
+      channel: "discord",
+      inputRole,
+    }))
+  }
+
+  return { connect, close, sendApprovalRespond, sendStreamPost }
 }

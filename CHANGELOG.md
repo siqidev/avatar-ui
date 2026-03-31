@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.5.1 — Discord Chat + Cross-Platform (2026-03-31)
+
+### Discord bidirectional chat
+
+- **@Spectra mention input** — Discord users can chat by mentioning the bot. Messages flow through the same conversation chain as Console
+- **Console ↔ Discord sync** — Console human messages are forwarded to Discord; Discord messages appear in Console Stream
+- **Typing indicator** — Bot shows "typing..." during AI response generation (8s refresh interval)
+- **Role-based access** — `DISCORD_OWNER_ID` match → owner (full tools), others → external (response tools only)
+- **Echo prevention** — Two layers: messageCreate skips bot/self + onStreamItem skips `actor=human && channel=discord`
+- **Owner-only approval buttons** — Only the configured owner can approve tool executions via Discord
+
+### Cross-platform support
+
+- **Windows PowerShell shell integration** — Default shell on Windows, prompt function override for AI command completion detection
+- **Explicit path construction** — `path.join()` for all config file paths (replaced string concatenation)
+- **Cross-platform line endings** — `\r?\n` regex for JSONL parsing, terminal output, and file reading
+- **Keyboard modifier abstraction** — `modKey()` helper: Cmd on macOS, Ctrl on Windows/Linux (VSCode convention)
+
+### Fixes
+
+- **InputGate role-priority** — `role=external` now checked first (was checked after source), preventing external Discord users from getting full tool access
+- **XPulse tool_choice** — Fixed `tool_choice: "required"` + toolNames filtering for X channel
+- **Tool execution error handling** — Tool errors returned to AI for retry instead of throwing (prevented full session abort)
+
+### Testing
+
+- 392 tests (39 test files), up from 390 in v0.5.0
+
 ## v0.5.0 — Server/Client Separation (2026-03-28)
 
 ### Headless server
@@ -46,7 +74,7 @@
 
 ### Testing
 
-- 390 tests (39 test files), up from 313 tests (33 files) in v0.4.0
+- 390 tests (39 test files), up from 313 tests (33 files) in v0.3.1
 
 ## v0.3.1 — Observation Pipeline + Avatar Motion (2026-03-14)
 

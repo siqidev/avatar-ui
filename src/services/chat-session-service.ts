@@ -144,6 +144,8 @@ const API_CALL_OPTIONS = { timeout: API_CALL_TIMEOUT_MS, maxRetries: 0 } as cons
 
 // Responses APIにリクエストを送り、ツール呼び出しがあれば処理する
 // source/channel: InputGateでツール権限を制御
+// options.toolChoice: ツール使用ポリシー（"required"でツール呼び出し強制）
+// options.toolNames: 指定時、ツールリストをこの名前だけに絞る
 export async function sendMessage(
   client: OpenAI,
   state: State,
@@ -153,6 +155,7 @@ export async function sendMessage(
   source: Source = "user",
   channel: ChannelId = "console",
   inputRole: InputRole = "owner",
+  options?: { toolChoice?: "auto" | "required" | "none"; toolNames?: string[] },
 ): Promise<SendMessageResult> {
   const config = getConfig()
   // ターン開始時にモデルを固定（ツールループ中のメニュー変更で途中切替されるのを防ぐ）
@@ -168,7 +171,10 @@ export async function sendMessage(
           { role: "user" as const, content: userInput },
         ]
 
-  const tools = buildTools(config, source, channel, inputRole)
+  let tools = buildTools(config, source, channel, inputRole)
+  if (options?.toolNames) {
+    tools = tools.filter((t) => "name" in t && options.toolNames!.includes(t.name as string))
+  }
 
   let response: Response
   try {
@@ -179,6 +185,9 @@ export async function sendMessage(
       store: true,
       ...(lastResponseId
         ? { previous_response_id: lastResponseId }
+        : {}),
+      ...(options?.toolChoice
+        ? { tool_choice: options.toolChoice }
         : {}),
     }, API_CALL_OPTIONS)
   } catch (err) {
@@ -240,7 +249,16 @@ export async function sendMessage(
       const approval = await requestApproval(call.name as ToolName, parsedArgs)
       let result: string
       if (approval.approved) {
-        result = await handleToolCall(call, client, response.id)
+        try {
+          result = await handleToolCall(call, client, response.id)
+        } catch (err) {
+          // ツール実行エラーをAIに返して続行（ENOENT等は正常な探索行動）
+          result = JSON.stringify({
+            status: "error",
+            message: err instanceof Error ? err.message : String(err),
+          })
+          log.info(`[TOOL_ERROR] ${call.name}: ${result}`)
+        }
       } else {
         result = JSON.stringify({
           status: "denied",

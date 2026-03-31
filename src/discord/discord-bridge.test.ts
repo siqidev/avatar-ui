@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from "vitest"
 import {
   renderStreamItem,
+  renderHumanMessage,
   renderApprovalRequest,
   renderApprovalResolved,
 } from "./discord-message-renderer.js"
@@ -85,6 +86,22 @@ describe("discord-message-renderer", () => {
       const result = renderStreamItem(payload)
       expect(result.length).toBeLessThanOrEqual(2000)
       expect(result).toMatch(/\.\.\.$/u)
+    })
+  })
+
+  describe("renderHumanMessage", () => {
+    it("Console humanメッセージにprefixを付与", () => {
+      const payload: StreamItemPayload = {
+        actor: "human",
+        correlationId: "test-h1",
+        text: "こんにちは",
+        source: "user",
+        channel: "console",
+        toolCalls: [],
+      }
+      const result = renderHumanMessage(payload)
+      expect(result).toContain("console")
+      expect(result).toContain("こんにちは")
     })
   })
 

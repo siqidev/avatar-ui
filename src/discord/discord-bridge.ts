@@ -2,12 +2,14 @@
 // 責務: Discord Bot起動 + session-ws-server接続 + イベント→Discord投稿
 
 import { Client, GatewayIntentBits, Events, ChannelType } from "discord.js"
-import type { TextChannel, ButtonInteraction, ActionRowBuilder, ButtonBuilder } from "discord.js"
+import type { TextChannel, ButtonInteraction, ActionRowBuilder, ButtonBuilder, Message } from "discord.js"
 import type { AppConfig } from "../config.js"
+import { resolveDiscordRole } from "../services/input-role-resolver.js"
 import { createDiscordSessionClient } from "./discord-session-client.js"
 import type { DiscordSessionClient } from "./discord-session-client.js"
 import {
   renderStreamItem,
+  renderHumanMessage,
   renderApprovalRequest,
   renderApprovalResolved,
 } from "./discord-message-renderer.js"
@@ -32,16 +34,26 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
   let channel: TextChannel | null = null
   // requestId → Discord messageId（承認メッセージの更新に使用）
   const approvalMessages = new Map<string, string>()
+  // typing indicator用タイマー
+  let typingTimer: ReturnType<typeof setInterval> | null = null
 
   async function start(): Promise<void> {
     // 1. Discord Bot起動
     client = new Client({
-      intents: [GatewayIntentBits.Guilds],
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+      ],
     })
 
     client.on(Events.InteractionCreate, async (interaction) => {
       if (!interaction.isButton()) return
       await handleButtonInteraction(interaction as ButtonInteraction)
+    })
+
+    client.on(Events.MessageCreate, (message) => {
+      void handleMessageCreate(message)
     })
 
     await client.login(botToken)
@@ -72,11 +84,15 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
       },
 
       onStreamItem: (payload) => {
-        // human発話はスキップ（Botが代弁すると不自然）
-        if (payload.actor === "human") return
-        // 自チャネル起源のメッセージはmirror防止（将来のDiscord入力対応時）
-        if (payload.channel === "discord") return
+        // Discord発のhuman発話はecho防止
+        if (payload.actor === "human" && payload.channel === "discord") return
+        // Console等からのhuman発話はDiscordに表示
+        if (payload.actor === "human") {
+          void sendToChannel(renderHumanMessage(payload))
+          return
+        }
 
+        stopTyping()
         const content = renderStreamItem(payload)
         void sendToChannel(content)
       },
@@ -102,6 +118,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
   }
 
   async function stop(): Promise<void> {
+    stopTyping()
     sessionClient?.close()
     sessionClient = null
 
@@ -112,6 +129,25 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     channel = null
     approvalMessages.clear()
     log.info("[DISCORD] Bridge停止")
+  }
+
+  // --- Typing indicator ---
+
+  function startTyping(): void {
+    stopTyping()
+    if (!channel) return
+    void channel.sendTyping().catch(() => {})
+    // sendTypingは10秒で切れるので8秒ごとにリピート
+    typingTimer = setInterval(() => {
+      void channel?.sendTyping().catch(() => {})
+    }, 8_000)
+  }
+
+  function stopTyping(): void {
+    if (typingTimer) {
+      clearInterval(typingTimer)
+      typingTimer = null
+    }
   }
 
   // --- Discord投稿 ---
@@ -160,12 +196,44 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     }
   }
 
+  // --- メッセージハンドラ ---
+
+  async function handleMessageCreate(message: Message): Promise<void> {
+    // Bot自身のメッセージはスキップ
+    if (message.author.bot) return
+    // 対象チャンネルのみ
+    if (message.channelId !== channelId) return
+    // @Spectraメンションのみ受理
+    if (!client?.user || !message.mentions.has(client.user.id)) return
+
+    // メンション文字列を除去してテキスト抽出
+    const text = message.content
+      .replace(/<@!?\d+>/g, "")
+      .trim()
+    if (!text) return
+
+    // ロール判定
+    const role = resolveDiscordRole(message.author.id, config)
+    const correlationId = `discord-${Date.now()}`
+
+    log.info(`[DISCORD] メッセージ受信 (${role}): ${text.substring(0, 80)}`)
+    startTyping()
+    sessionClient?.sendStreamPost(text, correlationId, role)
+  }
+
   // --- ボタン操作ハンドラ ---
 
   async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
     const [action, requestId] = interaction.customId.split(":")
     if (!action || !requestId) return
     if (action !== "approve" && action !== "deny") return
+
+    // 承認操作はownerのみ
+    const role = resolveDiscordRole(interaction.user.id, config)
+    if (role !== "owner") {
+      await interaction.reply({ content: "⛔ 承認権限がありません", ephemeral: true })
+      return
+    }
 
     const decision = action as "approve" | "deny"
     sessionClient?.sendApprovalRespond(requestId, decision)
