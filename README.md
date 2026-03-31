@@ -33,7 +33,7 @@ AVATAR UI (AUI) is an application where an AI avatar and a human share a persist
 
 - **Console UI** — 7-pane interface (Avatar / Space / Canvas / X / Stream / Terminal / Roblox)
 - **Headless mode** — Run as a server, access from any browser
-- **Discord integration** — Monitor conversations and approve tools remotely
+- **Discord integration** — Chat with the avatar and approve tools via Discord
 - **Avatar motion** — Pixel art avatar expression (idle motion + blink + lip-sync)
 - **Resonance mode** — The avatar senses changes in its surroundings and responds autonomously
 - **Pulse (autonomous action)** — The avatar acts on its own without waiting for human input
@@ -104,7 +104,7 @@ npm run dev
 | `USER_NAME` | | `User` | Display name for the human |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
 | `PULSE_CRON` | | `0 6 * * *` | AI-initiated pulse interval |
-| `TERMINAL_SHELL` | | auto (`$SHELL`) | Shell for terminal pane |
+| `TERMINAL_SHELL` | | OS default (zsh / bash / PowerShell) | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
 | `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
@@ -143,7 +143,7 @@ Both variables must be set to enable.
 | `DISCORD_CHANNEL_ID` | Text channel ID for Spectra's messages |
 | `DISCORD_OWNER_ID` | Owner's Discord user ID (numeric, for owner identification. Unset = all external) |
 
-The Discord bot mirrors stream messages and tool approval requests to the specified channel. Approval can be done via Discord buttons. Bot requires `Guilds` intent only.
+@mention the bot to chat. Console conversations are synced to Discord. Tool approval via buttons (owner only). Enable `Guilds`, `GuildMessages`, and `MessageContent` intents in Discord Developer Portal.
 
 ### Optional: X (Twitter) integration
 

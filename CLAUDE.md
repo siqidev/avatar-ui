@@ -9,7 +9,7 @@
 2. docs/PLAN.md — 到達状態・実装バックログ・受入シナリオ（リリースごとに上書き）
 3. docs/architecture.md — 現行実装の事実記述（コード構造・IPC・SSOT一覧）
 
-## 現在の状況（2026-03-28）
+## 現在の状況（2026-03-31）
 
 ### ブランチ戦略
 - **main**: リリース済みの安定版
@@ -17,7 +17,7 @@
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.5.0（サーバー/クライアント分離 B-lite）開発完了。ヘッドレスモード、Console UI HTTP配信、承認ハブ、Discord窓口、DEV_MODE制御、Pulse日次化を含む。詳細はdocs/PLAN.md。
+v0.5.1リリース準備中。v0.5.0にDiscord双方向チャット + クロスプラットフォーム対応を追加。詳細はdocs/PLAN.md。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
