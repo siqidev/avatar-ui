@@ -25,7 +25,7 @@ export function readRecentMemories(n: number): AppResult<MemoryRecord[]> {
       return ok([])
     }
     const content = fs.readFileSync(memoryFile, "utf-8")
-    const lines = content.trim().split("\n").filter(Boolean)
+    const lines = content.trim().split(/\r?\n/).filter(Boolean)
 
     const records: MemoryRecord[] = []
     for (const line of lines) {
@@ -53,7 +53,7 @@ export function readMemoriesAfter(
       return ok([])
     }
     const content = fs.readFileSync(memoryFile, "utf-8")
-    const lines = content.trim().split("\n").filter(Boolean)
+    const lines = content.trim().split(/\r?\n/).filter(Boolean)
 
     const records: MemoryRecord[] = []
     let found = cursorId === null // nullなら最初から全件

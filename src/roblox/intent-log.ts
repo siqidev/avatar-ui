@@ -60,7 +60,7 @@ export function readIntentsByStatus(
       return ok([])
     }
     const content = fs.readFileSync(getConfig().intentLogFile, "utf-8")
-    const lines = content.trim().split("\n").filter(Boolean)
+    const lines = content.trim().split(/\r?\n/).filter(Boolean)
 
     const records: IntentRecord[] = []
     for (const line of lines) {
@@ -88,7 +88,7 @@ export function updateIntentStatus(
     }
 
     const content = fs.readFileSync(getConfig().intentLogFile, "utf-8")
-    const lines = content.trim().split("\n").filter(Boolean)
+    const lines = content.trim().split(/\r?\n/).filter(Boolean)
 
     const updated = lines.map((line) => {
       const record = JSON.parse(line) as Record<string, unknown>

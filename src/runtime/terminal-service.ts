@@ -202,7 +202,7 @@ function resolveAiCapture(exitCode: number | null): void {
   if (!aiCapture) return
   clearTimeout(aiCapture.timer)
 
-  const lines = aiCapture.output.split("\n")
+  const lines = aiCapture.output.split(/\r?\n/)
   const truncated = lines.length > MAX_SCROLLBACK
   const outputLines = truncated ? lines.slice(-MAX_SCROLLBACK) : lines
 
@@ -214,8 +214,10 @@ function resolveAiCapture(exitCode: number | null): void {
 function injectShellIntegration(shell: string): void {
   if (!ptyProcess) return
 
-  const isZsh = shell.includes("zsh")
-  const isBash = shell.includes("bash")
+  const lower = shell.toLowerCase()
+  const isZsh = lower.includes("zsh")
+  const isBash = lower.includes("bash")
+  const isPowerShell = lower.includes("powershell") || lower.includes("pwsh")
 
   if (isZsh) {
     // zsh: precmd_functionsに追加（既存のprecmdを壊さない）
@@ -226,6 +228,11 @@ function injectShellIntegration(shell: string): void {
     // bash: PROMPT_COMMANDに追加
     ptyProcess.write(
       `__avatar_pc() { printf '\\033]7770;%d\\007' $?; }; PROMPT_COMMAND="__avatar_pc;\${PROMPT_COMMAND}"; clear\n`,
+    )
+  } else if (isPowerShell) {
+    // PowerShell: prompt関数をオーバーライド
+    ptyProcess.write(
+      `function prompt { $e = $LASTEXITCODE; [char]27 + ']7770;' + $e + [char]7; return 'PS> ' }; cls\r\n`,
     )
   } else {
     // 未対応シェル: マーカーなしで動作（AI完了検知はタイムアウトのみ）
@@ -240,7 +247,7 @@ function emit(event: TerminalToRendererEvent): void {
 }
 
 function pushScrollback(text: string): void {
-  const lines = text.split("\n")
+  const lines = text.split(/\r?\n/)
   scrollback.push(...lines)
   if (scrollback.length > MAX_SCROLLBACK) {
     scrollback = scrollback.slice(-MAX_SCROLLBACK)

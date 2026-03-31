@@ -84,7 +84,7 @@ export async function fsRead(args: FsReadArgs): Promise<FsReadResult> {
   const stat = await fs.stat(resolved)
 
   if (args.offset !== undefined || args.limit !== undefined) {
-    const lines = content.split("\n")
+    const lines = content.split(/\r?\n/)
     const offset = args.offset ?? 0
     const limit = args.limit ?? lines.length
     const sliced = lines.slice(offset, offset + limit).join("\n")

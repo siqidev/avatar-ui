@@ -65,7 +65,12 @@ const envSchema = z.object({
   XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
 
   // --- Terminal ---
-  TERMINAL_SHELL: z.string().min(1).default(basename(process.env.SHELL ?? "/bin/bash")),
+  TERMINAL_SHELL: z.string().min(1).default(
+    // Unix: $SHELL、Windows: PowerShell
+    process.platform === "win32"
+      ? "powershell.exe"
+      : basename(process.env.SHELL ?? "/bin/bash"),
+  ),
   // AIのシェル実行権限（デフォルトoff: AIはterminalツールを使えない）
   AVATAR_SHELL: z
     .string()
@@ -217,10 +222,10 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     // ファイルパス（dataDirから派生）
     beingFile: "BEING.md",
     dataDir,
-    stateFile: `${dataDir}/state.json`,
-    memoryFile: `${dataDir}/memory.jsonl`,
-    logFile: `${dataDir}/app.log`,
-    intentLogFile: `${dataDir}/roblox-intents.jsonl`,
+    stateFile: join(dataDir, "state.json"),
+    memoryFile: join(dataDir, "memory.jsonl"),
+    logFile: join(dataDir, "app.log"),
+    intentLogFile: join(dataDir, "roblox-intents.jsonl"),
     avatarSpace: env.AVATAR_SPACE,
     avatarSpaceExplicit,
 

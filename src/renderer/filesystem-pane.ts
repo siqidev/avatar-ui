@@ -37,6 +37,12 @@ const expandedDirs = new Set<string>()
 /** ファイルツリー内クリップボード（切り取り/コピー） */
 let clipboard: { path: string; mode: "cut" | "copy" } | null = null
 
+// macOS: Cmd (metaKey), Windows/Linux: Ctrl (ctrlKey) — VSCode準拠
+const isMac = navigator.platform.toUpperCase().includes("MAC")
+function modKey(e: KeyboardEvent): boolean {
+  return isMac ? e.metaKey : e.ctrlKey
+}
+
 // --- Undo/Redo ---
 
 type UndoEntry =
@@ -820,15 +826,15 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       break
     }
     case "z": {
-      if (!e.metaKey) break
+      if (!modKey(e)) break
       e.preventDefault()
       if (e.shiftKey) {
-        // Cmd+Shift+Z: やり直し
+        // Cmd/Ctrl+Shift+Z: やり直し
         redo().catch((err: unknown) => {
           errorEl.textContent = err instanceof Error ? err.message : t("operationError")
         })
       } else {
-        // Cmd+Z: 元に戻す
+        // Cmd/Ctrl+Z: 元に戻す
         undo().catch((err: unknown) => {
           errorEl.textContent = err instanceof Error ? err.message : t("operationError")
         })
@@ -836,22 +842,22 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       break
     }
     case "x": {
-      // Cmd+X: 切り取り
-      if (!focusedPath || !e.metaKey) break
+      // Cmd/Ctrl+X: 切り取り
+      if (!focusedPath || !modKey(e)) break
       e.preventDefault()
       clipboard = { path: focusedPath, mode: "cut" }
       break
     }
     case "c": {
-      // Cmd+C: コピー
-      if (!focusedPath || !e.metaKey) break
+      // Cmd/Ctrl+C: コピー
+      if (!focusedPath || !modKey(e)) break
       e.preventDefault()
       clipboard = { path: focusedPath, mode: "copy" }
       break
     }
     case "v": {
-      // Cmd+V: 貼り付け
-      if (!e.metaKey || !clipboard) break
+      // Cmd/Ctrl+V: 貼り付け
+      if (!modKey(e) || !clipboard) break
       e.preventDefault()
       const pasteDir = getTargetDir()
       executePaste(pasteDir).catch((err: unknown) => {
