@@ -79,11 +79,13 @@ That's it for a basic setup. See [Environment Variables](#environment-variables)
 ### 3. Create identity files
 
 ```bash
-cp BEING.example.md BEING.md
-cp PULSE.example.md PULSE.md
+cp avatar.example/BEING.example.md BEING.md
+cp avatar.example/PULSE.example.md PULSE.md
 ```
 
 Edit these to define your avatar's personality and periodic behavior.
+
+> **Tip:** To keep identity files in a separate directory (e.g. `my-avatar/`), set `AVATAR_DIR=my-avatar` in `.env`. The framework will look for `BEING.md`, `PULSE.md`, `XPULSE.md` inside that directory.
 
 ### 4. Run
 

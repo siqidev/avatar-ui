@@ -1,4 +1,4 @@
 # XPULSE（テンプレート）
 
 X（Twitter）向け定期実行時にアバターに渡すプロンプト。
-spectra/config/XPULSE.md にコピーして使用すること。
+ルート直下に XPULSE.md としてコピーするか、AVATAR_DIR で指定したディレクトリに配置する。

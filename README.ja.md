@@ -79,11 +79,13 @@ XAI_API_KEY=your-xai-api-key
 ### 3. アイデンティティファイルの作成
 
 ```bash
-cp BEING.example.md BEING.md
-cp PULSE.example.md PULSE.md
+cp avatar.example/BEING.example.md BEING.md
+cp avatar.example/PULSE.example.md PULSE.md
 ```
 
 アバターの人格と定期行動を定義します。
+
+> **Tip:** アイデンティティファイルを別ディレクトリで管理したい場合、`.env` に `AVATAR_DIR=my-avatar` を設定すると、そのディレクトリ内の `BEING.md`、`PULSE.md`、`XPULSE.md` を読み込みます。
 
 ### 4. 起動
 

@@ -885,7 +885,7 @@ RECOVERY_POLICY: Record<AlertCode, { action: "continue" | "freeze" }>
 | プロジェクト戦略 | docs/PROJECT.md |
 | 現行アーキテクチャ | docs/architecture.md（本文書） |
 | 次版計画 | docs/PLAN.md |
-| 人格定義 | BEING.md |
-| Pulse定義 | PULSE.md |
-| XPulse定義 | XPULSE.md |
+| 人格定義 | BEING.md（AVATAR_DIR設定時は$AVATAR_DIR/BEING.md） |
+| Pulse定義 | PULSE.md（AVATAR_DIR設定時は$AVATAR_DIR/PULSE.md） |
+| XPulse定義 | XPULSE.md（AVATAR_DIR設定時は$AVATAR_DIR/XPULSE.md） |
 | Rojo設定（Studio同期） | default.project.json |
