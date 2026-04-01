@@ -59,6 +59,9 @@ const envSchema = z.object({
   ROBLOX_OWNER_USER_ID: z.string().regex(/^\d+$/, "ROBLOX_OWNER_USER_ID は数値で指定してください").optional(),
   X_OWNER_USER_ID: z.string().regex(/^\d+$/, "X_OWNER_USER_ID は数値で指定してください").optional(),
 
+  // --- アバター固有ファイルのディレクトリ（未設定ならルート直下） ---
+  AVATAR_DIR: z.string().min(1).optional(),
+
   // --- Pulse ---
   PULSE_CRON: z.string().min(1).default("0 6 * * *"),
   // --- XPulse（X投稿用Pulse） ---
@@ -125,6 +128,7 @@ export type AppConfig = {
   managementApiBaseUrl: string
 
   // ファイルパス（定数: ルートはenv、派生はここで生成）
+  avatarDir: string | undefined
   beingFile: string
   dataDir: string
   stateFile: string
@@ -220,7 +224,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     managementApiBaseUrl: "https://management-api.x.ai/v1",
 
     // ファイルパス（dataDirから派生）
-    beingFile: "BEING.md",
+    avatarDir: env.AVATAR_DIR,
+    beingFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "BEING.md") : "BEING.md",
     dataDir,
     stateFile: join(dataDir, "state.json"),
     memoryFile: join(dataDir, "memory.jsonl"),
@@ -231,12 +236,12 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // Pulse
     pulseCron: env.PULSE_CRON,
-    pulseFile: "PULSE.md",
+    pulseFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "PULSE.md") : "PULSE.md",
     pulseOkPrefix: "PULSE_OK",
 
     // XPulse
     xpulseCron: env.XPULSE_CRON,
-    xpulseFile: "XPULSE.md",
+    xpulseFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "XPULSE.md") : "XPULSE.md",
     xpulseOkPrefix: "XPULSE_OK",
 
     // ネットワーク
