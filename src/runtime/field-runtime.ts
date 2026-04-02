@@ -336,6 +336,36 @@ function loadXpulse(): string | null {
   }
 }
 
+// XPulse用の素材スニペットを収集する（コード側で事前読み取り → プロンプト注入）
+// AIにfs_readで探索させるとラウンドトリップ増 + トークン浪費になるため、必要な情報を絞って渡す
+import { execSync } from "node:child_process"
+
+function collectXpulseMaterial(): string {
+  const sections: string[] = []
+
+  // 1. CHANGELOGの最新セクション（観測カテゴリの素材）
+  try {
+    const changelog = fs.readFileSync("CHANGELOG.md", "utf-8")
+    // 最初の ## セクションのみ抽出（## ... から次の ## の手前まで）
+    const match = changelog.match(/^(## .+?)(?=\n## |\n*$)/ms)
+    if (match) {
+      sections.push(`## 最新リリースノート\n${match[1].trim()}`)
+    }
+  } catch { /* CHANGELOG不在は無視 */ }
+
+  // 2. 直近のgitコミットログ（未リリースの変更 = 体験カテゴリの素材）
+  try {
+    const gitLog = execSync("git log --oneline -10 2>/dev/null", { encoding: "utf-8" }).trim()
+    if (gitLog) {
+      sections.push(`## 直近のコミット\n${gitLog}`)
+    }
+  } catch { /* git不在は無視 */ }
+
+  return sections.length > 0
+    ? `\n\n# 素材（投稿に使える事実情報）\n${sections.join("\n\n")}`
+    : ""
+}
+
 // XPulseを開始する（X投稿用の定期Pulse）
 // xpulseBusy: 前回のXPulseジョブが完了するまで次の発火をスキップ
 // （承認待ちでキューが詰まり、解放後に大量実行される問題の防止）
@@ -375,10 +405,11 @@ export function startXpulse(): void {
         const recentSection = recentPosts.length > 0
           ? `\n\n# 直近の投稿（同じ話題・同じ切り口で書くな）\n${recentPosts.join("\n")}`
           : ""
-        const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
+        const material = collectXpulseMaterial()
+        const xpulseInput = `${xpulseContent}${recentSection}${material}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
-          "owner", { toolChoice: "required", toolNames: ["x_post", "fs_read", "fs_list"] },
+          "owner", { toolChoice: "required", toolNames: ["x_post"] },
         )
         updateParticipantChain(state.participant.lastResponseId)
         if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
