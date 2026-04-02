@@ -84,6 +84,8 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
       },
 
       onStreamItem: (payload) => {
+        // 観測応答（Roblox共振）はDiscordに流さない（monitor pane + Roblox sayで十分）
+        if (payload.source === "observation") return
         // Discord発のhuman発話はecho防止
         if (payload.actor === "human" && payload.channel === "discord") return
         // Console等からのhuman発話はDiscordに表示

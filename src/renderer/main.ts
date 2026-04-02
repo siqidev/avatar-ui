@@ -697,6 +697,8 @@ let devMode = false
 
     // stream.item: リアルタイムのストリームメッセージ
     onStreamItem: (payload) => {
+      // 観測応答（Roblox共振）はstream paneに流さない（monitor paneで表示済み）
+      if (payload.source === "observation") return
       removeThinking()
       appendMessage(
         payload.actor,
