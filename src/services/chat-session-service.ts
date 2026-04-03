@@ -287,6 +287,9 @@ export async function sendMessage(
       tools,
       store: true,
       previous_response_id: response.id,
+      ...(options?.toolChoice
+        ? { tool_choice: options.toolChoice }
+        : {}),
     }, API_CALL_OPTIONS)
     state.participant.lastResponseId = response.id
   }
