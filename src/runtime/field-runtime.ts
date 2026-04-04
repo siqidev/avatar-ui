@@ -1,6 +1,7 @@
 import OpenAI from "openai"
 import * as http from "node:http"
 import * as fs from "node:fs"
+import * as path from "node:path"
 import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { resolveRobloxRole, resolveXRole } from "../services/input-role-resolver.js"
@@ -336,6 +337,33 @@ function loadXpulse(): string | null {
   }
 }
 
+// XPULSE.mdから「# 素材ファイル」セクションのパスリストを抽出し、内容を読み取る
+// 例: # 素材ファイル\n- refs/self/CHANGELOG.md\n- refs/self/package.json
+function loadXpulseMaterials(xpulseContent: string): string {
+  const match = xpulseContent.match(/^# 素材ファイル\n((?:- .+\n?)+)/m)
+  if (!match) return ""
+
+  const avatarSpace = path.resolve(getConfig().avatarSpace)
+  const paths = match[1].split("\n")
+    .map((line) => line.replace(/^- /, "").trim())
+    .filter(Boolean)
+
+  const sections: string[] = []
+  for (const p of paths) {
+    const resolved = path.resolve(avatarSpace, p)
+    try {
+      const content = fs.readFileSync(resolved, "utf-8")
+      sections.push(`## ${p}\n${content.trim()}`)
+    } catch {
+      log.info(`[XPULSE] 素材ファイル読み取りスキップ: ${p}`)
+    }
+  }
+
+  return sections.length > 0
+    ? `\n\n# 素材（自動読み込み）\n${sections.join("\n\n")}`
+    : ""
+}
+
 // XPulseを開始する（X投稿用の定期Pulse）
 // xpulseBusy: 前回のXPulseジョブが完了するまで次の発火をスキップ
 // （承認待ちでキューが詰まり、解放後に大量実行される問題の防止）
@@ -375,10 +403,11 @@ export function startXpulse(): void {
         const recentSection = recentPosts.length > 0
           ? `\n\n# 直近の投稿（同じ話題・同じ切り口で書くな）\n${recentPosts.join("\n")}`
           : ""
-        const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
+        const materials = loadXpulseMaterials(xpulseContent)
+        const xpulseInput = `${xpulseContent}${recentSection}${materials}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
         const result = await sendMessage(
           client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
-          "owner", { toolChoice: "required", toolNames: ["x_post", "x_reply", "fs_read", "fs_list"] },
+          "owner", { toolChoice: "required", toolNames: ["x_post"] },
         )
         updateParticipantChain(state.participant.lastResponseId)
         if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
