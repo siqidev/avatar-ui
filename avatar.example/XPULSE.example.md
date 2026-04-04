@@ -3,12 +3,14 @@
 X（Twitter）向け定期実行時にアバターに渡すプロンプト。
 ルート直下に XPULSE.md としてコピーするか、AVATAR_DIR で指定したディレクトリに配置する。
 
-## 素材ファイル機能
+## 素材の読み込み
 
-`# 素材ファイル` セクションにAvatar Space相対パスを列挙すると、XPulse実行時にアプリが自動読み込みしてプロンプトに添付する。AIがfs_readで探索する必要がなく、1ラウンドで完結する。
+XPulse実行時、AIはfs_read/fs_listツールを使用できる。
+XPULSE.md内で読むべきファイルを指示すれば、AIが自分で読んで投稿に反映する。
 
 ```markdown
-# 素材ファイル
+# 素材の読み込み
+投稿前にfs_readで以下のファイルを読み、内容を踏まえて投稿する:
 - refs/self/CHANGELOG.md
 - refs/self/package.json
 ```
