@@ -194,30 +194,10 @@ export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
 
 // --- refs/ 初期化 ---
 
-/** refs/ディレクトリとrefs/self/シンボリックリンクを準備する（同期・起動時に1回呼ぶ） */
+/** refs/ディレクトリを準備する（同期・起動時に1回呼ぶ） */
 export function ensureRefsReady(): void {
   const root = getAvatarSpaceRoot()
   const refsDir = path.join(root, REFS_DIR)
-  const selfLink = path.join(refsDir, "self")
-
-  // refs/ディレクトリ作成
   fsSync.mkdirSync(refsDir, { recursive: true })
-
-  // refs/self/ → avatar-uiリポルート（process.cwd()）
-  const appRoot = process.cwd()
-  try {
-    const existing = fsSync.readlinkSync(selfLink)
-    if (existing !== appRoot) {
-      fsSync.rmSync(selfLink)
-      fsSync.symlinkSync(appRoot, selfLink)
-      log.info(`[FS] refs/self/ リンク更新: ${appRoot}`)
-    }
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      fsSync.symlinkSync(appRoot, selfLink)
-      log.info(`[FS] refs/self/ リンク作成: ${appRoot}`)
-    } else {
-      throw e
-    }
-  }
+  log.info(`[FS] refs/ 準備完了: ${refsDir}`)
 }

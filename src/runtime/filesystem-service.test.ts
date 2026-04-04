@@ -279,38 +279,19 @@ describe("refs/（読み取り専用参照）", () => {
 })
 
 describe("ensureRefsReady", () => {
-  it("refs/ディレクトリとrefs/self/シンボリックリンクを作成する", async () => {
+  it("refs/ディレクトリを作成する", async () => {
     ensureRefsReady()
     const refsDir = path.join(tmpDir, "refs")
-    const selfLink = path.join(refsDir, "self")
 
     const stat = await fs.stat(refsDir)
     expect(stat.isDirectory()).toBe(true)
-
-    const target = await fs.readlink(selfLink)
-    expect(target).toBe(process.cwd())
   })
 
-  it("既存のrefs/self/が異なるパスを指す場合は更新する", async () => {
-    const refsDir = path.join(tmpDir, "refs")
-    await fs.mkdir(refsDir, { recursive: true })
-    await fs.symlink("/old/path", path.join(refsDir, "self"))
-
+  it("既にrefs/があればエラーにならない", async () => {
+    await fs.mkdir(path.join(tmpDir, "refs"), { recursive: true })
     ensureRefsReady()
 
-    const target = await fs.readlink(path.join(refsDir, "self"))
-    expect(target).toBe(process.cwd())
-  })
-
-  it("既に正しいrefs/self/があれば何もしない", async () => {
-    const refsDir = path.join(tmpDir, "refs")
-    await fs.mkdir(refsDir, { recursive: true })
-    await fs.symlink(process.cwd(), path.join(refsDir, "self"))
-
-    // エラーなく完了する
-    ensureRefsReady()
-
-    const target = await fs.readlink(path.join(refsDir, "self"))
-    expect(target).toBe(process.cwd())
+    const stat = await fs.stat(path.join(tmpDir, "refs"))
+    expect(stat.isDirectory()).toBe(true)
   })
 })

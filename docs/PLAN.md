@@ -121,8 +121,7 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
   - ~~**観測応答のStream/Discord抑制**~~ — 実装済み。source=observationのstream.itemをDiscord bridgeとConsole UI stream paneでフィルタ。monitor pane + Roblox sayのみに表示
   - **Roblox観測要素の拡充** — 上位原理（P9器, P12/P13律動, P17同調関係, P5判断なき観照）から演繹した観測データの充実化。必須要素: ①参与者アンカー（who/when/session）②相対位置関係（距離/方位/視界/遮蔽）③相対変化量（距離変化速度/向き変化/停止↔移動）④身体活動相（Humanoid state: 走行/着座/ジャンプ/落下等）⑤注視の代理証拠（身体向き↔対象方位の差/向き続けた時間）⑥滞在・周期・反復（近距離滞在秒数/出入り回数/往復周期）⑦共有対象アンカー（人間↔AI↔環境の三項関係）⑧AI側の同型観測（上記をAI側にも同じ語彙で保持）。拡張要素: アニメーション状態、カメラ方向（クライアント実装必要）、ヘルス/被弾、経路制約。送り方は3種: 瞬間イベント（閾値越え時）+ 窓サマリ（3-5秒周期）+ 関係スナップショット（変化時）
 - ~~**Avatar Space構造設計（refs/方式）**~~ — 実装済み。avatar-space直下はrw（アバターの自由活動領域）、`refs/`ディレクトリ配下はro（参照専用）。アプリ層（filesystem-service.ts）で`refs/`への書き込みを拒否。OS側のbind mount/権限に依存しない
-  - ~~**`refs/self/`**~~: 実装済み。起動時にavatar-uiリポへのシンボリックリンクを自動作成。XPulseがfs_read("refs/self/CHANGELOG.md")等で素材取得可能
-  - **`refs/<name>/`**: ユーザーがシンボリックリンクで配置（`ln -s /path/to/siqi refs/siqi`）。環境変数不要、refs/の中身がそのまま参照一覧
+  - **`refs/<name>/`**: ユーザーがシンボリックリンクで配置（`ln -s /path/to/repo refs/name`）。refs/の中身がそのまま参照一覧。アプリはrefs/ディレクトリの作成のみ行い、中身はユーザー管理
   - ~~**collectXpulseMaterial()廃止**~~: 実装済み。XPulseにfs_read/fs_listツールを開放し、XPULSE.mdの指示でrefs/self/から素材取得
   - **自己拡張パス**: 将来AIが自身のコードを拡張する段階では、`refs/self/`のro制約をrwに昇格するだけで移行可能。space全体の構造変更は不要。拡張範囲（rw対象）を段階的に広げられる設計
 - **ファイル操作サンドボックス** — Dockerコンテナ隔離によるTOCTOU脆弱性の根本排除

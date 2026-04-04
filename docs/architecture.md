@@ -50,7 +50,7 @@ src/
     tool-approval-service.ts  承認サービス（auto-approve判定 + hub委譲）
     settings-store.ts         設定ストア（テーマ・モデル・言語・共振モード永続化 → data/settings.json）
     terminal-service.ts       Terminal持続PTY管理（node-pty）
-    filesystem-service.ts     Avatar Spaceファイル操作（refs/読み取り専用ガード・ensureRefsReady）
+    filesystem-service.ts     Avatar Spaceファイル操作（refs/読み取り専用ガード）
   services/
     chat-session-service.ts   Grok Responses API呼出+ツール実行ループ
     input-gate.ts             InputGate（source+channel+roleベースのツール権限制御）
@@ -351,7 +351,7 @@ AIが呼び出し可能な7ツール。chat-session-service.tsがツール定義
 
 Avatar Space（`AVATAR_SPACE`環境変数）外へのファイルアクセスは拒否。パスガード`assertInAvatarSpace`がfilesystem-service.ts内に実装（パス正規化 + `fs.realpath`によるシンボリックリンク解決。リンク先がAvatar Space外の場合も拒否）。
 
-例外: `refs/`ディレクトリ配下は**読み取り専用の参照領域**。外部リポジトリへのシンボリックリンクを配置し、AIがfs_read/fs_listで参照できる。書き込み操作（fsWrite/fsMutate/fsImportFile）はアプリ層で拒否。`refs/self/`はアプリ起動時にavatar-uiリポジトリへのシンボリックリンクとして自動作成される。追加の参照はユーザーが`ln -s`で配置する（例: `ln -s /path/to/siqi refs/siqi`）。
+例外: `refs/`ディレクトリ配下は**読み取り専用の参照領域**。ユーザーがシンボリックリンクを配置し、AIがfs_read/fs_listで参照できる（例: `ln -s /path/to/repo refs/myrepo`）。書き込み操作（fsWrite/fsMutate/fsImportFile）はアプリ層で拒否。refs/ディレクトリ自体はアプリ起動時に自動作成される。
 
 ### 実行方式
 
