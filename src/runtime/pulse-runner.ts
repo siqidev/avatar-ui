@@ -130,6 +130,16 @@ function injectDerivedValues(data: Record<string, unknown>): void {
   // _minimap: 座標ミニマップ
   data._minimap = toMinimap(data.latitude, data.longitude)
 
+  // _date: 日時（created or occurred タイムスタンプ → UTC文字列）
+  const ts = typeof data.occurred === "number" ? data.occurred
+    : typeof data.created === "number" ? data.created : null
+  if (ts !== null) {
+    const d = new Date(ts as number)
+    data._date = d.toISOString().replace("T", " ").substring(0, 16) + " UTC"
+  } else {
+    data._date = ""
+  }
+
   // _coords: 座標テキスト
   if (typeof data.latitude === "number" && typeof data.longitude === "number") {
     const la = data.latitude as number
