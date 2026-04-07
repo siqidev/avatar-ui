@@ -46,11 +46,13 @@ const cronTasks: ScheduledTask[] = []
 
 // {key}プレースホルダをオブジェクトのフィールドで展開する
 function renderTemplate(template: string, data: Record<string, unknown>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
+  const expanded = template.replace(/\{(\w+)\}/g, (_, key: string) => {
     const value = data[key]
     if (value === undefined || value === null) return ""
     return String(value)
   })
+  // フロントマターから読んだ \n をリアル改行に変換
+  return expanded.replace(/\\n/g, "\n")
 }
 
 // JSONレスポンスをテンプレートで整形する（配列なら先頭5件）
