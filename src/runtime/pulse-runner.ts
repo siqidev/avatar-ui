@@ -55,16 +55,106 @@ function renderTemplate(template: string, data: Record<string, unknown>): string
   return expanded.replace(/\\n/g, "\n")
 }
 
+// --- 派生値計算（_プレフィックス付きプレースホルダ） ---
+
+// 形状ASCIIアート辞書
+const SHAPE_ART: Record<string, string> = {
+  disc:       "  ╭──────╮\n  │      │\n  ╰──────╯",
+  disk:       "  ╭──────╮\n  │      │\n  ╰──────╯",
+  triangle:   "     ╱╲\n   ╱    ╲\n  ╱──────╲",
+  sphere:     "    ╭──╮\n   ╭╯  ╰╮\n   ╰╮  ╭╯\n    ╰──╯",
+  doughnut:   "  ╭──────╮\n  │  ╭╮  │\n  │  ╰╯  │\n  ╰──────╯",
+  cigar:      "  ╭──────────╮\n  │          │\n  ╰──────────╯",
+  chevron:    "    ╲    ╱\n     ╲  ╱\n      ╲╱\n      ╱╲",
+  diamond:    "      ╱╲\n    ╱    ╲\n    ╲    ╱\n      ╲╱",
+  rectangle:  "  ┌────────┐\n  │        │\n  │        │\n  └────────┘",
+  cylinder:   "  ╭──────╮\n  │      │\n  │      │\n  ╰──────╯",
+  oval:       "   ╭────╮\n  ╭╯    ╰╮\n  ╰╮    ╭╯\n   ╰────╯",
+  light:      "      ✦\n    ╱   ╲\n   ╱     ╲",
+  star:       "      ✦\n    ╱ │ ╲\n   ╱  │  ╲",
+  fireball:   "    ╭──╮\n   ╭╯∞∞╰╮\n   ╰╮∞∞╭╯\n    ╰──╯",
+  cross:      "     │\n  ───┼───\n     │",
+  unknown:    "      ?\n    ╱   ╲\n    ╲   ╱\n      ?",
+}
+
+// テキストから数値を抽出する（"500 meters" → 500）
+function parseNumeric(text: unknown): number | null {
+  if (typeof text !== "string") return null
+  const m = text.match(/[\d.]+/)
+  return m ? Number(m[0]) : null
+}
+
+// 数値をバーグラフに変換（maxに対する比率で描画）
+function toBar(value: number | null, max: number, width: number = 10): string {
+  if (value === null) return "░".repeat(width)
+  const filled = Math.min(Math.round((value / max) * width), width)
+  return "█".repeat(filled) + "░".repeat(width - filled)
+}
+
+// 緯度経度からミニマップを生成（7x5グリッド）
+function toMinimap(lat: unknown, lon: unknown): string {
+  const la = typeof lat === "number" ? lat : null
+  const lo = typeof lon === "number" ? lon : null
+  if (la === null || lo === null) return ""
+
+  // 緯度 -90〜90 → 行 0〜4、経度 -180〜180 → 列 0〜6
+  const row = Math.min(4, Math.max(0, Math.round((1 - (la + 90) / 180) * 4)))
+  const col = Math.min(6, Math.max(0, Math.round(((lo + 180) / 360) * 6)))
+
+  const lines: string[] = []
+  for (let r = 0; r < 5; r++) {
+    let line = "  "
+    for (let c = 0; c < 7; c++) {
+      line += (r === row && c === col) ? " ╳" : " ·"
+    }
+    lines.push(line)
+  }
+  return lines.join("\n")
+}
+
+// データオブジェクトに派生値を注入する
+function injectDerivedValues(data: Record<string, unknown>): void {
+  // _shape_art: 形状ASCIIアート
+  const shape = String(data.shape ?? "unknown").toLowerCase()
+  data._shape_art = SHAPE_ART[shape] ?? SHAPE_ART.unknown
+
+  // _alt_bar: 高度バーグラフ（max 10000m）
+  data._alt_bar = toBar(parseNumeric(data.altitude), 10000)
+
+  // _dist_bar: 距離バーグラフ（max 5000m）
+  data._dist_bar = toBar(parseNumeric(data.distance), 5000)
+
+  // _dur_bar: 持続時間バーグラフ（max 60min）
+  data._dur_bar = toBar(parseNumeric(data.duration), 60)
+
+  // _minimap: 座標ミニマップ
+  data._minimap = toMinimap(data.latitude, data.longitude)
+
+  // _coords: 座標テキスト
+  if (typeof data.latitude === "number" && typeof data.longitude === "number") {
+    const la = data.latitude as number
+    const lo = data.longitude as number
+    data._coords = `${Math.abs(la).toFixed(1)}°${la >= 0 ? "N" : "S"}  ${Math.abs(lo).toFixed(1)}°${lo >= 0 ? "E" : "W"}`
+  } else {
+    data._coords = ""
+  }
+}
+
 // JSONレスポンスをテンプレートで整形する（配列なら先頭5件）
 function renderData(template: string, body: string): string {
   try {
     const parsed = JSON.parse(body) as unknown
     if (Array.isArray(parsed)) {
       const items = parsed.slice(0, 5) as Record<string, unknown>[]
-      return items.map((item) => renderTemplate(template, item)).join("\n")
+      return items.map((item) => {
+        injectDerivedValues(item)
+        return renderTemplate(template, item)
+      }).join("\n")
     }
     if (typeof parsed === "object" && parsed !== null) {
-      return renderTemplate(template, parsed as Record<string, unknown>)
+      const obj = parsed as Record<string, unknown>
+      injectDerivedValues(obj)
+      return renderTemplate(template, obj)
     }
     return body
   } catch {

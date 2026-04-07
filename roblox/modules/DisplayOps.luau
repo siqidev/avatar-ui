@@ -73,12 +73,12 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 50
 
-	-- 背景フレーム
+	-- 背景フレーム（黒背景）
 	local frame = Instance.new("Frame")
 	frame.Name = "Background"
 	frame.Size = UDim2.fromScale(1, 1)
-	frame.BackgroundColor3 = Color3.fromRGB(10, 15, 25)
-	frame.BackgroundTransparency = 0.1
+	frame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+	frame.BackgroundTransparency = 0.05
 	frame.BorderSizePixel = 0
 	frame.Parent = gui
 
@@ -90,29 +90,29 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	padding.PaddingRight = UDim.new(0, 10)
 	padding.Parent = frame
 
-	-- タイトルラベル
+	-- タイトルラベル（ターミナル緑・等幅）
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Name = "Title"
-	titleLabel.Size = UDim2.new(1, 0, 0, 30)
+	titleLabel.Size = UDim2.new(1, 0, 0, 24)
 	titleLabel.Position = UDim2.fromOffset(0, 0)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-	titleLabel.TextSize = 20
-	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextColor3 = Color3.fromRGB(50, 255, 100)
+	titleLabel.TextSize = 16
+	titleLabel.Font = Enum.Font.RobotoMono
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 	titleLabel.Text = ""
 	titleLabel.Parent = frame
 
-	-- 本文ラベル
+	-- 本文ラベル（ターミナル緑・等幅）
 	local bodyLabel = Instance.new("TextLabel")
 	bodyLabel.Name = "Body"
-	bodyLabel.Size = UDim2.new(1, 0, 1, -34)
-	bodyLabel.Position = UDim2.new(0, 0, 0, 34)
+	bodyLabel.Size = UDim2.new(1, 0, 1, -28)
+	bodyLabel.Position = UDim2.new(0, 0, 0, 28)
 	bodyLabel.BackgroundTransparency = 1
-	bodyLabel.TextColor3 = Color3.fromRGB(200, 220, 240)
-	bodyLabel.TextSize = 14
-	bodyLabel.Font = Enum.Font.Gotham
+	bodyLabel.TextColor3 = Color3.fromRGB(0, 230, 65)
+	bodyLabel.TextSize = 11
+	bodyLabel.Font = Enum.Font.RobotoMono
 	bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
 	bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
 	bodyLabel.TextWrapped = true
