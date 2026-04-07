@@ -97,7 +97,7 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	titleLabel.Position = UDim2.fromOffset(0, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.TextColor3 = Color3.fromRGB(50, 255, 100)
-	titleLabel.TextSize = 16
+	titleLabel.TextSize = 22
 	titleLabel.Font = Enum.Font.RobotoMono
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -111,7 +111,7 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	bodyLabel.Position = UDim2.new(0, 0, 0, 28)
 	bodyLabel.BackgroundTransparency = 1
 	bodyLabel.TextColor3 = Color3.fromRGB(0, 230, 65)
-	bodyLabel.TextSize = 11
+	bodyLabel.TextSize = 16
 	bodyLabel.Font = Enum.Font.RobotoMono
 	bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
 	bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
