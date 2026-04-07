@@ -262,25 +262,25 @@ function executePulse(pulse: PulseDefinition, deps: PulseRunnerDeps): void {
 
         fetchedData = await fetchSource(pulse.source)
         if (fetchedData === null) return
-
-        // 重複検出: 前回と同じ内容ならスキップ
-        const hash = createHash("md5").update(fetchedData).digest("hex")
-        if (hash === hashMap.get(pulse.name)) {
-          log.info(`[PULSE:${pulse.name}] 変更なし — スキップ`)
-          return
-        }
-        hashMap.set(pulse.name, hash)
       }
 
-      // 2. Roblox表示（target + template設定時、プログラム的表示）
+      // 2. Roblox表示（target + template設定時、毎回実行）
       if (pulse.target && pulse.template && fetchedData) {
         const rendered = renderData(pulse.template, fetchedData)
         await sendToRobloxDisplay(pulse.target, rendered, pulse.title)
         log.info(`[PULSE:${pulse.name}] Roblox表示更新: ${pulse.target}`)
       }
 
-      // 3. AI送信（instructions設定時）
-      if (pulse.instructions) {
+      // 3. 重複検出（AI送信のみスキップ。Roblox表示は毎回行う）
+      let dataChanged = true
+      if (fetchedData) {
+        const hash = createHash("md5").update(fetchedData).digest("hex")
+        dataChanged = hash !== hashMap.get(pulse.name)
+        hashMap.set(pulse.name, hash)
+      }
+
+      // 4. AI送信（instructions設定時、データ変更時のみ）
+      if (pulse.instructions && dataChanged) {
         // AI入力を構築
         let aiInput = pulse.instructions
 
@@ -367,8 +367,8 @@ export function startPulses(deps: PulseRunnerDeps): void {
     cronTasks.push(task)
     log.info(`[PULSE] cron開始: ${pulse.name} (${pulse.cron} UTC)`)
 
-    // データフィード系は起動時に即表示（cron発火を待たない）
-    initialDisplay(pulse)
+    // データフィード系は起動後に初回表示（Robloxサーバーの受信準備を待つ）
+    setTimeout(() => initialDisplay(pulse), 30_000)
   }
 
   log.info(`[PULSE] ${pulses.length}件のパルスを登録`)
