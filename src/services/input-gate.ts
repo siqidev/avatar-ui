@@ -37,7 +37,7 @@ export function getAllowedTools(source: Source, channel: ChannelId, role: InputR
   }
 
   // owner / 内部トリガー → 全ツール許可
-  if (role === "owner" || source === "pulse" || source === "xpulse") {
+  if (role === "owner" || source === "pulse") {
     return ALL_TOOLS
   }
 

@@ -9,8 +9,7 @@ import { transition, isActive } from "./field-fsm.js"
 import {
   initRuntime,
   processStream,
-  startPulse,
-  startXpulse,
+  startPulses,
   startObservation,
   startXWebhook,
   getState,
@@ -52,8 +51,7 @@ export function boot(): boolean {
   }
 
   // サービス起動
-  startPulse()
-  startXpulse()
+  startPulses()
   startObservation()
   startXWebhook()
   return true

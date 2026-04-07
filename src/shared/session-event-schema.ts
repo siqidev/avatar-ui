@@ -20,7 +20,7 @@ export type SessionEventKind = z.infer<typeof sessionEventKindSchema>
 export const streamActorSchema = z.enum(["human", "ai"])
 export type StreamActor = z.infer<typeof streamActorSchema>
 
-export const streamSourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
+export const streamSourceSchema = z.enum(["user", "pulse", "observation"])
 export type StreamSource = z.infer<typeof streamSourceSchema>
 
 export const streamChannelSchema = z.enum(["console", "roblox", "x", "discord"])

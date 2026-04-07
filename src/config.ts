@@ -62,11 +62,6 @@ const envSchema = z.object({
   // --- アバター固有ファイルのディレクトリ（未設定ならルート直下） ---
   AVATAR_DIR: z.string().min(1).optional(),
 
-  // --- Pulse ---
-  PULSE_CRON: z.string().min(1).default("0 6 * * *"),
-  // --- XPulse（X投稿用Pulse） ---
-  XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
-
   // --- Terminal ---
   TERMINAL_SHELL: z.string().min(1).default(
     // Unix: $SHELL、Windows: PowerShell
@@ -139,14 +134,7 @@ export type AppConfig = {
   avatarSpaceExplicit: boolean
 
   // Pulse
-  pulseCron: string
-  pulseFile: string
-  pulseOkPrefix: string
-
-  // XPulse（X投稿用Pulse）
-  xpulseCron: string
-  xpulseFile: string
-  xpulseOkPrefix: string
+  pulseDir: string
 
   // ネットワーク
   observationPort: number
@@ -234,15 +222,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     avatarSpace: env.AVATAR_SPACE,
     avatarSpaceExplicit,
 
-    // Pulse
-    pulseCron: env.PULSE_CRON,
-    pulseFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "PULSE.md") : "PULSE.md",
-    pulseOkPrefix: "PULSE_OK",
-
-    // XPulse
-    xpulseCron: env.XPULSE_CRON,
-    xpulseFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "XPULSE.md") : "XPULSE.md",
-    xpulseOkPrefix: "XPULSE_OK",
+    // Pulse（AVATAR_DIRから導出）
+    pulseDir: env.AVATAR_DIR ? join(env.AVATAR_DIR, "pulse") : "pulse",
 
     // ネットワーク
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),

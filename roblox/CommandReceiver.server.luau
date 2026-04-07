@@ -36,6 +36,7 @@ CommandRegistry.register("npc_motion", require(Modules.NpcMotionOps))
 CommandRegistry.register("effect", require(Modules.EffectOps))
 CommandRegistry.register("build", require(Modules.BuildOps))
 CommandRegistry.register("spatial", require(Modules.SpatialService))
+CommandRegistry.register("display", require(Modules.DisplayOps))
 
 -- 起動時復元（DataStoreから前回の状態を読み込み）
 print("[CommandReceiver] DataStoreから復元中...")

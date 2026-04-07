@@ -14,7 +14,7 @@ export type PersistedToolCall = {
 export type PersistedMessage = {
   actor: "human" | "ai"
   text: string
-  source?: "user" | "pulse" | "xpulse" | "observation"
+  source?: "user" | "pulse" | "observation"
   channel?: ChannelId
   toolCalls?: PersistedToolCall[]
 }

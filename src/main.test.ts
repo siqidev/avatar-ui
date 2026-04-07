@@ -33,11 +33,10 @@ describe("config", () => {
     expect(config.userName).toBe("User")
   })
 
-  it("AVATAR_DIR指定時、beingFile/pulseFile/xpulseFileはそのディレクトリ配下になる", () => {
+  it("AVATAR_DIR指定時、beingFile/pulseDirはそのディレクトリ配下になる", () => {
     const config = buildConfig({ ...BASE_ENV, AVATAR_DIR: "my-avatar" })
     expect(config.beingFile).toBe("my-avatar/BEING.md")
-    expect(config.pulseFile).toBe("my-avatar/PULSE.md")
-    expect(config.xpulseFile).toBe("my-avatar/XPULSE.md")
+    expect(config.pulseDir).toBe("my-avatar/pulse")
   })
 
   it("isCollectionsEnabled: 両方のキーがあればtrue", () => {

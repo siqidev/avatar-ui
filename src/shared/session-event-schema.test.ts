@@ -63,14 +63,6 @@ describe("session-event-schema", () => {
       expect(streamItemEventSchema.safeParse(discord).success).toBe(true)
     })
 
-    it("xpulse sourceを受理する", () => {
-      const xpulse = {
-        ...valid,
-        payload: { ...valid.payload, source: "xpulse" as const, channel: "x" as const },
-      }
-      expect(streamItemEventSchema.safeParse(xpulse).success).toBe(true)
-    })
-
     it("不正なactorを拒否する", () => {
       const invalid = {
         ...valid,

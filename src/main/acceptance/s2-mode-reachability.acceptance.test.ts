@@ -93,7 +93,9 @@ describe("S2: モード可達性", () => {
 
     // テスト用ファイル作成
     fs.writeFileSync(path.join(tempDir, "being.md"), "テスト用BEING")
-    fs.writeFileSync(path.join(tempDir, "pulse.md"), "パルスプロンプト")
+    // pulse/ディレクトリにテスト用パルス定義
+    fs.mkdirSync(path.join(tempDir, "pulse"), { recursive: true })
+    fs.writeFileSync(path.join(tempDir, "pulse", "test.md"), "---\ncron: \"0 * * * *\"\n---\nパルスプロンプト")
 
     // config設定（Roblox有効化含む）
     const config = await import("../../config.js")
@@ -104,7 +106,7 @@ describe("S2: モード可達性", () => {
     })
     Object.assign(appConfig, {
       beingFile: path.join(tempDir, "being.md"),
-      pulseFile: path.join(tempDir, "pulse.md"),
+      pulseDir: path.join(tempDir, "pulse"),
       dataDir: tempDir,
       stateFile: path.join(tempDir, "state.json"),
     })
@@ -309,10 +311,10 @@ describe("S2: モード可達性", () => {
 
   // --- Pulse PULSE_OK抑制 ---
 
-  it("Pulse PULSE_OK抑制: 応答がPULSE_OK接頭辞ならstream.itemが発行されない", async () => {
+  it("Pulse {NAME}_OK抑制: 応答が{NAME}_OK接頭辞ならstream.itemが発行されない", async () => {
     mockSendMessage.mockResolvedValueOnce({
-      text: "PULSE_OK: 異常なし",
-      displayText: "PULSE_OK: 異常なし",
+      text: "TEST_OK: 異常なし",
+      displayText: "TEST_OK: 異常なし",
       toolCalls: [],
     })
 
@@ -322,7 +324,7 @@ describe("S2: モード可達性", () => {
     // sendMessageは呼ばれる
     expect(mockSendMessage).toHaveBeenCalledOnce()
 
-    // stream.itemはsource="pulse"で発行されない（PULSE_OK抑制）
+    // stream.itemはsource="pulse"で発行されない（{NAME}_OK抑制）
     const pulseReply = streamItems().find((p) => p.source === "pulse")
     expect(pulseReply).toBeUndefined()
   })
