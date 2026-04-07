@@ -86,9 +86,9 @@ function parseNumeric(text: unknown): number | null {
 
 // 数値をバーグラフに変換（maxに対する比率で描画）
 function toBar(value: number | null, max: number, width: number = 10): string {
-  if (value === null) return "░".repeat(width)
+  if (value === null) return "▱".repeat(width)
   const filled = Math.min(Math.round((value / max) * width), width)
-  return "█".repeat(filled) + "░".repeat(width - filled)
+  return "▰".repeat(filled) + "▱".repeat(width - filled)
 }
 
 // 緯度経度からミニマップを生成（7x5グリッド）
@@ -103,11 +103,11 @@ function toMinimap(lat: unknown, lon: unknown): string {
 
   const lines: string[] = []
   for (let r = 0; r < 5; r++) {
-    let line = "  "
+    let line = ""
     for (let c = 0; c < 7; c++) {
-      line += (r === row && c === col) ? " ╳" : " ·"
+      line += (r === row && c === col) ? " ◉" : " ○"
     }
-    lines.push(line)
+    lines.push(line.substring(1))
   }
   return lines.join("\n")
 }

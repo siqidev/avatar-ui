@@ -11,6 +11,10 @@ local module = {}
 -- SurfaceGui名のプレフィックス（AI生成の表示を識別する）
 local GUI_PREFIX = "AIDisplay_"
 
+-- テキスト配色（近未来ゴールド/アンバー系）
+local TITLE_COLOR = Color3.fromRGB(255, 200, 80)  -- 明るいゴールド
+local BODY_COLOR = Color3.fromRGB(220, 175, 80)   -- アンバー
+
 -- Workspace全体から名前でインスタンスを再帰検索（最初に見つかったものを返す）
 local function findByName(name: string): Instance?
 	local function search(parent: Instance): Instance?
@@ -51,7 +55,44 @@ local function resolveBasePart(target: Instance): BasePart?
 	return nil
 end
 
+-- TextLabelを再帰検索する
+local function findTextLabel(parent: Instance, name: string): TextLabel?
+	local direct = parent:FindFirstChild(name, true)
+	if direct and direct:IsA("TextLabel") then
+		return direct :: TextLabel
+	end
+	return nil
+end
+
+-- TextLabelが無ければ作成する（既存のガワを壊さない）
+local function ensureTextLabel(parent: Instance, name: string, props: {
+	size: UDim2, position: UDim2, textSize: number, color: Color3
+}): TextLabel
+	local existing = findTextLabel(parent, name)
+	if existing then return existing end
+
+	-- 配置先: Background フレームがあればその中、なければSurfaceGui直下
+	local container = parent:FindFirstChild("Background") or parent
+
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Size = props.size
+	label.Position = props.position
+	label.BackgroundTransparency = 1
+	label.TextColor3 = props.color
+	label.TextSize = props.textSize
+	label.Font = if name == "Title" then Enum.Font.GothamBold else Enum.Font.GothamMedium
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Top
+	label.TextWrapped = true
+	label.ZIndex = 5
+	label.Text = ""
+	label.Parent = container
+	return label
+end
+
 -- SurfaceGuiを取得または作成する
+-- 手動配置のSurfaceGui（AIDisplay_名前）があればガワを再利用し、TextLabelのみ確保
 local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceGui?
 	local guiName = GUI_PREFIX .. target.Name
 	local adornee = resolveBasePart(target)
@@ -60,64 +101,64 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 		return nil
 	end
 
-	-- 既存のSurfaceGuiがあれば再利用
+	-- 既存のSurfaceGuiがあれば再利用（手動配置対応）
 	local existing = adornee:FindFirstChild(guiName)
 	if existing and existing:IsA("SurfaceGui") then
+		-- TextLabelだけ確保（ガワはそのまま）
+		ensureTextLabel(existing, "Title", {
+			size = UDim2.new(1, 0, 0, 24),
+			position = UDim2.fromOffset(0, 0),
+			textSize = 22,
+			color = TITLE_COLOR,
+		})
+		ensureTextLabel(existing, "Body", {
+			size = UDim2.new(1, 0, 1, -28),
+			position = UDim2.new(0, 0, 0, 28),
+			textSize = 16,
+			color = BODY_COLOR,
+		})
 		return existing :: SurfaceGui
 	end
 
-	-- 新規作成
+	-- 手動配置なし → 自動生成（フォールバック）
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = guiName
 	gui.Face = face
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 50
 
-	-- 背景フレーム（黒背景）
+	-- 背景フレーム
 	local frame = Instance.new("Frame")
 	frame.Name = "Background"
 	frame.Size = UDim2.fromScale(1, 1)
-	frame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
-	frame.BackgroundTransparency = 0.05
+	frame.BackgroundColor3 = Color3.fromRGB(15, 10, 5)
+	frame.BackgroundTransparency = 0.1
 	frame.BorderSizePixel = 0
 	frame.Parent = gui
 
 	-- 余白
 	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 8)
-	padding.PaddingBottom = UDim.new(0, 8)
-	padding.PaddingLeft = UDim.new(0, 10)
-	padding.PaddingRight = UDim.new(0, 10)
+	padding.PaddingTop = UDim.new(0, 12)
+	padding.PaddingBottom = UDim.new(0, 12)
+	padding.PaddingLeft = UDim.new(0, 14)
+	padding.PaddingRight = UDim.new(0, 14)
 	padding.Parent = frame
 
-	-- タイトルラベル（ターミナル緑・等幅）
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Name = "Title"
-	titleLabel.Size = UDim2.new(1, 0, 0, 24)
-	titleLabel.Position = UDim2.fromOffset(0, 0)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.TextColor3 = Color3.fromRGB(50, 255, 100)
-	titleLabel.TextSize = 22
-	titleLabel.Font = Enum.Font.RobotoMono
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.TextYAlignment = Enum.TextYAlignment.Center
-	titleLabel.Text = ""
-	titleLabel.Parent = frame
+	-- タイトルラベル
+	ensureTextLabel(gui, "Title", {
+		size = UDim2.new(1, 0, 0, 24),
+		position = UDim2.fromOffset(0, 0),
+		textSize = 22,
+		color = TITLE_COLOR,
+	})
 
-	-- 本文ラベル（ターミナル緑・等幅）
-	local bodyLabel = Instance.new("TextLabel")
-	bodyLabel.Name = "Body"
-	bodyLabel.Size = UDim2.new(1, 0, 1, -28)
-	bodyLabel.Position = UDim2.new(0, 0, 0, 28)
-	bodyLabel.BackgroundTransparency = 1
-	bodyLabel.TextColor3 = Color3.fromRGB(0, 230, 65)
-	bodyLabel.TextSize = 16
-	bodyLabel.Font = Enum.Font.RobotoMono
-	bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
-	bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
-	bodyLabel.TextWrapped = true
-	bodyLabel.Text = ""
-	bodyLabel.Parent = frame
+	-- 本文ラベル
+	ensureTextLabel(gui, "Body", {
+		size = UDim2.new(1, 0, 1, -28),
+		position = UDim2.new(0, 0, 0, 28),
+		textSize = 16,
+		color = BODY_COLOR,
+	})
 
 	gui.Parent = adornee
 	return gui
@@ -141,16 +182,14 @@ local function handleSetText(op)
 		return { success = false, error = { code = "GUI_FAILED", message = "SurfaceGui作成失敗" } }
 	end
 
-	local frame = gui:FindFirstChild("Background")
-	if frame then
-		local titleLabel = frame:FindFirstChild("Title")
-		local bodyLabel = frame:FindFirstChild("Body")
-		if titleLabel then
-			(titleLabel :: TextLabel).Text = op.title or ""
-		end
-		if bodyLabel then
-			(bodyLabel :: TextLabel).Text = op.text or ""
-		end
+	-- TextLabelを再帰検索して書き込み（手動配置/自動生成どちらでも動く）
+	local titleLabel = findTextLabel(gui, "Title")
+	local bodyLabel = findTextLabel(gui, "Body")
+	if titleLabel then
+		titleLabel.Text = op.title or ""
+	end
+	if bodyLabel then
+		bodyLabel.Text = op.text or ""
 	end
 
 	print("[DisplayOps] set_text: " .. targetName)
