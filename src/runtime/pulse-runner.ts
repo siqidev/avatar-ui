@@ -234,6 +234,23 @@ function executePulse(pulse: PulseDefinition, deps: PulseRunnerDeps): void {
 
 // --- 公開API ---
 
+// 起動時にデータフィード系パルスの初回表示を実行する（AI送信なし、表示のみ）
+async function initialDisplay(pulse: PulseDefinition): Promise<void> {
+  if (!pulse.source || !pulse.target || !pulse.template) return
+
+  try {
+    const data = await fetchSource(pulse.source)
+    if (data === null) return
+
+    hashMap.set(pulse.name, createHash("md5").update(data).digest("hex"))
+    const rendered = renderData(pulse.template, data)
+    await sendToRobloxDisplay(pulse.target, rendered, pulse.title)
+    log.info(`[PULSE:${pulse.name}] 初回表示完了: ${pulse.target}`)
+  } catch (err) {
+    log.error(`[PULSE:${pulse.name}] 初回表示エラー: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 // 全パルスのcronスケジュールを開始する
 export function startPulses(deps: PulseRunnerDeps): void {
   const config = getConfig()
@@ -249,6 +266,9 @@ export function startPulses(deps: PulseRunnerDeps): void {
     const task = cron.schedule(pulse.cron, () => executePulse(pulse, deps), { timezone: "Etc/UTC" })
     cronTasks.push(task)
     log.info(`[PULSE] cron開始: ${pulse.name} (${pulse.cron} UTC)`)
+
+    // データフィード系は起動時に即表示（cron発火を待たない）
+    initialDisplay(pulse)
   }
 
   log.info(`[PULSE] ${pulses.length}件のパルスを登録`)
