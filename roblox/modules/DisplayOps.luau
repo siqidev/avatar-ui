@@ -106,15 +106,15 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	if existing and existing:IsA("SurfaceGui") then
 		-- TextLabelだけ確保（ガワはそのまま）
 		ensureTextLabel(existing, "Title", {
-			size = UDim2.new(1, 0, 0, 24),
+			size = UDim2.new(1, 0, 0, 28),
 			position = UDim2.fromOffset(0, 0),
-			textSize = 22,
+			textSize = 24,
 			color = TITLE_COLOR,
 		})
 		ensureTextLabel(existing, "Body", {
-			size = UDim2.new(1, 0, 1, -28),
-			position = UDim2.new(0, 0, 0, 28),
-			textSize = 16,
+			size = UDim2.new(1, 0, 1, -32),
+			position = UDim2.new(0, 0, 0, 32),
+			textSize = 18,
 			color = BODY_COLOR,
 		})
 		return existing :: SurfaceGui
@@ -127,12 +127,11 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 50
 
-	-- 背景フレーム
+	-- 背景フレーム（透明 — モニターのガワを活かす）
 	local frame = Instance.new("Frame")
 	frame.Name = "Background"
 	frame.Size = UDim2.fromScale(1, 1)
-	frame.BackgroundColor3 = Color3.fromRGB(15, 10, 5)
-	frame.BackgroundTransparency = 0.1
+	frame.BackgroundTransparency = 1
 	frame.BorderSizePixel = 0
 	frame.Parent = gui
 
@@ -146,17 +145,17 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 
 	-- タイトルラベル
 	ensureTextLabel(gui, "Title", {
-		size = UDim2.new(1, 0, 0, 24),
+		size = UDim2.new(1, 0, 0, 28),
 		position = UDim2.fromOffset(0, 0),
-		textSize = 22,
+		textSize = 24,
 		color = TITLE_COLOR,
 	})
 
 	-- 本文ラベル
 	ensureTextLabel(gui, "Body", {
-		size = UDim2.new(1, 0, 1, -28),
-		position = UDim2.new(0, 0, 0, 28),
-		textSize = 16,
+		size = UDim2.new(1, 0, 1, -32),
+		position = UDim2.new(0, 0, 0, 32),
+		textSize = 18,
 		color = BODY_COLOR,
 	})
 
