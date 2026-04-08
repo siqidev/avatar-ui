@@ -25,7 +25,7 @@ import { publish } from "./session-event-bus.js"
 import { createSessionEvent } from "../shared/session-event-schema.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
-import { startPulses as startPulsesCron, stopPulses as stopPulsesCron } from "./pulse-runner.js"
+import { startPulses as startPulsesCron, stopPulses as stopPulsesCron, getLatestDisplays } from "./pulse-runner.js"
 import type { PulseRunnerDeps } from "./pulse-runner.js"
 import { t } from "../shared/i18n.js"
 import * as log from "../logger.js"
@@ -392,6 +392,8 @@ export function startObservation(): void {
       })
     },
     config.robloxObservationSecret,
+    undefined, // port（デフォルト）
+    getLatestDisplays,
   )
 
   log.info("[OBSERVATION] 観測サーバー起動")

@@ -119,3 +119,24 @@ end)
 
 print("[CommandReceiver] v3 起動 — トピック '" .. MESSAGE_TOPIC .. "' で待機中")
 print("[CommandReceiver] 登録カテゴリ: " .. table.concat(CommandRegistry.categories(), ", "))
+
+-- 起動時にVPSから最新display状態をpullして復元
+task.spawn(function()
+	local displays = ObservationClient.fetchLatestDisplays()
+	if not displays or #displays == 0 then
+		print("[CommandReceiver] display-state: 復元対象なし")
+		return
+	end
+
+	local displayOps = CommandRegistry.resolve("display")
+	if not displayOps then
+		warn("[CommandReceiver] display-state: DisplayOpsが未登録")
+		return
+	end
+
+	for _, d in ipairs(displays) do
+		local ops = {{ op = "set_text", target = d.target, title = d.title, text = d.text }}
+		pcall(function() displayOps.execute(ops) end)
+	end
+	print("[CommandReceiver] display-state: " .. #displays .. "件復元完了")
+end)

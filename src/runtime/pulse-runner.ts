@@ -173,6 +173,22 @@ function renderData(template: string, body: string): string {
   }
 }
 
+// --- 最新表示状態（Roblox起動時pull用） ---
+
+export type DisplayState = {
+  target: string
+  title: string
+  text: string
+  updatedAt: string
+}
+
+const latestDisplayMap = new Map<string, DisplayState>()
+
+// 全ターゲットの最新表示状態を返す（observation-serverから呼ばれる）
+export function getLatestDisplays(): DisplayState[] {
+  return [...latestDisplayMap.values()]
+}
+
 // --- Roblox表示送信 ---
 
 async function sendToRobloxDisplay(target: string, text: string, title?: string): Promise<void> {
@@ -197,6 +213,14 @@ async function sendToRobloxDisplay(target: string, text: string, title?: string)
   if (!result.success) {
     log.error(`[PULSE] Roblox表示送信失敗: ${result.error.message}`)
   }
+
+  // 最新表示状態を保持（Roblox起動時のpull用）
+  latestDisplayMap.set(target, {
+    target,
+    title: title ?? "",
+    text,
+    updatedAt: new Date().toISOString(),
+  })
 }
 
 // --- データ取得 ---
@@ -382,5 +406,6 @@ export function stopPulses(): void {
   cronTasks.length = 0
   busyMap.clear()
   hashMap.clear()
+  // latestDisplayMapはクリアしない（VPS再起動前のスナップショットを保持）
   log.info("[PULSE] 全パルス停止")
 }

@@ -24,15 +24,37 @@ export type ObservationEvent = z.infer<typeof observationEventSchema>
 // 観測イベント受信時のコールバック型
 export type ObservationHandler = (event: ObservationEvent) => void
 
+// display-state取得関数の型（pulse-runnerから注入）
+export type DisplayStateGetter = () => Array<{ target: string; title: string; text: string; updatedAt: string }>
+
 // 観測受信HTTPサーバーを起動する
 // secret: ROBLOX_OBSERVATION_SECRET（設定時はBearer認証を強制、未設定時は認証なし）
 export function startObservationServer(
   onObservation: ObservationHandler,
   secret?: string,
   port?: number,
+  getDisplayState?: DisplayStateGetter,
 ): http.Server {
   const server = http.createServer((req, res) => {
-    // POST /observation のみ受け付ける
+    // GET /observation/display-state — Roblox起動時の表示状態pull用
+    if (req.method === "GET" && req.url === "/observation/display-state") {
+      // 認証（POSTと同じBearer secret）
+      if (secret) {
+        const auth = req.headers.authorization
+        if (auth !== `Bearer ${secret}`) {
+          res.writeHead(401, { "Content-Type": "application/json" })
+          res.end(JSON.stringify({ error: "Unauthorized" }))
+          return
+        }
+      }
+
+      const displays = getDisplayState?.() ?? []
+      res.writeHead(200, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ displays }))
+      return
+    }
+
+    // POST /observation — 観測イベント受信
     if (req.method !== "POST" || req.url !== "/observation") {
       res.writeHead(404, { "Content-Type": "application/json" })
       res.end(JSON.stringify({ error: "Not Found" }))
