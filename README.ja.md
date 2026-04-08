@@ -80,12 +80,13 @@ XAI_API_KEY=your-xai-api-key
 
 ```bash
 cp avatar.example/BEING.example.md BEING.md
-cp avatar.example/PULSE.example.md PULSE.md
+mkdir -p pulse
+cp avatar.example/pulse.example.md pulse/checkin.md
 ```
 
-アバターの人格と定期行動を定義します。
+`BEING.md`でアバターの人格を定義し、`pulse/`ディレクトリに定期タスクを配置します（各.mdファイルがフロントマター付きの1つのcronタスク）。
 
-> **Tip:** アイデンティティファイルを別ディレクトリで管理したい場合、`.env` に `AVATAR_DIR=my-avatar` を設定すると、そのディレクトリ内の `BEING.md`、`PULSE.md`、`XPULSE.md` を読み込みます。
+> **Tip:** アイデンティティファイルを別ディレクトリで管理したい場合、`.env`に`AVATAR_DIR=my-avatar`を設定すると、そのディレクトリ内の`BEING.md`と`pulse/`を読み込みます。
 
 ### 4. 起動
 
@@ -105,14 +106,12 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
 | `USER_NAME` | | `User` | ユーザーの表示名 |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
-| `PULSE_CRON` | | `0 6 * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | OS既定（zsh / bash / PowerShell） | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
 | `DEV_MODE` | | `off` | 開発者モード（on = 詳細ログ + ソースタグ表示 + Roblox Monitor全表示） |
 | `SESSION_WS_PORT` | | `3002` | WebSocketサーバーポート（Console UI通信用） |
 | `SESSION_WS_TOKEN` | | — | WebSocket認証トークン（セキュリティ用、任意） |
-| `XPULSE_CRON` | | `0 5,9 * * *` | X投稿Pulseの発火間隔（cron形式、UTC。デフォルト = JST 14:00/18:00） |
 
 ### オプション: 長期記憶（Collections API）
 
