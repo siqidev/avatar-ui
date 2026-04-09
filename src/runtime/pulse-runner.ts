@@ -53,6 +53,10 @@ function renderTemplate(template: string, data: Record<string, unknown>): string
   })
   // フロントマターから読んだ \n をリアル改行に変換
   return expanded.replace(/\\n/g, "\n")
+    // 先頭のカンマ+スペースを除去（cityが空の時の ", region" 対策）
+    .replace(/^[,\s]+/gm, "")
+    // 空行が連続したら1つにまとめる
+    .replace(/\n{3,}/g, "\n\n")
 }
 
 // --- 派生値計算（_プレフィックス付きプレースホルダ） ---
