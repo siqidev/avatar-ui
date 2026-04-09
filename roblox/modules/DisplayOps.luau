@@ -85,9 +85,19 @@ local function ensureTextLabel(parent: Instance, name: string, props: {
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextYAlignment = if name == "Title" then Enum.TextYAlignment.Center else Enum.TextYAlignment.Top
 	label.TextWrapped = true
-	label.LineHeight = if name == "Body" then 1.3 else 1
 	label.ZIndex = 5
 	label.Text = ""
+
+	if name == "Body" then
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextScaled = true
+		label.LineHeight = 1.3
+		-- 最大フォントサイズ制限（データ少ない時に巨大にならない）
+		local sizeConstraint = Instance.new("UITextSizeConstraint")
+		sizeConstraint.MaxTextSize = 18
+		sizeConstraint.MinTextSize = 8
+		sizeConstraint.Parent = label
+	end
 
 	-- ゴールドライン（下部にフェード付き）
 	local underline = Instance.new("Frame")
