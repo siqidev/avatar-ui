@@ -55,6 +55,8 @@ function renderTemplate(template: string, data: Record<string, unknown>): string
   return expanded.replace(/\\n/g, "\n")
     // 先頭のカンマ+スペースを除去（cityが空の時の ", region" 対策）
     .replace(/^[,\s]+/gm, "")
+    // ラベルだけで値がない行を除去（[ALT] のみ等）
+    .replace(/^\[.+\]\s*$/gm, "")
     // 空行が連続したら1つにまとめる
     .replace(/\n{3,}/g, "\n\n")
 }
