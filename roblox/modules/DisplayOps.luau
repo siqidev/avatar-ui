@@ -12,8 +12,8 @@ local module = {}
 local GUI_PREFIX = "AIDisplay_"
 
 -- テキスト配色（近未来ゴールド/アンバー系）
-local TITLE_COLOR = Color3.fromRGB(255, 200, 80)  -- 明るいゴールド
-local BODY_COLOR = Color3.fromRGB(220, 175, 80)   -- アンバー
+local TITLE_COLOR = Color3.fromRGB(255, 235, 170)  -- 明るい白ゴールド
+local BODY_COLOR = Color3.fromRGB(255, 235, 170)   -- 同じ
 
 -- Workspace全体から名前でインスタンスを再帰検索（最初に見つかったものを返す）
 local function findByName(name: string): Instance?
@@ -83,12 +83,76 @@ local function ensureTextLabel(parent: Instance, name: string, props: {
 	label.TextSize = props.textSize
 	label.Font = if name == "Title" then Enum.Font.GothamBold else Enum.Font.GothamMedium
 	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextYAlignment = Enum.TextYAlignment.Top
+	label.TextYAlignment = if name == "Title" then Enum.TextYAlignment.Center else Enum.TextYAlignment.Top
 	label.TextWrapped = true
 	label.ZIndex = 5
 	label.Text = ""
+
+	-- ゴールドライン（下部にフェード付き）
+	local underline = Instance.new("Frame")
+	underline.Name = name .. "Line"
+	underline.Size = UDim2.new(0.9, 0, 0, 1)
+	underline.Position = UDim2.new(0.05, 0, 1, 2)
+	underline.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
+	underline.BackgroundTransparency = 0.3
+	underline.BorderSizePixel = 0
+	underline.ZIndex = 5
+	underline.Parent = label
+
+	local lineGradient = Instance.new("UIGradient")
+	lineGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.15, 0),
+		NumberSequenceKeypoint.new(0.85, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	lineGradient.Parent = underline
+
 	label.Parent = container
 	return label
+end
+
+local RunService = game:GetService("RunService")
+
+-- 走査線アニメーション: 半透明バーが上→下にループ
+local function ensureScanlines(gui: SurfaceGui): ()
+	-- 既にあればスキップ
+	if gui:FindFirstChild("ScanlineBar") then return end
+
+	-- 走査バー（画面幅の薄い帯）
+	local bar = Instance.new("Frame")
+	bar.Name = "ScanlineBar"
+	bar.Size = UDim2.new(1, 0, 0.06, 0) -- 画面の6%の高さ
+	bar.Position = UDim2.new(0, 0, 0, 0)
+	bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	bar.BackgroundTransparency = 0.85
+	bar.BorderSizePixel = 0
+	bar.ZIndex = 10
+	bar.Parent = gui
+
+	-- グラデーション（中央が明るく、端が透明）
+	local gradient = Instance.new("UIGradient")
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.4, 0),
+		NumberSequenceKeypoint.new(0.6, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Rotation = 90
+	gradient.Parent = bar
+
+	-- アニメーションループ（上→下、3秒で1周。バーの高さ分を考慮）
+	local barHeight = 0.06
+	local maxY = 1 - barHeight
+	local speed = 1 / 3 -- 3秒で1周
+	local progress = 0
+	task.spawn(function()
+		while bar.Parent do
+			local dt = RunService.Heartbeat:Wait()
+			progress = (progress + dt * speed) % 1
+			bar.Position = UDim2.new(0, 0, progress * maxY, 0)
+		end
+	end)
 end
 
 -- SurfaceGuiを取得または作成する
@@ -106,17 +170,18 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 	if existing and existing:IsA("SurfaceGui") then
 		-- TextLabelだけ確保（ガワはそのまま）
 		ensureTextLabel(existing, "Title", {
-			size = UDim2.new(1, 0, 0, 28),
+			size = UDim2.new(1, 0, 0, 36),
 			position = UDim2.fromOffset(0, 0),
-			textSize = 24,
+			textSize = 30,
 			color = TITLE_COLOR,
 		})
 		ensureTextLabel(existing, "Body", {
-			size = UDim2.new(1, 0, 1, -32),
-			position = UDim2.new(0, 0, 0, 32),
+			size = UDim2.new(1, 0, 1, -42),
+			position = UDim2.new(0, 0, 0, 42),
 			textSize = 18,
 			color = BODY_COLOR,
 		})
+		ensureScanlines(existing)
 		return existing :: SurfaceGui
 	end
 
@@ -159,6 +224,7 @@ local function ensureSurfaceGui(target: Instance, face: Enum.NormalId): SurfaceG
 		color = BODY_COLOR,
 	})
 
+	ensureScanlines(gui)
 	gui.Parent = adornee
 	return gui
 end

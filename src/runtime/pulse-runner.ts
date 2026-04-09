@@ -86,9 +86,9 @@ function parseNumeric(text: unknown): number | null {
 
 // 数値をバーグラフに変換（maxに対する比率で描画）
 function toBar(value: number | null, max: number, width: number = 10): string {
-  if (value === null) return "▱".repeat(width)
+  if (value === null) return "-".repeat(width)
   const filled = Math.min(Math.round((value / max) * width), width)
-  return "▰".repeat(filled) + "▱".repeat(width - filled)
+  return "=".repeat(filled) + "-".repeat(width - filled)
 }
 
 // 緯度経度からミニマップを生成（7x5グリッド）
