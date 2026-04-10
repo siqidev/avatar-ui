@@ -201,25 +201,31 @@ function isFieldActive(): boolean {
   return state.field.state === "active" || state.field.state === "resumed"
 }
 
-// ツール結果からx_post/x_replyの成功をmonitor.itemとして発行する
+// ツール結果からX投稿系ツールの成功をmonitor.itemとして発行する
+const X_TOOL_EVENT_MAP: Record<string, { statuses: string[]; eventType: string }> = {
+  x_post: { statuses: ["posted"], eventType: "post" },
+  x_reply: { statuses: ["replied"], eventType: "reply" },
+  x_quote_repost: { statuses: ["quoted"], eventType: "quote" },
+}
+
 export function publishXToolResults(toolCalls: ToolCallInfo[]): void {
   for (const tc of toolCalls) {
-    if (tc.name !== "x_post" && tc.name !== "x_reply") continue
+    const mapping = X_TOOL_EVENT_MAP[tc.name]
+    if (!mapping) continue
     try {
       const parsed = JSON.parse(tc.result) as Record<string, unknown>
-      if (parsed.status !== "posted" && parsed.status !== "replied") continue
+      if (!mapping.statuses.includes(parsed.status as string)) continue
       const text = (tc.args.text as string) ?? ""
-      const eventType = tc.name === "x_post" ? "post" : "reply"
       const timestamp = new Date().toISOString()
-      const formatted = `[${eventType}] ${text}`
+      const formatted = `[${mapping.eventType}] ${text}`
       publish(createSessionEvent("monitor.item", {
         channel: "x",
-        eventType,
+        eventType: mapping.eventType,
         payload: { tweet_id: parsed.tweet_id, text },
         formatted,
         timestamp,
       }))
-      appendXEvent({ eventType, formatted, timestamp })
+      appendXEvent({ eventType: mapping.eventType, formatted, timestamp })
     } catch { /* パース失敗は無視 */ }
   }
 }
@@ -432,8 +438,8 @@ export function startXWebhook(): void {
         return
       }
 
-      // 共振ゲート
-      if (!getSettings().resonance) {
+      // 共振ゲート（明示行為＝干渉はゲートを通さない）
+      if (event.type !== "x_mention" && !getSettings().resonance) {
         log.info(`[X_WEBHOOK] 共振OFF — AI転送スキップ: ${event.type}`)
         return
       }

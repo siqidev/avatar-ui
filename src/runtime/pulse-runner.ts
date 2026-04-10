@@ -339,8 +339,8 @@ function executePulse(pulse: PulseDefinition, deps: PulseRunnerDeps): void {
         if (result.text.startsWith(okPrefix)) {
           log.info(`[PULSE:${pulse.name}] 対応不要`)
         } else if (channel === "x") {
-          // Xチャネル: x_post/x_reply使用時のみストリーム出力
-          if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
+          // Xチャネル: X投稿系ツール使用時のみストリーム出力
+          if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply" || tc.name === "x_quote_repost")) {
             log.info(`[PULSE:${pulse.name}] 応答: ${result.text.substring(0, 100)}`)
             deps.emitStreamItem("ai", result.text, correlationId, "pulse", channel, result.toolCalls, result.displayText)
             deps.publishXToolResults(result.toolCalls)

@@ -176,3 +176,53 @@ export async function createReply(text: string, replyToTweetId: string): Promise
     return { success: false, error: msg }
   }
 }
+
+// 引用リポストを作成する
+export async function createQuoteRepost(text: string, quoteTweetId: string): Promise<XPostResult> {
+  const config = getConfig()
+  if (!config.xConsumerKey || !config.xConsumerSecret || !config.xAccessToken || !config.xAccessTokenSecret) {
+    return { success: false, error: "X API認証情報が設定されていません" }
+  }
+
+  const url = `${X_API_BASE}/tweets`
+  const body = JSON.stringify({
+    text,
+    quote_tweet_id: quoteTweetId,
+  })
+
+  const authHeader = buildOAuthHeader(
+    "POST",
+    url,
+    config.xConsumerKey,
+    config.xConsumerSecret,
+    config.xAccessToken,
+    config.xAccessTokenSecret,
+  )
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+      body,
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      log.error(`[X_API] 引用リポスト作成失敗 (${response.status}): ${errorText}`)
+      return { success: false, error: `HTTP ${response.status}: ${errorText}` }
+    }
+
+    const data = await response.json() as { data?: { id?: string } }
+    const tweetId = data.data?.id
+    log.info(`[X_API] 引用リポスト作成成功: ${tweetId} ← ${quoteTweetId}`)
+    return { success: true, tweetId }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.error(`[X_API] 引用リポスト作成エラー: ${msg}`)
+    return { success: false, error: msg }
+  }
+}

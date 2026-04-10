@@ -13,6 +13,7 @@ export const toolNameSchema = z.enum([
   "roblox_action",
   "x_post",
   "x_reply",
+  "x_quote_repost",
 ])
 export type ToolName = z.infer<typeof toolNameSchema>
 
