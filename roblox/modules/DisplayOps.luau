@@ -4,16 +4,27 @@
   操作: set_text / clear
   Workspace内の指定パーツ/モデルにSurfaceGuiでテキストを表示する。
   用途: データフィード表示、ステータス表示等の汎用テキスト出力。
+
+  スタイル: Config.displayStyleで色・フォント・演出をカスタマイズ可能。
+  省略時はデフォルト（白文字、演出なし）。
 ]]
+
+local Config = require(script.Parent:FindFirstChild("Config") :: ModuleScript)
 
 local module = {}
 
 -- SurfaceGui名のプレフィックス（AI生成の表示を識別する）
 local GUI_PREFIX = "AIDisplay_"
 
--- テキスト配色（近未来ゴールド/アンバー系）
-local TITLE_COLOR = Color3.fromRGB(255, 235, 170)  -- 明るい白ゴールド
-local BODY_COLOR = Color3.fromRGB(255, 235, 170)   -- 同じ
+-- スタイル設定（Config.displayStyleがあればそれを使う、なければデフォルト）
+local style = Config.displayStyle or {}
+local TITLE_COLOR = style.titleColor or Color3.fromRGB(255, 255, 255)
+local BODY_COLOR = style.bodyColor or Color3.fromRGB(255, 255, 255)
+local UNDERLINE_COLOR = style.underlineColor or Color3.fromRGB(255, 255, 255)
+local UNDERLINE_TRANSPARENCY = style.underlineTransparency or 0.3
+local SCANLINES_ENABLED = if style.scanlines ~= nil then style.scanlines else false
+local TITLE_FONT = style.titleFont or Enum.Font.GothamBold
+local BODY_FONT = style.bodyFont or Enum.Font.GothamMedium
 
 -- Workspace全体から名前でインスタンスを再帰検索（最初に見つかったものを返す）
 local function findByName(name: string): Instance?
@@ -81,7 +92,7 @@ local function ensureTextLabel(parent: Instance, name: string, props: {
 	label.BackgroundTransparency = 1
 	label.TextColor3 = props.color
 	label.TextSize = props.textSize
-	label.Font = if name == "Title" then Enum.Font.GothamBold else Enum.Font.GothamMedium
+	label.Font = if name == "Title" then TITLE_FONT else BODY_FONT
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextYAlignment = if name == "Title" then Enum.TextYAlignment.Center else Enum.TextYAlignment.Top
 	label.TextWrapped = true
@@ -99,13 +110,13 @@ local function ensureTextLabel(parent: Instance, name: string, props: {
 		sizeConstraint.Parent = label
 	end
 
-	-- ゴールドライン（下部にフェード付き）
+	-- アンダーライン（下部にフェード付き）
 	local underline = Instance.new("Frame")
 	underline.Name = name .. "Line"
 	underline.Size = UDim2.new(0.9, 0, 0, 1)
 	underline.Position = UDim2.new(0.05, 0, 1, 2)
-	underline.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
-	underline.BackgroundTransparency = 0.3
+	underline.BackgroundColor3 = UNDERLINE_COLOR
+	underline.BackgroundTransparency = UNDERLINE_TRANSPARENCY
 	underline.BorderSizePixel = 0
 	underline.ZIndex = 5
 	underline.Parent = label
@@ -127,6 +138,7 @@ local RunService = game:GetService("RunService")
 
 -- 走査線アニメーション: 半透明バーが上→下にループ
 local function ensureScanlines(gui: SurfaceGui): ()
+	if not SCANLINES_ENABLED then return end
 	-- 既にあればスキップ
 	if gui:FindFirstChild("ScanlineBar") then return end
 
@@ -152,10 +164,10 @@ local function ensureScanlines(gui: SurfaceGui): ()
 	gradient.Rotation = 90
 	gradient.Parent = bar
 
-	-- アニメーションループ（上→下、3秒で1周。バーの高さ分を考慮）
+	-- アニメーションループ（上→下、3秒で1周）
 	local barHeight = 0.06
 	local maxY = 1 - barHeight
-	local speed = 1 / 3 -- 3秒で1周
+	local speed = 1 / 3
 	local progress = 0
 	task.spawn(function()
 		while bar.Parent do

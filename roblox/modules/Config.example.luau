@@ -43,4 +43,15 @@ return {
 
 	-- 空間クエリのデフォルト半径（スタッド）
 	spatialQueryRadius = 30,
+
+	-- DisplayOps表示スタイル（省略時はデフォルト: 白文字、演出なし）
+	-- displayStyle = {
+	-- 	titleColor = Color3.fromRGB(255, 255, 255),
+	-- 	bodyColor = Color3.fromRGB(255, 255, 255),
+	-- 	underlineColor = Color3.fromRGB(255, 255, 255),
+	-- 	underlineTransparency = 0.3,
+	-- 	scanlines = false,
+	-- 	titleFont = Enum.Font.GothamBold,
+	-- 	bodyFont = Enum.Font.GothamMedium,
+	-- },
 }
