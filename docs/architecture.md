@@ -98,6 +98,8 @@ src/
   types/
     result.ts                 AppResult<T>型（Ok/Fail）
 roblox/                       Roblox Studio用Luauスクリプト群（Rojo管理）
+scripts/
+  upload-to-collection.ts   Collections知識同期（冪等な差分更新）
 ```
 
 ## プロセス構成
@@ -415,6 +417,10 @@ memory-log-repository.ts: MemoryRecord（id, text, reason, importance, tags, cre
 
 collections-repository.ts: save_memoryツール実行時にCollections APIへもアップロード。2段階処理（files API → documents attach）。XAI_MANAGEMENT_API_KEY + XAI_COLLECTION_IDが設定されている場合のみ有効。
 
+### Collections知識同期
+
+scripts/upload-to-collection.ts: 指定ファイルをCollectionにアップし、file_searchで検索可能にする。冪等な差分更新（ローカルマニフェスト `data/collection-sync.json` でhash管理。変更なし→スキップ、変更あり→旧版削除→再アップ、新規→アップ）。file_searchはInputGate対象外で全チャネルで常に有効なため、外部メンション応答時にもアップ済みドキュメントの知識を検索可能。
+
 ## Roblox連携
 
 ### 役割
@@ -514,7 +520,7 @@ StarterGui/
 | PartOps.luau | create/set/delete+演出+永続化の低レベルPart実行器 |
 | TerrainOps.luau | terrain操作+apply_constraints |
 | EffectOps.luau | エフェクト操作 |
-| DisplayOps.luau | SurfaceGuiテキスト表示（set_text/clear） |
+| DisplayOps.luau | SurfaceGuiテキスト表示（set_text/clear）。スタイル（色・フォント・演出）はConfig.displayStyleで設定。未設定時は白文字・演出なし |
 | WorldStore.luau | DataStore永続化ラッパー |
 | Config.luau | 通信先・検知間隔・しきい値設定（.gitignore、Config.example.luauからコピー） |
 
