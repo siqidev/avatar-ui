@@ -71,7 +71,8 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - メンション/Quoteトリガーのリプライは規制対象外（召喚応答型）
 - 運用方針: オリジナル投稿（x_post）中心 + メンション来訪時のみリプライ + 引用リポスト
 - 共振ゲート修正: メンション（干渉）は共振OFF時もAI転送する。Roblox観測パイプラインの構造をX転用した際の設計不整合を修正
-- Collections知識アップロード: `scripts/upload-to-collection.ts`でAUIドキュメントをCollectionにアップ。file_searchはInputGate外で常に有効なため、外部メンション応答時にもAUI知識を検索可能
+- Collections知識同期: `scripts/upload-to-collection.ts`でドキュメントをCollectionにアップ。冪等な差分更新（hash比較→変更分のみ差し替え）。file_searchはInputGate外で常に有効なため、外部メンション応答時にもAUI知識を検索可能
+- DisplayOpsスタイル外部化: 色・フォント・CRT演出をConfig.displayStyleに分離。未設定時は白文字・演出なしのデフォルト
 
 **解決済み: Webhookイベント未着**
 
