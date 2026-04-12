@@ -121,7 +121,7 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）
 - **共振機構（場レベル）** — 共振は媒体（Console/Roblox等）ではなく場レベルの機構。構成: 知覚（観測収集）→注意（AI転送）→表出（非命令的応答生成）の3段チェーン。制御: `RESONANCE_MODE=on/off`（.env、デフォルト: off）。offで注意+表出を停止、知覚は常時ON。設計原則: 場が蛇口を設計し、ユーザーが開閉を制御する。各媒体は知覚（観測データ）を場に提供し、場が注意・表出を統合制御する
   - ~~**RESONANCE_MODE実装**~~ — 実装済み（settings-store.tsの共振チェックボックス + field-runtime.tsの共振ゲート）。.env側は設定の2層分離で除去
-  - **proximity観測のLLM応答廃止** — player_proximityは「近づいた」事実であり会話の開始ではない。LLM呼び出し不要（応答生成しない）。ただし文脈への記録は維持する（後続のplayer_chatでAIが「さっき近づいてきた人だ」と認識できるように）。現状はproximityでもLLMを呼んで応答を生成しており、「記録するが応答しない」経路が未実装
+  - ~~**proximity観測のLLM応答廃止**~~ — 実装済み（observation-buffer.ts）。player_proximityはバッファに蓄積し、次のLLMターン（player_chat等）で`[観測コンテキスト]`として入力に注入。LLM応答を生成せず、かつAIが文脈を把握できる
   - ~~**観測応答のStream/Discord抑制**~~ — 実装済み。source=observationのstream.itemをDiscord bridgeとConsole UI stream paneでフィルタ。monitor pane + Roblox sayのみに表示
   - **Roblox観測要素の拡充** — 上位原理（P9器, P12/P13律動, P17同調関係, P5判断なき観照）から演繹した観測データの充実化。必須要素: ①参与者アンカー（who/when/session）②相対位置関係（距離/方位/視界/遮蔽）③相対変化量（距離変化速度/向き変化/停止↔移動）④身体活動相（Humanoid state: 走行/着座/ジャンプ/落下等）⑤注視の代理証拠（身体向き↔対象方位の差/向き続けた時間）⑥滞在・周期・反復（近距離滞在秒数/出入り回数/往復周期）⑦共有対象アンカー（人間↔AI↔環境の三項関係）⑧AI側の同型観測（上記をAI側にも同じ語彙で保持）。拡張要素: アニメーション状態、カメラ方向（クライアント実装必要）、ヘルス/被弾、経路制約。送り方は3種: 瞬間イベント（閾値越え時）+ 窓サマリ（3-5秒周期）+ 関係スナップショット（変化時）
 - ~~**Avatar Space構造設計（refs/方式）**~~ — 実装済み。avatar-space直下はrw（アバターの自由活動領域）、`refs/`ディレクトリ配下はro（参照専用）。アプリ層（filesystem-service.ts）で`refs/`への書き込みを拒否。OS側のbind mount/権限に依存しない

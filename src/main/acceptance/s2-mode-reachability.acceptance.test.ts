@@ -152,9 +152,12 @@ describe("S2: モード可達性", () => {
     fire("channel.attach")
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     unsubscribe?.()
     cleanupTempDataDir()
+    // 観測バッファをクリア（テスト間の汚染防止）
+    const { clearBuffer } = await import("../../runtime/observation-buffer.js")
+    clearBuffer()
   })
 
   // フラッシュ: enqueueのPromiseチェーンを完了させる
@@ -400,8 +403,9 @@ describe("S2: モード可達性", () => {
     motionState.endSuppression()
   })
 
-  it("移動完了後のproximityは通常通りAIに転送される", async () => {
+  it("移動完了後のproximityはバッファに蓄積され、次のターンでAI文脈に注入される", async () => {
     const motionState = await import("../../roblox/motion-state.js")
+    const obsBuffer = await import("../../runtime/observation-buffer.js")
     motionState.startSuppression()
 
     // go_to_player ACK到着 → 抑制解除
@@ -411,7 +415,20 @@ describe("S2: モード可達性", () => {
     })
     await flushQueue()
 
-    // 抑制解除後のproximity
+    // 抑制解除後のproximity → バッファに蓄積（sendMessageは呼ばれない）
+    observationHandler({
+      type: "player_proximity",
+      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+    })
+    await flushQueue()
+
+    // sendMessageは呼ばれない（proximityは応答を生成しない）
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    // バッファに蓄積されている
+    expect(obsBuffer.bufferSize()).toBe(1)
+
+    // 次のターン（player_chat）でバッファが注入される
     mockSendMessage.mockResolvedValueOnce({
       text: "挨拶",
       displayText: "挨拶",
@@ -419,12 +436,20 @@ describe("S2: モード可達性", () => {
     })
 
     observationHandler({
-      type: "player_proximity",
-      payload: { player: "SitoSiqi", action: "enter", distance: 9, userId: 123, isOwner: true },
+      type: "player_chat",
+      payload: { player: "SitoSiqi", message: "こんにちは", userId: 123, isOwner: true },
     })
     await flushQueue()
 
-    // AIに転送される（新規の観測）
+    // sendMessageが呼ばれ、入力に観測コンテキスト（バッファからの注入）が含まれる
     expect(mockSendMessage).toHaveBeenCalledOnce()
+    const aiInput = mockSendMessage.mock.calls[0][3] as string
+    // バッファから注入された観測コンテキスト（formatObservationはモックで固定値）
+    expect(aiInput).toContain("観測コンテキスト")
+    // 本来のplayer_chatの入力も含まれる
+    expect(aiInput).toContain("player_chat")
+
+    // バッファは排出済み
+    expect(obsBuffer.bufferSize()).toBe(0)
   })
 })

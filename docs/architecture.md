@@ -48,6 +48,7 @@ src/
     session-ws-server.ts      セッションWebSocketサーバー（event bus→外部クライアント配信）
     approval-hub.ts           承認ハブ（複数承認者 first-response-wins）
     tool-approval-service.ts  承認サービス（auto-approve判定 + hub委譲）
+    observation-buffer.ts     観測バッファ（evidence-only観測を蓄積→次のLLMターンで注入）
     settings-store.ts         設定ストア（テーマ・モデル・言語・共振モード永続化 → data/settings.json）
     terminal-service.ts       Terminal持続PTY管理（node-pty）
     filesystem-service.ts     Avatar Spaceファイル操作（refs/読み取り専用ガード）
@@ -446,7 +447,7 @@ AIへの転送は異常対応に必要な信号のみに限定する（フィー
 | イベント | 条件 | AI転送（共振ON時） | Monitor表示 |
 |---------|------|-------------------|------------|
 | `player_chat` | 常時 | する | する |
-| `player_proximity` | 移動中でない | する | する |
+| `player_proximity` | 移動中でない | バッファ蓄積（次のLLMターンで注入） | する |
 | `player_proximity` | npc_motion実行中 | しない（自己起因抑制） | する |
 | `command_ack` | `success===true` | しない | する |
 | `command_ack` | 失敗 | する | する |
@@ -457,6 +458,10 @@ AIへの転送は異常対応に必要な信号のみに限定する（フィー
 | `roblox_log` | 常時 | しない | する |
 
 共振モードがOFFの場合、AI転送列はすべて「しない」になる（知覚は常時ON、注意+表出のみ停止）。
+
+#### 観測バッファ（observation-buffer.ts）
+
+player_proximityなどのevidence-only観測は、受信時にLLM応答を生成せずバッファに蓄積する。次のLLMターン（player_chat、Pulse等）の入力に`[観測コンテキスト]`として自動注入され、AIが直前の空間状況を把握した上で応答を生成する。バッファ上限は20件（古いものから破棄）。全sendMessage呼び出し箇所（processStream、Pulse、Roblox観測、X Webhook）で注入される。
 
 #### 自己起因proximity抑制（motion-state.ts）
 

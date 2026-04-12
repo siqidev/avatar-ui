@@ -28,6 +28,7 @@ import { report, warn, isFrozen } from "./integrity-manager.js"
 import { startPulses as startPulsesCron, stopPulses as stopPulsesCron, getLatestDisplays } from "./pulse-runner.js"
 import type { PulseRunnerDeps } from "./pulse-runner.js"
 import { t } from "../shared/i18n.js"
+import { pushObservation, drainObservationContext } from "./observation-buffer.js"
 import * as log from "../logger.js"
 
 // FieldRuntime: 場のロジックを統合する
@@ -62,6 +63,13 @@ function enqueue(fn: () => Promise<void>, onSkip?: () => void): Promise<void> {
     return fn()
   })
   return queue
+}
+
+// 観測バッファを排出し、入力テキストに注入する
+// バッファが空なら元のテキストをそのまま返す
+function prependObservationContext(input: string): string {
+  const ctx = drainObservationContext()
+  return ctx ? `${ctx}\n\n${input}` : input
 }
 
 // being.mdを読み込む
@@ -267,7 +275,8 @@ export function processStream(text: string, source: import("../shared/ipc-schema
   return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const result = await sendMessage(client, state, beingPrompt, text, false, source, channel, inputRole)
+        const inputWithContext = prependObservationContext(text)
+        const result = await sendMessage(client, state, beingPrompt, inputWithContext, false, source, channel, inputRole)
         // lastResponseIdはsendMessage内でstate.participant.lastResponseIdに更新済み
         updateParticipantChain(state.participant.lastResponseId)
         resolve(result)
@@ -287,7 +296,8 @@ export function startPulses(): void {
     isResonanceOn: () => getSettings().resonance,
     enqueue: (fn) => { enqueue(fn) },
     sendMessage: async (input, source, channel, options) => {
-      const result = await sendMessage(client, state, beingPrompt, input, true, source, channel, "owner", options)
+      const inputWithContext = prependObservationContext(input)
+      const result = await sendMessage(client, state, beingPrompt, inputWithContext, true, source, channel, "owner", options)
       updateParticipantChain(state.participant.lastResponseId)
       return result
     },
@@ -371,6 +381,13 @@ export function startObservation(): void {
         return
       }
 
+      // proximity: バッファに蓄積（LLM応答を生成せず、次のターンでAI文脈に注入）
+      if (event.type === "player_proximity") {
+        pushObservation(formatted, event.type, timestamp)
+        log.info(`[OBSERVATION] バッファ蓄積: ${formatted.substring(0, 80)}`)
+        return
+      }
+
       // 共振ゲート: off時は注意+表出を停止（知覚は常時ON）
       if (!getSettings().resonance) {
         log.info(`[OBSERVATION] 共振OFF — AI転送スキップ: ${event.type}`)
@@ -385,7 +402,7 @@ export function startObservation(): void {
       const robloxRole = resolveRobloxRole(event.payload.userId as string | number | undefined, config)
       enqueue(async () => {
         try {
-          const aiInput = t("obs.aiPrefix", event.type, formatted)
+          const aiInput = prependObservationContext(t("obs.aiPrefix", event.type, formatted))
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox", robloxRole)
           updateParticipantChain(state.participant.lastResponseId)
@@ -452,7 +469,7 @@ export function startXWebhook(): void {
       const xRole = resolveXRole(event.userId, config)
       enqueue(async () => {
         try {
-          const aiInput = formatXEventForAI(event)
+          const aiInput = prependObservationContext(formatXEventForAI(event))
           log.info(`[X→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x", xRole)
           updateParticipantChain(state.participant.lastResponseId)

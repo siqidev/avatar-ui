@@ -95,6 +95,10 @@ const dictionary: Record<string, Record<Locale, string>> = {
     ja: "[観測] {0}",
     en: "[Observation] {0}",
   },
+  "obs.bufferContext": {
+    ja: "[観測コンテキスト（直前の観測メモ。応答不要、判断材料として参照）]\n{0}",
+    en: "[Observation context (recent notes — no response needed, use as background)]\n{0}",
+  },
 
   // --- Main: chat-session-service ---
   "noResponse": { ja: "(応答なし)", en: "(no response)" },
