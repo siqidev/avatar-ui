@@ -17,7 +17,7 @@
 - ルール詳細は `~/.claude/rules/git-workflow.md` を参照
 
 ### 開発状況
-v0.5.1リリース準備中。v0.5.0にDiscord双方向チャット + クロスプラットフォーム対応を追加。詳細はdocs/PLAN.md。
+v0.5.1リリース済み（2026-03-31）。次版の計画はdocs/PLAN.mdの実装バックログを参照。
 
 ## プロジェクト概要（詳細はsiqi/knowledge/tech/avatar-ui-project.md）
 
