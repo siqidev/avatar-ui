@@ -103,7 +103,6 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - ~~**SpaceペインD&D**~~ — 実装済み（ツリー内移動+Finder外部インポート、VSCode準拠のドロップ先解決・ハイライト、webUtils.getPathForFile経由）
 - ~~**Terminal PTY昇格**~~ — 実装済み（node-pty持続PTY、AIと人間が共有、OSCマーカーによるAIコマンド完了検知）
 - **Console用3Dマップ** — Roblox空間のリアルタイム可視化（Three.js）
-- **Roblox TypeScript整理** — catalog/schema/eventsの分離（肥大化防止）
 - **参与文脈の完全独立コンポーネント化** — 最小実装から完全版へ
 - **建築品質の根本改善** — プリファブ方式導入（Part単位→機能付きModel）、BuildOps内でPart/Prefab振り分け
 - **場モデル要素の網羅的検証** — ギャップセクションの項目を含む、帰納的検証の完全版
