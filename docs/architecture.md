@@ -368,6 +368,7 @@ AIが呼び出し可能な7ツール。chat-session-service.tsがツール定義
 - 承認ハブ: runtime/approval-hub.ts — 複数承認者（Console WS, Discord等）を動的に登録/解除。first-response-winsで最初の応答を採用。承認者0件なら即deny
 - 承認サービス: tool-approval-service.ts — auto-approve判定のみ行い、それ以外はhubに委譲
 - 配信経路: event bus → WS `approval.requested`。応答はWS `approval.respond` → approval-hub。Console WS承認者はsession-ws-server.tsで初回接続時に登録
+- タイムアウト: `APPROVAL_TIMEOUT_SEC`（デフォルト60秒、0=無制限）以内に応答がなければ自動deny（reason: `TIMEOUT`）。パルス・観測が承認待ちで詰まるのを防止
 - 拒否時: `{ status: "denied" }` をfunction_call_outputとしてGrokに返却（AIが拒否を踏まえて応答続行）
 - Console切断時: Console WS承認者のみ解除。他の承認者がいればpending継続
 

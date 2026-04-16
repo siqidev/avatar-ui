@@ -75,6 +75,7 @@ export const approvalReasonSchema = z.enum([
   "USER_APPROVED",
   "USER_DENIED",
   "NO_APPROVER",
+  "TIMEOUT",
 ])
 export type ApprovalReason = z.infer<typeof approvalReasonSchema>
 

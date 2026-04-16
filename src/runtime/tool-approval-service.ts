@@ -18,5 +18,5 @@ export function requestApproval(
   }
 
   // hubに委譲（登録済み承認者に配送、first-response-wins）
-  return hubRequest(toolName, args)
+  return hubRequest(toolName, args, config.approvalTimeoutMs)
 }

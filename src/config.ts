@@ -89,6 +89,14 @@ const envSchema = z.object({
       return names
     }),
 
+  // --- 承認タイムアウト ---
+  // 承認待ちの制限時間（秒）。0=無制限。デフォルト60秒
+  APPROVAL_TIMEOUT_SEC: z
+    .string()
+    .regex(/^\d+$/, "APPROVAL_TIMEOUT_SEC は0以上の整数で指定してください")
+    .default("60")
+    .transform(Number),
+
   // --- 開発者向け ---
   DEV_MODE: z
     .string()
@@ -158,6 +166,7 @@ export type AppConfig = {
 
   // ツール承認
   toolAutoApprove: string[]
+  approvalTimeoutMs: number
 
   // 開発者向け
   devMode: boolean
@@ -247,6 +256,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // ツール承認
     toolAutoApprove: env.TOOL_AUTO_APPROVE,
+    approvalTimeoutMs: env.APPROVAL_TIMEOUT_SEC * 1000,
 
     // 開発者向け
     devMode: env.DEV_MODE,

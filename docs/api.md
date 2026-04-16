@@ -95,7 +95,7 @@ payload: {
   toolName: ToolName
   args: Record<string, unknown>
   approved: boolean
-  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER"
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER" | "TIMEOUT"
 }
 ```
 
