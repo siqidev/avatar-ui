@@ -109,6 +109,7 @@ npm run dev
 | `TERMINAL_SHELL` | | OS既定（zsh / bash / PowerShell） | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
+| `APPROVAL_TIMEOUT_SEC` | | `60` | 承認待ちタイムアウト（秒）。未応答時は自動拒否。`0`=無制限 |
 | `DEV_MODE` | | `off` | 開発者モード（on = 詳細ログ + ソースタグ表示 + Roblox Monitor全表示） |
 | `SESSION_WS_PORT` | | `3002` | WebSocketサーバーポート（Console UI通信用） |
 | `SESSION_WS_TOKEN` | | — | WebSocket認証トークン（セキュリティ用、任意） |

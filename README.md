@@ -109,6 +109,7 @@ npm run dev
 | `TERMINAL_SHELL` | | OS default (zsh / bash / PowerShell) | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
+| `APPROVAL_TIMEOUT_SEC` | | `60` | Approval timeout in seconds (auto-deny after expiry, `0` = no timeout) |
 | `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
 | `SESSION_WS_PORT` | | `3002` | WebSocket server port (Console UI communication) |
 | `SESSION_WS_TOKEN` | | — | WebSocket authentication token (optional, for security) |
