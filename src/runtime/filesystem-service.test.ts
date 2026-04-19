@@ -226,6 +226,14 @@ describe("refs/（読み取り専用参照）", () => {
     expect(result.entries.some((e) => e.name === "sub")).toBe(true)
   })
 
+  it("fsList: refs/直下のsymlinkはtype: directoryとして分類される", async () => {
+    // refs/ext は外部ディレクトリへのsymlink。ディレクトリとして扱われるべき
+    const result = await fsList({ path: "refs" })
+    const ext = result.entries.find((e) => e.name === "ext")
+    expect(ext).toBeDefined()
+    expect(ext?.type).toBe("directory")
+  })
+
   it("fsList: refs/内のネストしたディレクトリも一覧できる", async () => {
     const result = await fsList({ path: "refs/ext/sub" })
     expect(result.entries).toHaveLength(1)

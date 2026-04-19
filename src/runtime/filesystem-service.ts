@@ -96,10 +96,12 @@ export async function fsList(args: FsListArgs): Promise<FsListResult> {
   const entries: FsEntry[] = await Promise.all(
     dirents.map(async (d) => {
       const fullPath = path.join(resolved, d.name)
+      // fs.statはsymlinkを辿るので、refs/配下のシンボリックリンク先がディレクトリの場合も
+      // directoryとして正しく分類される（dirent.isDirectory()はsymlink自体を見るためfalseになる）
       const stat = await fs.stat(fullPath)
       return {
         name: d.name,
-        type: d.isDirectory() ? "directory" as const : "file" as const,
+        type: stat.isDirectory() ? "directory" as const : "file" as const,
         size: stat.size,
         mtimeMs: stat.mtimeMs,
       }
