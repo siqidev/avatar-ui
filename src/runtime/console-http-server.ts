@@ -41,33 +41,127 @@ const MIME_TYPES: Record<string, string> = {
 // --- ポリフィル生成 ---
 
 function generatePolyfill(wsPort: number, wsToken: string | undefined, devMode: boolean): string {
-  const tokenStr = wsToken ? `"${wsToken}"` : "undefined"
+  // tokenを安全にJSリテラル化（"や\が混入しても破綻しないようJSON.stringifyを使う）
+  const tokenStr = wsToken !== undefined ? JSON.stringify(wsToken) : "undefined"
   return `// field-api-polyfill: ブラウザ用window.fieldApiスタブ
-// Electron preloadの代替。FS/Terminal系はブラウザでは未対応
-window.fieldApi = {
-  attach: function() { return Promise.resolve(); },
-  detach: function() {},
-  terminate: function() {},
-  sessionWsConfig: function() {
-    return Promise.resolve({ port: ${wsPort}, token: ${tokenStr}, devMode: ${devMode} });
-  },
-  fsRootName: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsList: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsRead: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsWrite: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsImportFile: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsMutate: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  terminalInput: function() { return Promise.resolve(); },
-  terminalResize: function() { return Promise.resolve(); },
-  terminalSnapshot: function() { return Promise.resolve(""); },
-  onIntegrityAlert: function() {},
-  onTerminalData: function() {},
-  onTerminalState: function() {},
-  onThemeChange: function() {},
-  onLocaleChange: function() {},
-  getFilePath: function() { return ""; },
-  loadDemoScript: function() { return Promise.resolve({ ok: false, error: "ブラウザモードでは未対応" }); },
-};
+// Electron preloadの代替。FS系はWS RPC経由、Terminal/外部D&Dは未対応
+(function() {
+  var WS_PORT = ${wsPort};
+  var WS_TOKEN = ${tokenStr};
+  var FS_TIMEOUT_MS = 30000;
+
+  // --- FS RPC client (lazy WS) ---
+  var fsWs = null;
+  var fsConnecting = null;
+  var pending = new Map(); // reqId -> { resolve, reject, timer }
+  var reqSeq = 0;
+
+  function nextReqId() {
+    reqSeq += 1;
+    return "fs-" + Date.now() + "-" + reqSeq;
+  }
+
+  function rejectAllPending(reason) {
+    pending.forEach(function(entry) {
+      clearTimeout(entry.timer);
+      entry.reject(new Error(reason));
+    });
+    pending.clear();
+  }
+
+  function ensureFsWs() {
+    if (fsWs && fsWs.readyState === WebSocket.OPEN) return Promise.resolve(fsWs);
+    if (fsConnecting) return fsConnecting;
+
+    fsConnecting = new Promise(function(resolve, reject) {
+      var protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      var host = location.host || ("localhost:" + WS_PORT);
+      var url = protocol + "//" + host + "/" + (WS_TOKEN ? "?token=" + encodeURIComponent(WS_TOKEN) : "");
+      var ws = new WebSocket(url);
+      var opened = false;
+
+      ws.onopen = function() {
+        opened = true;
+        fsWs = ws;
+        fsConnecting = null;
+        resolve(ws);
+      };
+      ws.onerror = function() {
+        fsConnecting = null;
+        reject(new Error("FS WS接続エラー"));
+      };
+      ws.onclose = function() {
+        fsWs = null;
+        fsConnecting = null;
+        rejectAllPending("FS WS切断");
+        // open前のclose（error未発火経路）でも接続Promiseを必ず解決する
+        if (!opened) {
+          reject(new Error("FS WS切断"));
+        }
+      };
+      ws.onmessage = function(ev) {
+        try {
+          var data = JSON.parse(ev.data);
+          if (data && data.type === "fs.response") {
+            var entry = pending.get(data.reqId);
+            if (!entry) return;
+            clearTimeout(entry.timer);
+            pending.delete(data.reqId);
+            if (data.ok) entry.resolve(data.result);
+            else entry.reject(Object.assign(new Error(data.error.message), { code: data.error.code }));
+          }
+          // 他typeはsession-client用なので無視
+        } catch (e) { /* ignore parse errors */ }
+      };
+    });
+    return fsConnecting;
+  }
+
+  function fsCall(method, args) {
+    return ensureFsWs().then(function(ws) {
+      return new Promise(function(resolve, reject) {
+        var reqId = nextReqId();
+        var timer = setTimeout(function() {
+          pending.delete(reqId);
+          reject(new Error("FS要求タイムアウト: " + method));
+        }, FS_TIMEOUT_MS);
+        pending.set(reqId, { resolve: resolve, reject: reject, timer: timer });
+        try {
+          ws.send(JSON.stringify({ type: "fs.request", reqId: reqId, method: method, args: args }));
+        } catch (e) {
+          clearTimeout(timer);
+          pending.delete(reqId);
+          reject(e);
+        }
+      });
+    });
+  }
+
+  window.fieldApi = {
+    attach: function() { return Promise.resolve(); },
+    detach: function() {},
+    terminate: function() {},
+    sessionWsConfig: function() {
+      return Promise.resolve({ port: WS_PORT, token: WS_TOKEN, devMode: ${devMode} });
+    },
+    fsRootName: function() { return fsCall("fs.rootName"); },
+    fsList: function(args) { return fsCall("fs.list", args); },
+    fsRead: function(args) { return fsCall("fs.read", args); },
+    fsWrite: function(args) { return fsCall("fs.write", args); },
+    fsImportFile: function() { return Promise.reject(new Error("ブラウザ版では外部ファイルのD&Dインポートは未対応です")); },
+    fsMutate: function(args) { return fsCall("fs.mutate", args); },
+    terminalInput: function() { return Promise.resolve(); },
+    terminalResize: function() { return Promise.resolve(); },
+    terminalSnapshot: function() { return Promise.resolve(""); },
+    onIntegrityAlert: function() {},
+    onTerminalData: function() {},
+    onTerminalState: function() {},
+    onThemeChange: function() {},
+    onLocaleChange: function() {},
+    getFilePath: function() { return ""; },
+    loadDemoScript: function() { return Promise.resolve({ ok: false, error: "ブラウザモードでは未対応" }); },
+  };
+})();
 `
 }
 

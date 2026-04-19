@@ -2,12 +2,16 @@
 // 検証: token認証、session.state初回配信、event busリレー、stream.post受信、切断
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
+import * as os from "node:os"
 import { WebSocket } from "ws"
 import { createSessionWsServer } from "./session-ws-server.js"
 import type { SessionWsServer } from "./session-ws-server.js"
 import { publish, _resetForTest as resetEventBus } from "./session-event-bus.js"
 import { createSessionEvent } from "../shared/session-event-schema.js"
 import type { SessionStatePayload } from "../shared/session-event-schema.js"
+import { _resetConfigForTest } from "../config.js"
 
 vi.mock("../logger.js", () => ({
   info: vi.fn(),
@@ -333,5 +337,214 @@ describe("session-ws-server", () => {
     server.stop()
     const code = await closePromise
     expect(code).toBe(1001) // Server shutting down
+  })
+})
+
+// --- fs.request（ブラウザWS経由FS RPC）---
+
+describe("session-ws-server fs.request", () => {
+  let server: SessionWsServer
+  let clients: WebSocket[]
+  let tmpDir: string
+
+  beforeEach(async () => {
+    resetEventBus()
+    clients = []
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ws-fs-test-"))
+    _resetConfigForTest({ XAI_API_KEY: "test-key", AVATAR_SPACE: tmpDir })
+  })
+
+  afterEach(async () => {
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) ws.close()
+    }
+    clients = []
+    server?.stop()
+    await new Promise((r) => setTimeout(r, 50))
+    await fs.rm(tmpDir, { recursive: true, force: true })
+    _resetConfigForTest({ XAI_API_KEY: "test-key" })
+  })
+
+  // reqIdでフィルタしてfs.responseを1件受信する
+  function awaitFsResponse(ws: WebSocket, reqId: string): Promise<Record<string, unknown>> {
+    return new Promise((resolve) => {
+      const onMessage = (data: Buffer | string) => {
+        const msg = parseWsMessage(data)
+        if (msg.type === "fs.response" && msg.reqId === reqId) {
+          ws.off("message", onMessage)
+          resolve(msg)
+        }
+      }
+      ws.on("message", onMessage)
+    })
+  }
+
+  async function sendFsRequest(
+    ws: WebSocket,
+    method: string,
+    args: unknown,
+  ): Promise<Record<string, unknown>> {
+    const reqId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const responsePromise = awaitFsResponse(ws, reqId)
+    ws.send(JSON.stringify({ type: "fs.request", reqId, method, args }))
+    return responsePromise
+  }
+
+  // --- 正常系 ---
+
+  it("fs.rootName: AVATAR_SPACEのbasenameを返す", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.rootName", undefined)
+    expect(res.ok).toBe(true)
+    expect(res.result).toBe(path.basename(tmpDir))
+  })
+
+  it("fs.list: ファイル一覧を返す", async () => {
+    await fs.writeFile(path.join(tmpDir, "a.txt"), "alpha")
+    await fs.mkdir(path.join(tmpDir, "sub"))
+
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.list", { path: "." })
+    expect(res.ok).toBe(true)
+    const result = res.result as { entries: Array<{ name: string; type: string }> }
+    expect(result.entries).toHaveLength(2)
+    expect(result.entries[0]).toMatchObject({ name: "sub", type: "directory" })
+    expect(result.entries[1]).toMatchObject({ name: "a.txt", type: "file" })
+  })
+
+  it("fs.read: ファイル内容を返す", async () => {
+    await fs.writeFile(path.join(tmpDir, "hello.txt"), "world")
+
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.read", { path: "hello.txt" })
+    expect(res.ok).toBe(true)
+    const result = res.result as { content: string }
+    expect(result.content).toBe("world")
+  })
+
+  it("fs.write: ファイルを作成する", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.write", { path: "new.txt", content: "fresh" })
+    expect(res.ok).toBe(true)
+    const written = await fs.readFile(path.join(tmpDir, "new.txt"), "utf-8")
+    expect(written).toBe("fresh")
+  })
+
+  it("fs.mutate: ディレクトリ作成", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.mutate", { op: "mkdir", path: "newdir" })
+    expect(res.ok).toBe(true)
+    const stat = await fs.stat(path.join(tmpDir, "newdir"))
+    expect(stat.isDirectory()).toBe(true)
+  })
+
+  // --- 異常系: バリデーション ---
+
+  it("fs.request: 引数不正で ok:false / code: BAD_ARGS", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    // fs.list は { path: string } を要求するので path欠落でBAD_ARGS
+    const res = await sendFsRequest(ws, "fs.list", {})
+    expect(res.ok).toBe(false)
+    const err = res.error as { message: string; code: string }
+    expect(err.code).toBe("BAD_ARGS")
+  })
+
+  it("fs.request: 未知methodはBAD_REQUEST（公開subset外）", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    // fs.importFile はWS公開subsetから除外されている（fsRpcMethodSchema）
+    const res = await sendFsRequest(ws, "fs.importFile", { sourcePath: "/etc/passwd", destPath: "x.txt" })
+    expect(res.ok).toBe(false)
+    const err = res.error as { message: string; code: string }
+    expect(err.code).toBe("BAD_REQUEST")
+  })
+
+  it("fs.request: サービス例外はok:false（FS_ERROR）", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    // 存在しないファイルの読み取り → ENOENT
+    const res = await sendFsRequest(ws, "fs.read", { path: "missing.txt" })
+    expect(res.ok).toBe(false)
+    const err = res.error as { message: string; code: string }
+    expect(err.code).toBe("FS_ERROR")
+  })
+
+  // --- サンドボックス維持 ---
+
+  it("fs.request: AVATAR_SPACE外アクセスは拒否される", async () => {
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    // ../ で外に出ようとするとassertInAvatarSpaceがthrow
+    const res = await sendFsRequest(ws, "fs.list", { path: "../../../" })
+    expect(res.ok).toBe(false)
+    const err = res.error as { message: string; code: string }
+    expect(err.message).toMatch(/Avatar Space外/)
+  })
+
+  it("fs.request: refs/配下への書き込みは拒否される", async () => {
+    await fs.mkdir(path.join(tmpDir, "refs"), { recursive: true })
+
+    const port = nextPort()
+    server = createSessionWsServer({ port, token: undefined, getStateSnapshot: defaultSnapshot })
+    await startAndWait(server)
+
+    const { ws } = await connectWithFirstMessage(port)
+    clients.push(ws)
+
+    const res = await sendFsRequest(ws, "fs.write", { path: "refs/forbidden.txt", content: "x" })
+    expect(res.ok).toBe(false)
+    const err = res.error as { message: string; code: string }
+    expect(err.message).toMatch(/refs\/は読み取り専用/)
   })
 })

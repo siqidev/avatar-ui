@@ -114,7 +114,7 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
   - ~~**構造変更**~~: `src/runtime/`新設、`src/discord/`新設、`field-runtime.ts`移動済み
   - ~~**Step 1: 承認の独立化**~~ — 実装済み（`approval-hub.ts`、first-response-wins）
   - ~~**Step 3: ヘッドレスサーバー**~~ — 実装済み（`headless/index.ts` + `field-orchestrator.ts` + `session-ws-server.ts`）。当初計画の`session-registry.ts`/`ws-gateway.ts`/`src/server/`は不要と判断し、既存モジュールの組み合わせで実現
-  - ~~**Step 4: Console（GUI）のクライアント化**~~ — 実装済み（`console-http-server.ts`でブラウザ配信。ポリフィルでElectron preload代替）。Space/Canvas/TerminalのVPS対応は後回し
+  - ~~**Step 4: Console（GUI）のクライアント化**~~ — 実装済み（`console-http-server.ts`でブラウザ配信。ポリフィルでElectron preload代替）。Spaceペインはv0.5.2でWS FS RPC対応（`fs-request-handler.ts`+`fs-rpc-schema.ts`、外部D&Dインポートのみ未対応）。Canvas/TerminalのVPS対応は後回し
   - ~~**Step 5: Discord窓口**~~ — 実装済み（`discord-bridge.ts`）
   - **Roblox接続** — Roblox Studio/Clientはローカル（Mac）でのみ動作。VPS上のSpectra本体とはcloudflaredトンネル経由で接続。通信方式は現行HTTP POSTを維持
 - **ツール呼び出し承認UI拡張** — タスクバー通知・通知音（承認リクエスト時にユーザーが気づけるように）

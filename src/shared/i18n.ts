@@ -53,6 +53,7 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "renameError": { ja: "名前の変更エラー", en: "Rename error" },
   "deleteError": { ja: "削除エラー", en: "Delete error" },
   "createError": { ja: "作成エラー", en: "Create error" },
+  "externalDropUnsupported": { ja: "ブラウザ版では外部ファイルのドラッグ＆ドロップは未対応です（Electron版をご利用ください）", en: "External file drag & drop is not supported in browser mode (use the Electron app)" },
 
   // --- Renderer: Canvas (canvas-pane.ts) ---
   "imageLoadError": { ja: "画像読み込みエラー", en: "Image load error" },

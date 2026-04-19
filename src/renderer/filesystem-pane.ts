@@ -651,6 +651,12 @@ async function handleTreeDrop(event: DragEvent): Promise<void> {
       pushUndo({ type: "rename", from: sourcePath, to: validation.destPath })
     } else {
       const externalPaths = getExternalFilePaths(dt)
+      // ブラウザ版ではFile.path/webUtils.getPathForFileが使えないため externalPaths が空になる。
+      // 無音で失敗しないよう明示エラーを出す。
+      if (externalPaths.length === 0 && dt.files.length > 0) {
+        errorEl.textContent = t("externalDropUnsupported")
+        return
+      }
       for (const src of externalPaths) {
         const dest = joinPath(dirPath, getBaseName(src))
         await window.fieldApi.fsImportFile({ sourcePath: src, destPath: dest })

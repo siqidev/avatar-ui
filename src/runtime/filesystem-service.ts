@@ -54,15 +54,30 @@ async function assertInAvatarSpace(targetPath: string): Promise<string> {
   }
   // 非refs: symlink解決してAvatar Space内であることを検証
   // root自体もrealpath解決する（macOSの/var→/private/var等に対応）
-  try {
-    const realRoot = await fs.realpath(root)
-    const real = await fs.realpath(resolved)
-    if (!real.startsWith(realRoot + path.sep) && real !== realRoot) {
-      throw new Error(`リンク先がAvatar Space外です: ${targetPath} → ${real}`)
+  const realRoot = await fs.realpath(root)
+  // resolved自体が存在する場合: そのままrealpath検証
+  // 存在しない場合: 最も近い既存ancestorをrealpathして検証（symlink経由の外部書き込みを防ぐ）
+  let probe = resolved
+  let real: string
+  while (true) {
+    try {
+      real = await fs.realpath(probe)
+      break
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e
+      const parent = path.dirname(probe)
+      if (parent === probe) {
+        // ルートまで遡っても見つからない（通常起こらない）
+        throw new Error(`パスを解決できません: ${targetPath}`)
+      }
+      probe = parent
     }
-  } catch (e) {
-    // ENOENT: ファイルが存在しない場合はsymlink検証不要（write/mkdir等の新規作成）
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e
+  }
+  // probeを起点にresolvedまでの相対部分（未存在部分）を実symlink解決後のrealにくっつけて再判定
+  const remainder = path.relative(probe, resolved)
+  const finalReal = remainder === "" ? real : path.join(real, remainder)
+  if (!finalReal.startsWith(realRoot + path.sep) && finalReal !== realRoot) {
+    throw new Error(`リンク先がAvatar Space外です: ${targetPath} → ${finalReal}`)
   }
   return resolved
 }

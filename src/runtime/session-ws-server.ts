@@ -14,6 +14,8 @@ import type { ChannelId } from "../shared/channel.js"
 import type { InputRole } from "../services/input-role-resolver.js"
 import { toolApprovalRespondSchema } from "../shared/tool-approval-schema.js"
 import { registerApprover, unregisterApprover, respond as hubRespond } from "./approval-hub.js"
+import { fsRequestSchema } from "../shared/fs-rpc-schema.js"
+import { dispatchFsRequest, FsRequestError } from "./fs-request-handler.js"
 import * as log from "../logger.js"
 
 // --- 型定義 ---
@@ -237,6 +239,26 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
         }
         const respondResult = hubRespond(result.data.requestId, result.data.decision)
         ws.send(JSON.stringify({ type: "tool.approval.result", ...respondResult }))
+        return
+      }
+
+      // fs.request: ブラウザ版FS RPC
+      if (parsed.type === "fs.request") {
+        const result = fsRequestSchema.safeParse(parsed)
+        if (!result.success) {
+          // reqIdが取れない場合もあるので、type+errorだけ返す
+          const reqId = typeof parsed.reqId === "string" ? parsed.reqId : ""
+          ws.send(JSON.stringify({ type: "fs.response", reqId, ok: false, error: { message: "fs.request バリデーション失敗", code: "BAD_REQUEST" } }))
+          return
+        }
+        const { reqId, method, args } = result.data
+        dispatchFsRequest(method, args).then((value) => {
+          ws.send(JSON.stringify({ type: "fs.response", reqId, ok: true, result: value }))
+        }).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err)
+          const code = err instanceof FsRequestError ? err.code : "FS_ERROR"
+          ws.send(JSON.stringify({ type: "fs.response", reqId, ok: false, error: { message, code } }))
+        })
         return
       }
 

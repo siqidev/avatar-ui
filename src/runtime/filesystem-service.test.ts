@@ -278,6 +278,49 @@ describe("refs/（読み取り専用参照）", () => {
   })
 })
 
+describe("非refs/ symlink経由のサンドボックス回避を拒否", () => {
+  // refs/外（rw領域）にAVATAR_SPACE外を指すsymlinkがあった場合、
+  // そのsymlink配下への新規書き込みは拒否される（最も近い既存ancestorのrealpath検証）
+  it("fsWrite: 非refs/symlink配下の新規ファイル作成を拒否", async () => {
+    await fs.symlink(externalRepoDir, path.join(tmpDir, "escape"))
+    await expect(
+      fsWrite({ path: "escape/leak.txt", content: "leak" }),
+    ).rejects.toThrow("Avatar Space外")
+  })
+
+  it("fsMutate mkdir: 非refs/symlink配下のディレクトリ作成を拒否", async () => {
+    await fs.symlink(externalRepoDir, path.join(tmpDir, "escape"))
+    await expect(
+      fsMutate({ op: "mkdir", path: "escape/leakdir" }),
+    ).rejects.toThrow("Avatar Space外")
+  })
+
+  it("fsMutate rename: 非refs/symlink配下を宛先にしたリネームを拒否", async () => {
+    await fs.writeFile(path.join(tmpDir, "src.txt"), "data")
+    await fs.symlink(externalRepoDir, path.join(tmpDir, "escape"))
+    await expect(
+      fsMutate({ op: "rename", path: "src.txt", newPath: "escape/dest.txt" }),
+    ).rejects.toThrow("Avatar Space外")
+  })
+
+  it("fsMutate copy: 非refs/symlink配下を宛先にしたコピーを拒否", async () => {
+    await fs.writeFile(path.join(tmpDir, "src.txt"), "data")
+    await fs.symlink(externalRepoDir, path.join(tmpDir, "escape"))
+    await expect(
+      fsMutate({ op: "copy", path: "src.txt", destPath: "escape/dest.txt" }),
+    ).rejects.toThrow("Avatar Space外")
+  })
+
+  it("fsImportFile: 非refs/symlink配下へのインポートを拒否", async () => {
+    await fs.symlink(externalRepoDir, path.join(tmpDir, "escape"))
+    const sourcePath = path.join(importSourceDir, "import.txt")
+    await fs.writeFile(sourcePath, "data")
+    await expect(
+      fsImportFile({ sourcePath, destPath: "escape/leak.txt" }),
+    ).rejects.toThrow("Avatar Space外")
+  })
+})
+
 describe("ensureRefsReady", () => {
   it("refs/ディレクトリを作成する", async () => {
     ensureRefsReady()
