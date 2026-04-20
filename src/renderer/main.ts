@@ -8,60 +8,16 @@ import type { PaneInput } from "./state-normalizer.js"
 import { initFilesystemPane } from "./filesystem-pane.js"
 import { initCanvasPane } from "./canvas-pane.js"
 import type { CanvasPaneController } from "./canvas-pane.js"
-import { initTerminalPane, applyTermTheme } from "./terminal-pane.js"
+import { initTerminalPane, applyTermTheme, renderTerminalUnavailable } from "./terminal-pane.js"
 import { DemoPlayer } from "./demo-player.js"
 import { createSessionClient } from "./session-client.js"
 import type { SessionClient } from "./session-client.js"
 
-import type {
-  FsImportFileArgs,
-  FsImportFileResult,
-  FsListArgs,
-  FsReadArgs,
-  FsWriteArgs,
-  FsMutateArgs,
-  FsListResult,
-  FsReadResult,
-  FsWriteResult,
-  FsMutateResult,
-} from "../shared/fs-schema.js"
-import type {
-  TerminalInputArgs,
-  TerminalResizeArgs,
-  TerminalSnapshot,
-} from "../shared/terminal-schema.js"
-import type { DemoScript } from "../shared/demo-script-schema.js"
+import type { FieldApi } from "../shared/field-api.js"
 
 declare global {
   interface Window {
-    fieldApi: {
-      // 場のライフサイクル（IPC）
-      attach: () => Promise<void>
-      detach: () => void
-      terminate: () => void
-      // WS接続情報
-      sessionWsConfig: () => Promise<{ port: number; token?: string; devMode?: boolean }>
-      // ファイル操作（IPC）
-      fsRootName: () => Promise<string>
-      fsList: (args: FsListArgs) => Promise<FsListResult>
-      fsRead: (args: FsReadArgs) => Promise<FsReadResult>
-      fsWrite: (args: FsWriteArgs) => Promise<FsWriteResult>
-      fsImportFile: (args: FsImportFileArgs) => Promise<FsImportFileResult>
-      fsMutate: (args: FsMutateArgs) => Promise<FsMutateResult>
-      // Terminal（IPC）
-      terminalInput: (args: TerminalInputArgs) => Promise<{ ok: boolean }>
-      terminalResize: (args: TerminalResizeArgs) => Promise<{ ok: boolean }>
-      terminalSnapshot: () => Promise<TerminalSnapshot>
-      // IPC残置イベント
-      onIntegrityAlert: (cb: (data: unknown) => void) => void
-      onTerminalData: (cb: (data: unknown) => void) => void
-      onTerminalState: (cb: (data: unknown) => void) => void
-      onThemeChange: (cb: (theme: string) => void) => void
-      onLocaleChange: (cb: (locale: string) => void) => void
-      // ユーティリティ
-      getFilePath: (file: File) => string
-      loadDemoScript: () => Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }>
-    }
+    fieldApi: FieldApi
   }
 }
 
@@ -87,8 +43,7 @@ const avatarImg = document.getElementById("avatar-img") as HTMLImageElement
 const canvas: CanvasPaneController = initCanvasPane()
 let spaceInitialized = false
 
-// === Terminalペイン初期化 ===
-initTerminalPane()
+// Terminalペインの初期化は capabilities 確定後（sessionWsConfig取得後）に行う
 
 // === レイアウト管理 ===
 // レイアウト = 列の配列。各列はペインIDの配列。列構造は2/3/2固定
@@ -620,8 +575,18 @@ let devMode = false
 
   // 2. WS接続情報を取得して接続
   const wsConfig = await window.fieldApi.sessionWsConfig()
-  devMode = wsConfig.devMode ?? false
+  devMode = wsConfig.devMode
   if (devMode) document.body.classList.add("dev-mode")
+  // runtime profile/capabilitiesをbodyのdata属性に反映（CSSで能力ゲートを可能にする）
+  document.body.dataset.profile = wsConfig.profile
+  if (!wsConfig.capabilities.terminal) document.body.classList.add("no-terminal")
+
+  // 3. Terminalペイン初期化: 能力ありのみxterm起動、無ければDesktop限定プレースホルダを表示
+  if (wsConfig.capabilities.terminal) {
+    initTerminalPane()
+  } else {
+    renderTerminalUnavailable(t("terminal.desktopOnly"))
+  }
   // Electronモード（file://）: ws://localhost:PORT
   // ブラウザHTTP（ローカル）: ws://localhost:PORT
   // ブラウザHTTPS（トンネル経由）: wss://hostname（ポート不要、443経由）

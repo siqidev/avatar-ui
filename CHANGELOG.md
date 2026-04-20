@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.5.2 — Web UI / Electron Role Separation (2026-04-20)
+
+### Capabilities contract (FieldContract "能力を偽らない")
+
+- **`FieldApi` common interface** (`src/shared/field-api.ts`) — Electron preload and browser polyfill both implement the same contract. Type-level guarantee against implementation drift
+- **Capabilities declaration** — `DESKTOP_CAPABILITIES` / `WEB_CAPABILITIES` delivered via `sessionWsConfig()`. Runtime profile (`desktop` / `web` / `mobile`) drives UI branching
+- **Web Terminal placeholder** — Terminal pane shows "Desktop-only" message instead of a no-op terminal in browser (i18n: `terminal.desktopOnly`)
+- **Polyfill rejects Desktop-only methods** — Terminal/externalFileImport/demoScript explicitly reject with "ブラウザ版では未対応" rather than silently returning success
+
+### Headless / Browser delivery hardening
+
+- **Polyfill as standalone TS module** (`src/runtime/field-api-polyfill.ts`) — Extracted from the inline string template in `console-http-server.ts`. Type-checked at build time
+- **CSP rewrite fail-fast** — Regex match-count validated for CSP meta tag and theme-init.js path. Throws if Vite/Rollup output changes unexpectedly (prevents silently serving an HTML with wrong CSP)
+- **ETag + Last-Modified** — Weak ETag (size+mtime hex) + Last-Modified headers on static assets. 304 Not Modified responses reduce Cloudflare tunnel bandwidth for non-hashed resources
+- **WS Origin allowlist** (`SESSION_WS_ALLOWED_ORIGINS`) — Multi-layer CSWSH defense alongside token auth. Non-browser clients without Origin header are always allowed
+
+### Docs / contracts
+
+- **Decision Log 2026-04-21** — v0.5.2 design contract (AUI minimal requirement = 6 field-model elements, VPS = sole active authoritative runtime, "器の形の差" principle) recorded in `siqi/knowledge/tech/avatar-ui-project.md`
+- **architecture.md** — FieldApi common contract + capabilities + Origin allowlist + ETag delivery documented
+
+### Deferred to v0.5.3+
+
+- Bundle separation (Web/Desktop separate builds)
+- WebSocket multiplex (unified session + FS RPC WS)
+- Reconnection logic unification (polyfill vs session-client)
+- CP3-3 (external channel axis) and CP3-4 (machine connection axis)
+
 ## v0.5.1 — Discord Chat + Cross-Platform (2026-03-31)
 
 ### Discord bidirectional chat

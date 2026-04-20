@@ -163,4 +163,10 @@ const dictionary: Record<string, Record<Locale, string>> = {
     ja: "[Roblox観測] {0}: {1}",
     en: "[Roblox] {0}: {1}",
   },
+
+  // --- Capabilities（器の形の差） ---
+  "terminal.desktopOnly": {
+    ja: "このターミナルはDesktopアプリ専用です。Webブラウザからは利用できません。",
+    en: "This terminal is Desktop-only. It is not available in the browser.",
+  },
 }

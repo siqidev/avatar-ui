@@ -49,6 +49,10 @@ const envSchema = z.object({
     .regex(/^\d+$/, "SESSION_WS_PORT は数値で指定してください")
     .default("3002"),
   SESSION_WS_TOKEN: z.string().min(1).optional(),
+  // WebSocket接続を受け付けるOriginのallowlist（カンマ区切り）
+  // 未設定: すべてのOriginを許可（ローカル開発用）。設定時: 厳密に一致するOriginのみ許可
+  // token認証に加える多層防御。クロスサイトWebSocketハイジャック対策
+  SESSION_WS_ALLOWED_ORIGINS: z.string().optional(),
 
   // --- Discord ---
   DISCORD_BOT_TOKEN: z.string().min(1).optional(),
@@ -150,6 +154,7 @@ export type AppConfig = {
   xWebhookPort: number
   sessionWsPort: number
   sessionWsToken: string | undefined
+  sessionWsAllowedOrigins: string[] | undefined
 
   // Discord
   discordBotToken: string | undefined
@@ -240,6 +245,9 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     xWebhookPort: Number(env.X_WEBHOOK_PORT),
     sessionWsPort: Number(env.SESSION_WS_PORT),
     sessionWsToken: env.SESSION_WS_TOKEN,
+    sessionWsAllowedOrigins: env.SESSION_WS_ALLOWED_ORIGINS
+      ? env.SESSION_WS_ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined,
 
     // Discord
     discordBotToken: env.DISCORD_BOT_TOKEN,

@@ -23,6 +23,9 @@ import * as log from "../logger.js"
 export type SessionWsOptions = {
   port: number
   token: string | undefined // undefinedの場合、認証なし（開発用）
+  // WS upgrade受け入れOrigin（未指定=全許可、指定=一致するOriginのみ許可）
+  // token認証に加える多層防御。クロスサイトWebSocketハイジャック対策
+  allowedOrigins?: string[] | undefined
   // 依存注入: 場の状態スナップショット取得
   getStateSnapshot: () => SessionStatePayload
   // 依存注入: stream.post処理
@@ -56,6 +59,15 @@ function extractToken(req: IncomingMessage): string | null {
 export function createSessionWsServer(options: SessionWsOptions): SessionWsServer {
   const { port, token, getStateSnapshot, onStreamPost } = options
   const externalServer = options.httpServer ?? null
+  const allowedOrigins = options.allowedOrigins
+  // 非ブラウザクライアント（ElectronのWebSocket, curl, node-ws等）はOriginヘッダを付与しない場合がある
+  // そのためOriginヘッダ無し（=undefined）は常に許可。allowlistは設定時にブラウザからの
+  // クロスオリジン接続のみを弾く用途（トークン漏洩時のCSWSH対策）
+  function isOriginAllowed(origin: string | undefined): boolean {
+    if (!allowedOrigins || allowedOrigins.length === 0) return true
+    if (!origin) return true
+    return allowedOrigins.includes(origin)
+  }
 
   let httpServer: HttpServer | null = null
   let wss: WebSocketServer | null = null
@@ -76,8 +88,17 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
 
     wss = new WebSocketServer({ noServer: true })
 
-    // HTTP upgrade → token認証 → WebSocket接続
+    // HTTP upgrade → Origin検証 → token認証 → WebSocket接続
     httpServer.on("upgrade", (req, socket, head) => {
+      // Origin allowlist検証（設定時のみ）
+      const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined
+      if (!isOriginAllowed(origin)) {
+        log.info(`[SESSION_WS] Origin拒否: ${origin ?? "(なし)"}`)
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n")
+        socket.destroy()
+        return
+      }
+
       // token認証（設定されている場合のみ）
       if (token) {
         const clientToken = extractToken(req)
@@ -160,13 +181,17 @@ export function createSessionWsServer(options: SessionWsOptions): SessionWsServe
       broadcast(event)
     })
 
+    const originSummary = allowedOrigins && allowedOrigins.length > 0
+      ? `allowlist=[${allowedOrigins.join(",")}]`
+      : "allowlist=(なし)"
+
     // 外部HTTPサーバー使用時はlisten不要（呼び出し元が管理）
     if (!externalServer) {
       httpServer.listen(port, () => {
-        log.info(`[SESSION_WS] WebSocketサーバー起動 (port: ${port}, 認証: ${token ? "あり" : "なし"})`)
+        log.info(`[SESSION_WS] WebSocketサーバー起動 (port: ${port}, 認証: ${token ? "あり" : "なし"}, ${originSummary})`)
       })
     } else {
-      log.info(`[SESSION_WS] WebSocketサーバー起動（外部HTTPサーバー共有, 認証: ${token ? "あり" : "なし"})`)
+      log.info(`[SESSION_WS] WebSocketサーバー起動（外部HTTPサーバー共有, 認証: ${token ? "あり" : "なし"}, ${originSummary})`)
     }
   }
 

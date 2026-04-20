@@ -113,6 +113,7 @@ npm run dev
 | `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
 | `SESSION_WS_PORT` | | `3002` | WebSocket server port (Console UI communication) |
 | `SESSION_WS_TOKEN` | | — | WebSocket authentication token (optional, for security) |
+| `SESSION_WS_ALLOWED_ORIGINS` | | — | Comma-separated Origin allowlist for WS upgrade (CSWSH defense). Non-browser clients without Origin are always allowed |
 
 ### Optional: Long-term memory (Collections API)
 
@@ -286,6 +287,7 @@ docs/                 PLAN.md, architecture.md
 |-----------|-------------|
 | **Single-user** | Designed for single-user operation (local or remote) |
 | **WS authentication** | `SESSION_WS_TOKEN` enables token auth for WebSocket connections |
+| **WS Origin allowlist** | `SESSION_WS_ALLOWED_ORIGINS` blocks cross-origin browser upgrades (CSWSH defense, multi-layer with token) |
 | **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard + symlink resolution) |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |

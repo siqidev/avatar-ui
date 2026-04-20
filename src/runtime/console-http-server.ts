@@ -7,6 +7,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import * as zlib from "node:zlib"
 import * as log from "../logger.js"
+import { buildPolyfillSource } from "./field-api-polyfill.js"
 
 // --- 型定義 ---
 
@@ -37,133 +38,6 @@ const MIME_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
   ".woff": "font/woff",
   ".ttf": "font/ttf",
-}
-
-// --- ポリフィル生成 ---
-
-function generatePolyfill(wsPort: number, wsToken: string | undefined, devMode: boolean): string {
-  // tokenを安全にJSリテラル化（"や\が混入しても破綻しないようJSON.stringifyを使う）
-  const tokenStr = wsToken !== undefined ? JSON.stringify(wsToken) : "undefined"
-  return `// field-api-polyfill: ブラウザ用window.fieldApiスタブ
-// Electron preloadの代替。FS系はWS RPC経由、Terminal/外部D&Dは未対応
-(function() {
-  var WS_PORT = ${wsPort};
-  var WS_TOKEN = ${tokenStr};
-  var FS_TIMEOUT_MS = 30000;
-
-  // --- FS RPC client (lazy WS) ---
-  var fsWs = null;
-  var fsConnecting = null;
-  var pending = new Map(); // reqId -> { resolve, reject, timer }
-  var reqSeq = 0;
-
-  function nextReqId() {
-    reqSeq += 1;
-    return "fs-" + Date.now() + "-" + reqSeq;
-  }
-
-  function rejectAllPending(reason) {
-    pending.forEach(function(entry) {
-      clearTimeout(entry.timer);
-      entry.reject(new Error(reason));
-    });
-    pending.clear();
-  }
-
-  function ensureFsWs() {
-    if (fsWs && fsWs.readyState === WebSocket.OPEN) return Promise.resolve(fsWs);
-    if (fsConnecting) return fsConnecting;
-
-    fsConnecting = new Promise(function(resolve, reject) {
-      var protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      var host = location.host || ("localhost:" + WS_PORT);
-      var url = protocol + "//" + host + "/" + (WS_TOKEN ? "?token=" + encodeURIComponent(WS_TOKEN) : "");
-      var ws = new WebSocket(url);
-      var opened = false;
-
-      ws.onopen = function() {
-        opened = true;
-        fsWs = ws;
-        fsConnecting = null;
-        resolve(ws);
-      };
-      ws.onerror = function() {
-        fsConnecting = null;
-        reject(new Error("FS WS接続エラー"));
-      };
-      ws.onclose = function() {
-        fsWs = null;
-        fsConnecting = null;
-        rejectAllPending("FS WS切断");
-        // open前のclose（error未発火経路）でも接続Promiseを必ず解決する
-        if (!opened) {
-          reject(new Error("FS WS切断"));
-        }
-      };
-      ws.onmessage = function(ev) {
-        try {
-          var data = JSON.parse(ev.data);
-          if (data && data.type === "fs.response") {
-            var entry = pending.get(data.reqId);
-            if (!entry) return;
-            clearTimeout(entry.timer);
-            pending.delete(data.reqId);
-            if (data.ok) entry.resolve(data.result);
-            else entry.reject(Object.assign(new Error(data.error.message), { code: data.error.code }));
-          }
-          // 他typeはsession-client用なので無視
-        } catch (e) { /* ignore parse errors */ }
-      };
-    });
-    return fsConnecting;
-  }
-
-  function fsCall(method, args) {
-    return ensureFsWs().then(function(ws) {
-      return new Promise(function(resolve, reject) {
-        var reqId = nextReqId();
-        var timer = setTimeout(function() {
-          pending.delete(reqId);
-          reject(new Error("FS要求タイムアウト: " + method));
-        }, FS_TIMEOUT_MS);
-        pending.set(reqId, { resolve: resolve, reject: reject, timer: timer });
-        try {
-          ws.send(JSON.stringify({ type: "fs.request", reqId: reqId, method: method, args: args }));
-        } catch (e) {
-          clearTimeout(timer);
-          pending.delete(reqId);
-          reject(e);
-        }
-      });
-    });
-  }
-
-  window.fieldApi = {
-    attach: function() { return Promise.resolve(); },
-    detach: function() {},
-    terminate: function() {},
-    sessionWsConfig: function() {
-      return Promise.resolve({ port: WS_PORT, token: WS_TOKEN, devMode: ${devMode} });
-    },
-    fsRootName: function() { return fsCall("fs.rootName"); },
-    fsList: function(args) { return fsCall("fs.list", args); },
-    fsRead: function(args) { return fsCall("fs.read", args); },
-    fsWrite: function(args) { return fsCall("fs.write", args); },
-    fsImportFile: function() { return Promise.reject(new Error("ブラウザ版では外部ファイルのD&Dインポートは未対応です")); },
-    fsMutate: function(args) { return fsCall("fs.mutate", args); },
-    terminalInput: function() { return Promise.resolve(); },
-    terminalResize: function() { return Promise.resolve(); },
-    terminalSnapshot: function() { return Promise.resolve(""); },
-    onIntegrityAlert: function() {},
-    onTerminalData: function() {},
-    onTerminalState: function() {},
-    onThemeChange: function() {},
-    onLocaleChange: function() {},
-    getFilePath: function() { return ""; },
-    loadDemoScript: function() { return Promise.resolve({ ok: false, error: "ブラウザモードでは未対応" }); },
-  };
-})();
-`
 }
 
 // --- CSP書き換え ---
@@ -210,8 +84,8 @@ function compressFile(filePath: string, encoding: "br" | "gzip", source: Buffer)
 export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHttpServer {
   const { port, token, rendererDir, devMode } = options
 
-  // ポリフィルJSを事前生成
-  const polyfillJs = generatePolyfill(port, token, devMode)
+  // ポリフィルJSを事前生成（独立TSモジュール `field-api-polyfill.ts` に切り出し済み）
+  const polyfillJs = buildPolyfillSource({ wsPort: port, wsToken: token, devMode })
 
   // index.htmlをポリフィル付きで変換（キャッシュ）
   let cachedIndexHtml: string | null = null
@@ -226,18 +100,34 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     let html = fs.readFileSync(indexPath, "utf-8")
 
-    // CSP書き換え（Electron用→ブラウザ用）
-    html = html.replace(
-      /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")(?=\s|\/>|>)/u,
-      `$1${BROWSER_CSP}$3`,
-    )
+    // CSP書き換え（Electron用→ブラウザ用）: 置換失敗をfail-fast
+    // ビルド出力のCSPメタタグがRollupの変更等で構造が変わるとブラウザが
+    // Electron用CSP（connect-src制限）のまま起動してWebSocket接続が全滅するため、
+    // ヒット件数を検証して一致しないときは即throwして起動を止める
+    const cspPattern =
+      /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")(?=\s|\/>|>)/gu
+    const cspMatches = html.match(cspPattern)
+    if (!cspMatches || cspMatches.length !== 1) {
+      throw new Error(
+        `CSPメタタグの書き換えに失敗しました（期待: 1件、実測: ${cspMatches?.length ?? 0}件）。` +
+          `out/renderer/index.htmlのCSP定義を確認してください`,
+      )
+    }
+    html = html.replace(cspPattern, `$1${BROWSER_CSP}$3`)
 
     // ポリフィルスクリプトタグ挿入（theme-init.jsの直後）
     // ビルド出力のパスは "./theme-init.js" または "/theme-init.js" の可能性がある
     // キャッシュバスター: 起動ごとにURLが変わるのでCDNキャッシュを回避
     const cacheBuster = Date.now()
+    const themeScriptPattern = /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u
+    if (!themeScriptPattern.test(html)) {
+      throw new Error(
+        "theme-init.jsのscriptタグが見つからず、ポリフィル挿入に失敗しました。" +
+          "out/renderer/index.htmlの出力を確認してください",
+      )
+    }
     html = html.replace(
-      /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u,
+      themeScriptPattern,
       `$1\n  <script src="./field-api-polyfill.js?v=${cacheBuster}"></script>`,
     )
 
@@ -311,6 +201,26 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] ?? "application/octet-stream"
 
+    // ETag / Last-Modified: mtimeベースのweak ETagで非hashed assetのフル転送を回避
+    // If-None-Match / If-Modified-Since が一致すれば304を返す
+    const lastModified = new Date(stat.mtimeMs).toUTCString()
+    const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`
+    const ifNoneMatch = req.headers["if-none-match"]
+    const ifModifiedSince = req.headers["if-modified-since"]
+    const notModified =
+      (typeof ifNoneMatch === "string" && ifNoneMatch === etag) ||
+      (typeof ifModifiedSince === "string" &&
+        Date.parse(ifModifiedSince) >= Math.floor(stat.mtimeMs / 1000) * 1000)
+    if (notModified) {
+      res.writeHead(304, {
+        "ETag": etag,
+        "Last-Modified": lastModified,
+        "Cache-Control": "no-transform",
+      })
+      res.end()
+      return
+    }
+
     // 圧縮配信判定: 1KB以上のテキスト系のみ。cloudflared HTTP/2経路で大きい未圧縮レスポンスが
     // 落ちる事象（ERR_HTTP2_PROTOCOL_ERROR）を回避するため、転送量自体を縮める
     const encoding = stat.size >= COMPRESSION_MIN_BYTES && COMPRESSIBLE_EXT.has(ext)
@@ -330,6 +240,8 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
         "Content-Length": entry.buffer.length,
         "Content-Encoding": encoding,
         "Vary": "Accept-Encoding",
+        "ETag": etag,
+        "Last-Modified": lastModified,
         "Cache-Control": "no-transform",
       })
       res.end(entry.buffer)
@@ -340,6 +252,8 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
     res.writeHead(200, {
       "Content-Type": contentType,
       "Content-Length": stat.size,
+      "ETag": etag,
+      "Last-Modified": lastModified,
       "Cache-Control": "no-transform",
     })
     const stream = fs.createReadStream(filePath)

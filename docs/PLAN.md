@@ -162,6 +162,62 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 
 - 配信拡張（Live2D/3D、音声）
 
+### v0.5.2 — Web UI / Electron 役割分離（議論決着、2026-04-21）
+
+ヘッドレスモード対応で発見した設計の弱点群について、Electron/Web両立の根本方針をCC+Codex+ユーザー三者議論で確定。以下を v0.5.2 の設計契約とする。
+
+#### 思想層（CP1）
+
+> Spectraの固有同一性は、Being境界内で継続する関係記憶に宿り、avatar-uiはその正本を単一に管理する場である
+
+#### 戦略層（CP2）
+
+> avatar-ui = AUIの参照実装。AUIとは、複数の情報生命と人間が、各Beingの正本と意味資産の単一性を保ったまま、媒体を跨いで共在・共振・干渉・共創できる場を実装する関係インターフェースである。AUIの最小要件は場モデル6要素の実装契約であり、概念SSOTを外部化しない範囲でOpenClaw等の実行基盤と連携可能。
+
+#### 機能層（CP3-1: 実行ホスト）
+
+- **VPS/headless** = 唯一active正本runtime（24/7、Spectraが「生きている」場所）
+- **Local/Docker/VM** = migration先・replica・検証用（同時active禁止）
+- **Edge** = 正本runtime不可（配信・通知・補助投影のみ）
+
+#### 機能層（CP3-2: ユーザー接触）— 「器の形の差」原則
+
+| 接触面 | 性格 | 範囲 |
+|---|---|---|
+| Desktop (Electron) | 主権操作面 + 深い共創接触面 | 鍵/migration/Terminal/D&D/全編集/フル6要素 |
+| Web (Browser) | 日常共在窓 | 会話/状態参照/関係記憶閲覧/軽い共創/承認/Avatar |
+| Mobile（将来） | 携帯共在窓 | Web subset、会話・承認・状態確認は保持 |
+
+媒体ごとの能力差は欠損ではなく**器の形の差**。利用可能能力は契約として明示、偽装UIやno-opは置かない。
+
+#### capabilities設計
+
+- **FieldContract（不変条件）**: 「能力を偽らない / 権限境界を破らない」
+- **ChannelProjection / runtime profile**: 実能力一覧を保持
+
+#### v0.5.2 実装タスク（実装済み）
+
+- ✅ **`FieldApi`共通型の確立** — `src/shared/field-api.ts`にFieldApi/Capabilities/SessionWsConfig型を定義。preload + browser polyfill双方が実装
+- ✅ **capabilities宣言** — DESKTOP_CAPABILITIES / WEB_CAPABILITIESを宣言、sessionWsConfig経由でRendererに配信
+- ✅ **ポリフィルの独立TSファイル化** — `src/runtime/field-api-polyfill.ts`が`buildPolyfillSource()`で生成。console-http-server.tsはビルド呼び出しのみ
+- ✅ **Web Terminal ペイン非表示** — capabilities.terminal === false時に`renderTerminalUnavailable()`で明示プレースホルダ表示（i18n: `terminal.desktopOnly`）
+- ✅ **CSP書き換えのfail-fast化** — CSPメタタグ・theme-init.jsパスの正規表現マッチ数を検証し、想定外ならthrow
+- ✅ **WebSocket Origin検証** — `SESSION_WS_ALLOWED_ORIGINS`によるallowlist。upgrade時にtoken認証より先に検証
+- ✅ **静的配信のETag/Last-Modified** — 弱ETag（size+mtime hex）+ Last-Modifiedで304応答
+
+#### v0.5.3以降に持ち越し
+
+- **bundle分離** — Web/Desktop別ビルドターゲット
+- **WebSocket multiplex** — session WSとFS RPC WSを1本化
+- **再接続ロジック共通化** — polyfill側とsession-client側を統一
+
+#### 持ち越し（CP3-3, CP3-4）— v0.5.3以降で議論
+
+- **外部チャネル接続軸**: Slack/Discord/X/APIの位置づけ + 承認/記憶書き込み/人格表現の許容範囲
+- **機械接続軸**: Terminal/FS/MCP/ローカル制御のDesktop専権範囲 + Web承認経由実行の境界
+
+
+
 ## 設計参照
 
 v0.3.0で確立した設計。実装の正本はarchitecture.md、概念の正本はPROJECT.md。
