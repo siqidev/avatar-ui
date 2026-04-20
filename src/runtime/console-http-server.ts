@@ -5,6 +5,7 @@ import { createServer } from "node:http"
 import type { Server as HttpServer, IncomingMessage, ServerResponse } from "node:http"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import * as zlib from "node:zlib"
 import * as log from "../logger.js"
 
 // --- 型定義 ---
@@ -184,6 +185,26 @@ function extractHttpToken(req: IncomingMessage): string | null {
   return null
 }
 
+// --- 静的ファイル圧縮キャッシュ ---
+
+type CompressedEntry = { encoding: "br" | "gzip"; buffer: Buffer; mtimeMs: number }
+const COMPRESSIBLE_EXT = new Set([".js", ".css", ".html", ".json", ".svg"])
+const COMPRESSION_MIN_BYTES = 1024
+// プロセス内メモリキャッシュ（assetは数個のみ。再ビルドでmtime変化したら再圧縮）
+const compressedCache = new Map<string, CompressedEntry>()
+
+function pickEncoding(acceptEncoding: string | undefined): "br" | "gzip" | null {
+  if (!acceptEncoding) return null
+  // brotli優先（より高圧縮率）
+  if (/\bbr\b/u.test(acceptEncoding)) return "br"
+  if (/\bgzip\b/u.test(acceptEncoding)) return "gzip"
+  return null
+}
+
+function compressFile(filePath: string, encoding: "br" | "gzip", source: Buffer): Buffer {
+  return encoding === "br" ? zlib.brotliCompressSync(source) : zlib.gzipSync(source)
+}
+
 // --- サーバー作成 ---
 
 export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHttpServer {
@@ -289,8 +310,33 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] ?? "application/octet-stream"
-    // Content-Length明示: cloudflared HTTP/2経由でchunked transferが壊れる事象（ERR_HTTP2_PROTOCOL_ERROR）を回避
-    // no-transform: 中間プロキシ（cloudflared/Cloudflare edge）による圧縮再エンコードでlength不一致が起きないよう抑止
+
+    // 圧縮配信判定: 1KB以上のテキスト系のみ。cloudflared HTTP/2経路で大きい未圧縮レスポンスが
+    // 落ちる事象（ERR_HTTP2_PROTOCOL_ERROR）を回避するため、転送量自体を縮める
+    const encoding = stat.size >= COMPRESSION_MIN_BYTES && COMPRESSIBLE_EXT.has(ext)
+      ? pickEncoding(req.headers["accept-encoding"] as string | undefined)
+      : null
+
+    if (encoding) {
+      const cacheKey = `${filePath}:${encoding}`
+      let entry = compressedCache.get(cacheKey)
+      if (!entry || entry.mtimeMs !== stat.mtimeMs) {
+        const source = fs.readFileSync(filePath)
+        entry = { encoding, buffer: compressFile(filePath, encoding, source), mtimeMs: stat.mtimeMs }
+        compressedCache.set(cacheKey, entry)
+      }
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Content-Length": entry.buffer.length,
+        "Content-Encoding": encoding,
+        "Vary": "Accept-Encoding",
+        "Cache-Control": "no-transform",
+      })
+      res.end(entry.buffer)
+      return
+    }
+
+    // 非圧縮: Content-Length明示（chunked transfer起因の ERR_HTTP2_PROTOCOL_ERROR を回避）
     res.writeHead(200, {
       "Content-Type": contentType,
       "Content-Length": stat.size,
