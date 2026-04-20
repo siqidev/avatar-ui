@@ -273,7 +273,15 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
       return
     }
 
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(filePath)
+    } catch {
+      res.writeHead(404, { "Content-Type": "text/plain" })
+      res.end("Not Found")
+      return
+    }
+    if (stat.isDirectory()) {
       res.writeHead(404, { "Content-Type": "text/plain" })
       res.end("Not Found")
       return
@@ -281,8 +289,19 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] ?? "application/octet-stream"
-    res.writeHead(200, { "Content-Type": contentType })
-    fs.createReadStream(filePath).pipe(res)
+    // Content-Length明示: cloudflared HTTP/2経由でchunked transferが壊れる事象（ERR_HTTP2_PROTOCOL_ERROR）を回避
+    // no-transform: 中間プロキシ（cloudflared/Cloudflare edge）による圧縮再エンコードでlength不一致が起きないよう抑止
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Content-Length": stat.size,
+      "Cache-Control": "no-transform",
+    })
+    const stream = fs.createReadStream(filePath)
+    stream.on("error", (err) => {
+      log.error(`[CONSOLE_HTTP] 静的ファイル読み取り失敗: ${filePath} ${err instanceof Error ? err.message : String(err)}`)
+      res.destroy(err)
+    })
+    stream.pipe(res)
   })
 
   function start(): void {
