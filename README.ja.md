@@ -287,7 +287,7 @@ docs/                 PLAN.md、architecture.md
 |------|------|
 | **単一ユーザー運用** | 単一ユーザー運用を前提（ローカルまたはリモート） |
 | **WS認証** | `SESSION_WS_TOKEN` 設定時、WebSocket接続にtoken認証を適用 |
-| **WS Originallowlist** | `SESSION_WS_ALLOWED_ORIGINS` 設定時、ブラウザからのクロスオリジンupgradeを拒否（CSWSH対策。token認証との多層防御） |
+| **WS Origin allowlist** | `SESSION_WS_ALLOWED_ORIGINS` 設定時、ブラウザからのクロスオリジンupgradeを拒否（CSWSH対策。token認証との多層防御） |
 | **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード + symlink解決） |
 | **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
 | **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |

@@ -91,10 +91,10 @@ Edit `BEING.md` to define your avatar's personality. Add `.md` files to `pulse/`
 ### 4. Run
 
 ```bash
-# ヘッドレスモード（VPS / ローカル共通。ブラウザで http://localhost:3002 にアクセス）
+# Headless mode (VPS / local. Open http://localhost:3002 in a browser)
 npm start
 
-# Electron GUIモード（ローカル開発向け）
+# Electron GUI mode (for local development)
 npm run dev
 ```
 
