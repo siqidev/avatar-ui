@@ -1,32 +1,33 @@
 # Changelog
 
-## v0.5.2 — Web UI / Electron Role Separation (2026-04-20)
+## v0.5.2 — Headless配信のセキュリティ・性能強化 (2026-04-20)
 
-### Capabilities contract (FieldContract "能力を偽らない")
+主目的は **ヘッドレス配信層の防御強化**。Web/Desktop の役割分離（capabilities / Web Terminal 非表示）は **暫定の先行実装** として含むが、本質的な軸（CP3-3 外部チャネル接続軸、CP3-4 機械接続軸）の議論は未決着。これらの設計契約は v0.5.3 以降の議論結果で見直される可能性がある。
 
-- **`FieldApi` common interface** (`src/shared/field-api.ts`) — Electron preload and browser polyfill both implement the same contract. Type-level guarantee against implementation drift
-- **Capabilities declaration** — `DESKTOP_CAPABILITIES` / `WEB_CAPABILITIES` delivered via `sessionWsConfig()`. Runtime profile (`desktop` / `web` / `mobile`) drives UI branching
-- **Web Terminal placeholder** — Terminal pane shows "Desktop-only" message instead of a no-op terminal in browser (i18n: `terminal.desktopOnly`)
-- **Polyfill rejects Desktop-only methods** — Terminal/externalFileImport/demoScript explicitly reject with "ブラウザ版では未対応" rather than silently returning success
+### Headless / Browser delivery hardening（本リリースの主目的）
 
-### Headless / Browser delivery hardening
-
-- **Polyfill as standalone TS module** (`src/runtime/field-api-polyfill.ts`) — Extracted from the inline string template in `console-http-server.ts`. Type-checked at build time
+- **WS Origin allowlist** (`SESSION_WS_ALLOWED_ORIGINS`) — Multi-layer CSWSH defense alongside token auth. Non-browser clients without Origin header are always allowed
 - **CSP rewrite fail-fast** — Regex match-count validated for CSP meta tag and theme-init.js path. Throws if Vite/Rollup output changes unexpectedly (prevents silently serving an HTML with wrong CSP)
 - **ETag + Last-Modified** — Weak ETag (size+mtime hex) + Last-Modified headers on static assets. 304 Not Modified responses reduce Cloudflare tunnel bandwidth for non-hashed resources
-- **WS Origin allowlist** (`SESSION_WS_ALLOWED_ORIGINS`) — Multi-layer CSWSH defense alongside token auth. Non-browser clients without Origin header are always allowed
+- **Polyfill as standalone TS module** (`src/runtime/field-api-polyfill.ts`) — Extracted from the inline string template in `console-http-server.ts`. Type-checked at build time
 
-### Docs / contracts
+### 暫定: Web/Desktop 役割分離の先行実装（軸議論で見直し対象）
 
-- **Decision Log 2026-04-21** — v0.5.2 design contract (AUI minimal requirement = 6 field-model elements, VPS = sole active authoritative runtime, "器の形の差" principle) recorded in `siqi/knowledge/tech/avatar-ui-project.md`
-- **architecture.md** — FieldApi common contract + capabilities + Origin allowlist + ETag delivery documented
+- **`FieldApi` 共通interface** (`src/shared/field-api.ts`) — Electron preloadとブラウザpolyfill双方が実装。型レベルでの実装ドリフト防止
+- **capabilities宣言** — `DESKTOP_CAPABILITIES` / `WEB_CAPABILITIES` を `sessionWsConfig()` 経由で配信。runtime profile（`desktop` / `web`）でUI分岐
+- **Web Terminal プレースホルダ** — ブラウザでは Desktop-only メッセージ表示（i18n: `terminal.desktopOnly`）
+- **Polyfill の Desktop-only メソッド拒否** — Terminal/externalFileImport/demoScript は明示的に reject
+
+これらの **能力差宣言と契約表現は暫定**。Terminal/FS/MCP の Desktop専権範囲、Web承認経由実行の境界（CP3-4）が未決着のため、capabilities の項目構成・Web側の挙動は今後変更される可能性が高い。
 
 ### Deferred to v0.5.3+
 
+- **CP3-3（外部チャネル接続軸）議論** — Slack/Discord/X/APIの位置づけ + 承認/記憶書き込み/人格表現の許容範囲
+- **CP3-4（機械接続軸）議論** — Terminal/FS/MCP/ローカル制御のDesktop専権範囲 + Web承認経由実行の境界
+- 上記議論結果を踏まえた capabilities 設計の確定
 - Bundle separation (Web/Desktop separate builds)
 - WebSocket multiplex (unified session + FS RPC WS)
 - Reconnection logic unification (polyfill vs session-client)
-- CP3-3 (external channel axis) and CP3-4 (machine connection axis)
 
 ## v0.5.1 — Discord Chat + Cross-Platform (2026-03-31)
 

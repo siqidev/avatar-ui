@@ -182,7 +182,7 @@ AI指示文（省略可。省略時はデータ取得+表示のみ）
 
 contextBridge経由でRendererに公開する最小API。ipcRendererの直接公開は禁止。セッション系通信（stream/monitor/approval/state）はWebSocket経由に移行済み。IPCに残るのは場のライフサイクル制御、FS/Terminal操作、Console固有イベントのみ。
 
-**FieldApi共通契約**: `src/shared/field-api.ts`が`FieldApi`インターフェースと`Capabilities`型を定義し、Electron preloadとヘッドレス用ブラウザポリフィル（`runtime/field-api-polyfill.ts`）の双方が実装する。`sessionWsConfig()`は`{ port, token, devMode, profile: "desktop"|"web"|"mobile", capabilities }`を返し、Rendererはprofile別の能力差（terminal/externalFileImport/filesystemWrite/integrityAlerts/demoScript/settingsNotifications）に応じてUIを分岐させる。FieldContract不変条件「能力を偽らない」に対応—Web profileはterminal等をno-opで偽装せず明示的にreject。
+**FieldApi共通interface（暫定・v0.5.2時点）**: `src/shared/field-api.ts`が`FieldApi`インターフェースと`Capabilities`型を定義し、Electron preloadとヘッドレス用ブラウザポリフィル（`runtime/field-api-polyfill.ts`）の双方が実装する。`sessionWsConfig()`は`{ port, token, devMode, profile: "desktop"|"web"|"mobile", capabilities }`を返し、Rendererはprofile別の能力差（terminal/externalFileImport/filesystemWrite/integrityAlerts/demoScript/settingsNotifications）に応じてUIを分岐する。Web profileはterminal等をno-opで偽装せず明示的にreject。capabilitiesの項目構成・真偽値はCP3-3（外部チャネル接続軸）およびCP3-4（機械接続軸）議論の結論で変動する可能性がある（未決着）。
 
 **Renderer → Main（場のライフサイクル）**
 

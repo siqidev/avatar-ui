@@ -162,9 +162,9 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 
 - 配信拡張（Live2D/3D、音声）
 
-### v0.5.2 — Web UI / Electron 役割分離（議論決着、2026-04-21）
+### v0.5.2 — Headless配信のセキュリティ・性能強化（2026-04-20リリース）
 
-ヘッドレスモード対応で発見した設計の弱点群について、Electron/Web両立の根本方針をCC+Codex+ユーザー三者議論で確定。以下を v0.5.2 の設計契約とする。
+主目的は **ヘッドレス配信層の防御強化**（Origin allowlist / CSP fail-fast / ETag）。Web/Desktop の役割分離は **暫定の先行実装**。本質的な軸（CP3-3外部チャネル接続軸、CP3-4機械接続軸）は **議論未着手** のため、capabilities 設計と「能力を偽らない」契約は v0.5.3 以降の議論結果で見直される可能性がある。以下の思想層・戦略層・CP3-1/CP3-2記述は議論決着済みの参照。CP3-3/CP3-4が決着するまでは capabilities の具体的内容（terminal / externalFileImport 等の項目構成と各profileの真偽値）は確定値ではない。
 
 #### 思想層（CP1）
 
@@ -192,21 +192,27 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 
 #### capabilities設計
 
-- **FieldContract（不変条件）**: 「能力を偽らない / 権限境界を破らない」
-- **ChannelProjection / runtime profile**: 実能力一覧を保持
+- **FieldContract（不変条件）候補**: 「能力を偽らない / 権限境界を破らない」— ただしCP3-3/CP3-4議論の決着までは不変条件として確定していない
+- **ChannelProjection / runtime profile**: 実能力一覧を保持（能力項目の具体は軸議論に依存）
 
-#### v0.5.2 実装タスク（実装済み）
+#### v0.5.2 実装内容
 
-- ✅ **`FieldApi`共通型の確立** — `src/shared/field-api.ts`にFieldApi/Capabilities/SessionWsConfig型を定義。preload + browser polyfill双方が実装
-- ✅ **capabilities宣言** — DESKTOP_CAPABILITIES / WEB_CAPABILITIESを宣言、sessionWsConfig経由でRendererに配信
-- ✅ **ポリフィルの独立TSファイル化** — `src/runtime/field-api-polyfill.ts`が`buildPolyfillSource()`で生成。console-http-server.tsはビルド呼び出しのみ
-- ✅ **Web Terminal ペイン非表示** — capabilities.terminal === false時に`renderTerminalUnavailable()`で明示プレースホルダ表示（i18n: `terminal.desktopOnly`）
-- ✅ **CSP書き換えのfail-fast化** — CSPメタタグ・theme-init.jsパスの正規表現マッチ数を検証し、想定外ならthrow
+**A. 軸と独立な防御・性能強化（本リリースの主目的）**
+
 - ✅ **WebSocket Origin検証** — `SESSION_WS_ALLOWED_ORIGINS`によるallowlist。upgrade時にtoken認証より先に検証
+- ✅ **CSP書き換えのfail-fast化** — CSPメタタグ・theme-init.jsパスの正規表現マッチ数を検証し、想定外ならthrow
 - ✅ **静的配信のETag/Last-Modified** — 弱ETag（size+mtime hex）+ Last-Modifiedで304応答
+- ✅ **ポリフィルの独立TSファイル化** — `src/runtime/field-api-polyfill.ts`が`buildPolyfillSource()`で生成
+
+**B. 暫定: Web/Desktop役割分離の先行実装（軸議論で見直し対象）**
+
+- ⚠️ **`FieldApi`共通型** — `src/shared/field-api.ts`にFieldApi/Capabilities/SessionWsConfig型を定義。型骨格の方向性は残す前提だがcapabilities項目はCP3-3/CP3-4依存
+- ⚠️ **capabilities宣言** — DESKTOP_CAPABILITIES / WEB_CAPABILITIESの**項目構成と真偽値は軸議論で変動する可能性**
+- ⚠️ **Web Terminal ペイン非表示** — capabilities.terminal === false時のプレースホルダ表示。**Web承認経由実行（CP3-4）の結論次第で挙動変更**
 
 #### v0.5.3以降に持ち越し
 
+- **CP3-3/CP3-4 議論** — 軸1（外部チャネル接続軸）・軸2（機械接続軸）の本格議論。これがcapabilities設計の確定条件
 - **bundle分離** — Web/Desktop別ビルドターゲット
 - **WebSocket multiplex** — session WSとFS RPC WSを1本化
 - **再接続ロジック共通化** — polyfill側とsession-client側を統一
