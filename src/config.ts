@@ -49,6 +49,10 @@ const envSchema = z.object({
     .regex(/^\d+$/, "SESSION_WS_PORT は数値で指定してください")
     .default("3002"),
   SESSION_WS_TOKEN: z.string().min(1).optional(),
+  // WebSocket接続を受け付けるOriginのallowlist（カンマ区切り）
+  // 未設定: すべてのOriginを許可（ローカル開発用）。設定時: 厳密に一致するOriginのみ許可
+  // token認証に加える多層防御。クロスサイトWebSocketハイジャック対策
+  SESSION_WS_ALLOWED_ORIGINS: z.string().optional(),
 
   // --- Discord ---
   DISCORD_BOT_TOKEN: z.string().min(1).optional(),
@@ -59,10 +63,8 @@ const envSchema = z.object({
   ROBLOX_OWNER_USER_ID: z.string().regex(/^\d+$/, "ROBLOX_OWNER_USER_ID は数値で指定してください").optional(),
   X_OWNER_USER_ID: z.string().regex(/^\d+$/, "X_OWNER_USER_ID は数値で指定してください").optional(),
 
-  // --- Pulse ---
-  PULSE_CRON: z.string().min(1).default("0 6 * * *"),
-  // --- XPulse（X投稿用Pulse） ---
-  XPULSE_CRON: z.string().min(1).default("0 5,9 * * *"),
+  // --- アバター固有ファイルのディレクトリ（未設定ならルート直下） ---
+  AVATAR_DIR: z.string().min(1).optional(),
 
   // --- Terminal ---
   TERMINAL_SHELL: z.string().min(1).default(
@@ -90,6 +92,14 @@ const envSchema = z.object({
       }
       return names
     }),
+
+  // --- 承認タイムアウト ---
+  // 承認待ちの制限時間（秒）。0=無制限。デフォルト60秒
+  APPROVAL_TIMEOUT_SEC: z
+    .string()
+    .regex(/^\d+$/, "APPROVAL_TIMEOUT_SEC は0以上の整数で指定してください")
+    .default("60")
+    .transform(Number),
 
   // --- 開発者向け ---
   DEV_MODE: z
@@ -125,6 +135,7 @@ export type AppConfig = {
   managementApiBaseUrl: string
 
   // ファイルパス（定数: ルートはenv、派生はここで生成）
+  avatarDir: string | undefined
   beingFile: string
   dataDir: string
   stateFile: string
@@ -135,14 +146,7 @@ export type AppConfig = {
   avatarSpaceExplicit: boolean
 
   // Pulse
-  pulseCron: string
-  pulseFile: string
-  pulseOkPrefix: string
-
-  // XPulse（X投稿用Pulse）
-  xpulseCron: string
-  xpulseFile: string
-  xpulseOkPrefix: string
+  pulseDir: string
 
   // ネットワーク
   observationPort: number
@@ -150,6 +154,7 @@ export type AppConfig = {
   xWebhookPort: number
   sessionWsPort: number
   sessionWsToken: string | undefined
+  sessionWsAllowedOrigins: string[] | undefined
 
   // Discord
   discordBotToken: string | undefined
@@ -166,6 +171,7 @@ export type AppConfig = {
 
   // ツール承認
   toolAutoApprove: string[]
+  approvalTimeoutMs: number
 
   // 開発者向け
   devMode: boolean
@@ -220,7 +226,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     managementApiBaseUrl: "https://management-api.x.ai/v1",
 
     // ファイルパス（dataDirから派生）
-    beingFile: "BEING.md",
+    avatarDir: env.AVATAR_DIR,
+    beingFile: env.AVATAR_DIR ? join(env.AVATAR_DIR, "BEING.md") : "BEING.md",
     dataDir,
     stateFile: join(dataDir, "state.json"),
     memoryFile: join(dataDir, "memory.jsonl"),
@@ -229,15 +236,8 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     avatarSpace: env.AVATAR_SPACE,
     avatarSpaceExplicit,
 
-    // Pulse
-    pulseCron: env.PULSE_CRON,
-    pulseFile: "PULSE.md",
-    pulseOkPrefix: "PULSE_OK",
-
-    // XPulse
-    xpulseCron: env.XPULSE_CRON,
-    xpulseFile: "XPULSE.md",
-    xpulseOkPrefix: "XPULSE_OK",
+    // Pulse（AVATAR_DIRから導出）
+    pulseDir: env.AVATAR_DIR ? join(env.AVATAR_DIR, "pulse") : "pulse",
 
     // ネットワーク
     observationPort: Number(env.ROBLOX_OBSERVATION_PORT),
@@ -245,6 +245,9 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
     xWebhookPort: Number(env.X_WEBHOOK_PORT),
     sessionWsPort: Number(env.SESSION_WS_PORT),
     sessionWsToken: env.SESSION_WS_TOKEN,
+    sessionWsAllowedOrigins: env.SESSION_WS_ALLOWED_ORIGINS
+      ? env.SESSION_WS_ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined,
 
     // Discord
     discordBotToken: env.DISCORD_BOT_TOKEN,
@@ -261,6 +264,7 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // ツール承認
     toolAutoApprove: env.TOOL_AUTO_APPROVE,
+    approvalTimeoutMs: env.APPROVAL_TIMEOUT_SEC * 1000,
 
     // 開発者向け
     devMode: env.DEV_MODE,

@@ -7,9 +7,9 @@ out/
 data/
 coverage/
 AGENT.md
-BEING.md
-PULSE.md
-XPULSE.md
 roblox/*.rbxl
 roblox/*.rbxlx
 tmp/
+
+# Spectra固有データ（別リポジトリで管理）
+spectra/

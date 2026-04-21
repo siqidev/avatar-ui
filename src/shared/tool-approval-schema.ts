@@ -13,6 +13,7 @@ export const toolNameSchema = z.enum([
   "roblox_action",
   "x_post",
   "x_reply",
+  "x_quote_repost",
 ])
 export type ToolName = z.infer<typeof toolNameSchema>
 
@@ -36,5 +37,5 @@ export type ToolApprovalRespond = z.infer<typeof toolApprovalRespondSchema>
 // 内部判定結果
 export type ToolApprovalDecision = {
   approved: boolean
-  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER"
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER" | "TIMEOUT"
 }

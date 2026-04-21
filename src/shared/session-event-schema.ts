@@ -20,7 +20,7 @@ export type SessionEventKind = z.infer<typeof sessionEventKindSchema>
 export const streamActorSchema = z.enum(["human", "ai"])
 export type StreamActor = z.infer<typeof streamActorSchema>
 
-export const streamSourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
+export const streamSourceSchema = z.enum(["user", "pulse", "observation"])
 export type StreamSource = z.infer<typeof streamSourceSchema>
 
 export const streamChannelSchema = z.enum(["console", "roblox", "x", "discord"])
@@ -56,6 +56,7 @@ export const toolNameSchema = z.enum([
   "roblox_action",
   "x_post",
   "x_reply",
+  "x_quote_repost",
 ])
 export type ToolName = z.infer<typeof toolNameSchema>
 
@@ -74,6 +75,7 @@ export const approvalReasonSchema = z.enum([
   "USER_APPROVED",
   "USER_DENIED",
   "NO_APPROVER",
+  "TIMEOUT",
 ])
 export type ApprovalReason = z.infer<typeof approvalReasonSchema>
 

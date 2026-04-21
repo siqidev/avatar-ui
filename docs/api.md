@@ -64,7 +64,7 @@ payload: {
   correlationId: string
   text: string
   displayText?: string       // 表示用テキスト（省略時 = text）
-  source: "user" | "pulse" | "xpulse" | "observation"
+  source: "user" | "pulse" | "observation"
   channel: "console" | "roblox" | "x" | "discord"
   toolCalls?: Array<{
     name: ToolName
@@ -95,7 +95,7 @@ payload: {
   toolName: ToolName
   args: Record<string, unknown>
   approved: boolean
-  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER"
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER" | "TIMEOUT"
 }
 ```
 

@@ -20,14 +20,6 @@ describe("input-gate", () => {
       expect(tools).toContain("terminal")
     })
 
-    it("xpulse/x: 全ツール許可（source=xpulseで常に許可）", () => {
-      const tools = getAllowedTools("xpulse", "x")
-      expect(tools).toContain("x_post")
-      expect(tools).toContain("fs_list")
-      expect(tools).toContain("fs_read")
-      expect(tools).toContain("terminal")
-    })
-
     it("observation/roblox/owner: 全ツール許可", () => {
       const tools = getAllowedTools("observation", "roblox", "owner")
       expect(tools).toContain("roblox_action")
@@ -76,7 +68,7 @@ describe("input-gate", () => {
       expect(tools).toEqual([])
     })
 
-    // --- pulse/xpulseは内部トリガーなのでexternalにならない（呼び出し元が常にowner） ---
+    // --- pulseは内部トリガーなのでexternalにならない（呼び出し元が常にowner） ---
     // テストとしてはrole=ownerで確認（pulse+externalは実運用で発生しない）
     it("pulse/console/owner: 全ツール許可", () => {
       const tools = getAllowedTools("pulse", "console", "owner")

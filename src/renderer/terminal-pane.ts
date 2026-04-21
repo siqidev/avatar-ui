@@ -79,3 +79,15 @@ export function initTerminalPane(): void {
     }
   })
 }
+
+/**
+ * capabilities.terminal=false の接触面（Web等）向けに、TerminalペインをDesktop限定表示に差し替える
+ * xtermは起動せず、能力不足を明示するプレースホルダを描画する
+ */
+export function renderTerminalUnavailable(message: string): void {
+  containerEl.innerHTML = ""
+  const placeholder = document.createElement("div")
+  placeholder.className = "pane-unavailable"
+  placeholder.textContent = message
+  containerEl.appendChild(placeholder)
+}

@@ -79,11 +79,14 @@ XAI_API_KEY=your-xai-api-key
 ### 3. アイデンティティファイルの作成
 
 ```bash
-cp BEING.example.md BEING.md
-cp PULSE.example.md PULSE.md
+cp avatar.example/BEING.example.md BEING.md
+mkdir -p pulse
+cp avatar.example/pulse.example.md pulse/checkin.md
 ```
 
-アバターの人格と定期行動を定義します。
+`BEING.md`でアバターの人格を定義し、`pulse/`ディレクトリに定期タスクを配置します（各.mdファイルがフロントマター付きの1つのcronタスク）。
+
+> **Tip:** アイデンティティファイルを別ディレクトリで管理したい場合、`.env`に`AVATAR_DIR=my-avatar`を設定すると、そのディレクトリ内の`BEING.md`と`pulse/`を読み込みます。
 
 ### 4. 起動
 
@@ -103,14 +106,14 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | アバターの表示名 |
 | `USER_NAME` | | `User` | ユーザーの表示名 |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Spaceのルートパス |
-| `PULSE_CRON` | | `0 6 * * *` | AI起点Pulseの発火間隔 |
 | `TERMINAL_SHELL` | | OS既定（zsh / bash / PowerShell） | ターミナルペインのシェル |
 | `AVATAR_SHELL` | | `off` | AIのシェル実行権限（`on` = AIがコマンド実行可能） |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | ユーザー承認なしで自動実行するツール |
+| `APPROVAL_TIMEOUT_SEC` | | `60` | 承認待ちタイムアウト（秒）。未応答時は自動拒否。`0`=無制限 |
 | `DEV_MODE` | | `off` | 開発者モード（on = 詳細ログ + ソースタグ表示 + Roblox Monitor全表示） |
 | `SESSION_WS_PORT` | | `3002` | WebSocketサーバーポート（Console UI通信用） |
 | `SESSION_WS_TOKEN` | | — | WebSocket認証トークン（セキュリティ用、任意） |
-| `XPULSE_CRON` | | `0 5,9 * * *` | X投稿Pulseの発火間隔（cron形式、UTC。デフォルト = JST 14:00/18:00） |
+| `SESSION_WS_ALLOWED_ORIGINS` | | — | WS upgrade受け入れOriginのカンマ区切りリスト（CSWSH対策）。Origin無しの非ブラウザクライアントは常に許可 |
 
 ### オプション: 長期記憶（Collections API）
 
@@ -284,6 +287,7 @@ docs/                 PLAN.md、architecture.md
 |------|------|
 | **単一ユーザー運用** | 単一ユーザー運用を前提（ローカルまたはリモート） |
 | **WS認証** | `SESSION_WS_TOKEN` 設定時、WebSocket接続にtoken認証を適用 |
+| **WS Originallowlist** | `SESSION_WS_ALLOWED_ORIGINS` 設定時、ブラウザからのクロスオリジンupgradeを拒否（CSWSH対策。token認証との多層防御） |
 | **ファイルアクセス制限** | AIのファイルアクセスはAvatar Space内に制限（パスガード + symlink解決） |
 | **コンテキスト分離** | Electron: nodeIntegration off、contextIsolation on、sandbox on |
 | **シェルインジェクション防止** | ファイル操作はNode.js `fs`を使用、シェル経由不可 |

@@ -67,6 +67,7 @@ async function main(): Promise<void> {
   sessionWs = createSessionWsServer({
     port: config.sessionWsPort,
     token: config.sessionWsToken,
+    allowedOrigins: config.sessionWsAllowedOrigins,
     getStateSnapshot,
     onStreamPost: handleStreamPost,
     httpServer: consoleHttp.httpServer, // HTTPサーバーを共有

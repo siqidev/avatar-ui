@@ -53,6 +53,7 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "renameError": { ja: "名前の変更エラー", en: "Rename error" },
   "deleteError": { ja: "削除エラー", en: "Delete error" },
   "createError": { ja: "作成エラー", en: "Create error" },
+  "externalDropUnsupported": { ja: "ブラウザ版では外部ファイルのドラッグ＆ドロップは未対応です（Electron版をご利用ください）", en: "External file drag & drop is not supported in browser mode (use the Electron app)" },
 
   // --- Renderer: Canvas (canvas-pane.ts) ---
   "imageLoadError": { ja: "画像読み込みエラー", en: "Image load error" },
@@ -94,6 +95,10 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "obs.recoveryPrefix": {
     ja: "[観測] {0}",
     en: "[Observation] {0}",
+  },
+  "obs.bufferContext": {
+    ja: "[観測コンテキスト（直前の観測メモ。応答不要、判断材料として参照）]\n{0}",
+    en: "[Observation context (recent notes — no response needed, use as background)]\n{0}",
   },
 
   // --- Main: chat-session-service ---
@@ -157,5 +162,11 @@ const dictionary: Record<string, Record<Locale, string>> = {
   "obs.default": {
     ja: "[Roblox観測] {0}: {1}",
     en: "[Roblox] {0}: {1}",
+  },
+
+  // --- Capabilities（器の形の差） ---
+  "terminal.desktopOnly": {
+    ja: "このターミナルはDesktopアプリ専用です。Webブラウザからは利用できません。",
+    en: "This terminal is Desktop-only. It is not available in the browser.",
   },
 }

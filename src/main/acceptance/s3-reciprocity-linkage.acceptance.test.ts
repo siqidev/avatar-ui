@@ -82,7 +82,9 @@ describe("S3: 往復連接性", () => {
 
     tempDir = setupTempDataDir()
     fs.writeFileSync(path.join(tempDir, "being.md"), "テスト用BEING")
-    fs.writeFileSync(path.join(tempDir, "pulse.md"), "パルスプロンプト")
+    // pulse/ディレクトリにテスト用パルス定義
+    fs.mkdirSync(path.join(tempDir, "pulse"), { recursive: true })
+    fs.writeFileSync(path.join(tempDir, "pulse", "test.md"), "---\ncron: \"0 * * * *\"\n---\nパルスプロンプト")
 
     const config = await import("../../config.js")
     const appConfig = config._resetConfigForTest({
@@ -92,7 +94,7 @@ describe("S3: 往復連接性", () => {
     })
     Object.assign(appConfig, {
       beingFile: path.join(tempDir, "being.md"),
-      pulseFile: path.join(tempDir, "pulse.md"),
+      pulseDir: path.join(tempDir, "pulse"),
       dataDir: tempDir,
       stateFile: path.join(tempDir, "state.json"),
     })

@@ -16,6 +16,8 @@ import { createConsoleProjection } from "./channel-projection.js"
 import type { ChannelProjection } from "./channel-projection.js"
 import { setAlertSink } from "../runtime/integrity-manager.js"
 import { getConfig } from "../config.js"
+import { DESKTOP_CAPABILITIES } from "../shared/field-api.js"
+import type { SessionWsConfig } from "../shared/field-api.js"
 
 // --- export互換（既存テスト・main/index.tsからの参照を維持） ---
 
@@ -59,13 +61,16 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null): 
     orchestratorSafeDetach()
   })
 
-  // session.ws.config: WS接続情報を返す
-  ipcMain.handle("session.ws.config", () => {
+  // session.ws.config: WS接続情報 + runtime profile + capabilitiesを返す
+  // Desktop profile（Electron）のためDESKTOP_CAPABILITIESを固定で返す
+  ipcMain.handle("session.ws.config", (): SessionWsConfig => {
     const config = getConfig()
     return {
       port: config.sessionWsPort,
       token: config.sessionWsToken,
       devMode: config.devMode,
+      profile: "desktop",
+      capabilities: DESKTOP_CAPABILITIES,
     }
   })
 

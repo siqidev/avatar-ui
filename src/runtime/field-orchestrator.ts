@@ -9,8 +9,7 @@ import { transition, isActive } from "./field-fsm.js"
 import {
   initRuntime,
   processStream,
-  startPulse,
-  startXpulse,
+  startPulses,
   startObservation,
   startXWebhook,
   getState,
@@ -21,6 +20,7 @@ import {
 } from "./field-runtime.js"
 import { isFrozen, report, warn } from "./integrity-manager.js"
 import { getPendingRequests } from "./approval-hub.js"
+import { ensureRefsReady } from "./filesystem-service.js"
 import { getConfig } from "../config.js"
 import * as log from "../logger.js"
 
@@ -38,6 +38,7 @@ export function getFieldState(): FieldState {
 // 成功時true、失敗時false
 export function boot(): boolean {
   try {
+    ensureRefsReady()
     initRuntime()
 
     // 永続化された場状態を復元
@@ -50,8 +51,7 @@ export function boot(): boolean {
   }
 
   // サービス起動
-  startPulse()
-  startXpulse()
+  startPulses()
   startObservation()
   startXWebhook()
   return true

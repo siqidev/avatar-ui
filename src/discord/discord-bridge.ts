@@ -9,7 +9,6 @@ import { createDiscordSessionClient } from "./discord-session-client.js"
 import type { DiscordSessionClient } from "./discord-session-client.js"
 import {
   renderStreamItem,
-  renderHumanMessage,
   renderApprovalRequest,
   renderApprovalResolved,
 } from "./discord-message-renderer.js"
@@ -84,13 +83,10 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
       },
 
       onStreamItem: (payload) => {
-        // Discord発のhuman発話はecho防止
-        if (payload.actor === "human" && payload.channel === "discord") return
-        // Console等からのhuman発話はDiscordに表示
-        if (payload.actor === "human") {
-          void sendToChannel(renderHumanMessage(payload))
-          return
-        }
+        // 観測応答（Roblox共振）はDiscordに流さない（monitor pane + Roblox sayで十分）
+        if (payload.source === "observation") return
+        // human発話はDiscordに流さない（オーナーの発言を公開チャンネルに転送しない）
+        if (payload.actor === "human") return
 
         stopTyping()
         const content = renderStreamItem(payload)

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
+import type { FieldApi, SessionWsConfig } from "../shared/field-api.js"
 import type {
   FsImportFileArgs,
   FsImportFileResult,
@@ -18,21 +19,20 @@ import type {
 } from "../shared/terminal-schema.js"
 import type { DemoScript } from "../shared/demo-script-schema.js"
 
-// Renderer に公開する最小API
-// ipcRendererの直接公開は禁止。1チャネル1メソッドで公開する
+// Electron preloadはDesktop profileのFieldApi実装
+// Renderer に公開する唯一のホスト境界。ipcRendererの直接公開は禁止
 // セッション系（stream, monitor, approval）はWebSocket経由に移行済み
-contextBridge.exposeInMainWorld("fieldApi", {
-  // Renderer → Main（場のライフサイクル: request-response）
-  // attach: FSM遷移を保証するためinvoke（WS接続前に完了を待つ）
+const fieldApi: FieldApi = {
+  // 場のライフサイクル
   attach: (): Promise<void> => ipcRenderer.invoke("channel.attach"),
   detach: () => ipcRenderer.send("channel.detach"),
   terminate: () => ipcRenderer.send("field.terminate"),
 
-  // Renderer → Main（WS接続情報取得）
-  sessionWsConfig: (): Promise<{ port: number; token?: string }> =>
+  // WS接続情報（capabilities含む）
+  sessionWsConfig: (): Promise<SessionWsConfig> =>
     ipcRenderer.invoke("session.ws.config"),
 
-  // Renderer → Main（ファイル操作: request-response）
+  // ファイル操作
   fsRootName: (): Promise<string> => ipcRenderer.invoke("fs.rootName"),
   fsList: (args: FsListArgs): Promise<FsListResult> =>
     ipcRenderer.invoke("fs.list", args),
@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld("fieldApi", {
   fsMutate: (args: FsMutateArgs): Promise<FsMutateResult> =>
     ipcRenderer.invoke("fs.mutate", args),
 
-  // Renderer → Main（Terminal: request-response）
+  // Terminal操作
   terminalInput: (args: TerminalInputArgs): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("terminal.input", args),
   terminalResize: (args: TerminalResizeArgs): Promise<{ ok: boolean }> =>
@@ -53,24 +53,30 @@ contextBridge.exposeInMainWorld("fieldApi", {
   terminalSnapshot: (): Promise<TerminalSnapshot> =>
     ipcRenderer.invoke("terminal.snapshot"),
 
-  // Main → Renderer（IPC残置: Console固有イベント）
-  onIntegrityAlert: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("integrity.alert", (_e, data) => cb(data)),
-  onTerminalData: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("terminal.data", (_e, data) => cb(data)),
-  onTerminalState: (cb: (data: unknown) => void) =>
-    ipcRenderer.on("terminal.state", (_e, data) => cb(data)),
-
-  // Main → Renderer（設定変更）
-  onThemeChange: (cb: (theme: string) => void) =>
-    ipcRenderer.on("settings.theme", (_e, theme) => cb(theme)),
-  onLocaleChange: (cb: (locale: string) => void) =>
-    ipcRenderer.on("settings.locale", (_e, locale) => cb(locale)),
+  // ホスト→Rendererイベント
+  onIntegrityAlert: (cb: (data: unknown) => void) => {
+    ipcRenderer.on("integrity.alert", (_e, data) => cb(data))
+  },
+  onTerminalData: (cb: (data: unknown) => void) => {
+    ipcRenderer.on("terminal.data", (_e, data) => cb(data))
+  },
+  onTerminalState: (cb: (data: unknown) => void) => {
+    ipcRenderer.on("terminal.state", (_e, data) => cb(data))
+  },
+  onThemeChange: (cb: (theme: string) => void) => {
+    ipcRenderer.on("settings.theme", (_e, theme) => cb(theme))
+  },
+  onLocaleChange: (cb: (locale: string) => void) => {
+    ipcRenderer.on("settings.locale", (_e, locale) => cb(locale))
+  },
 
   // D&D外部ファイルパス取得（Electron 32+でFile.path廃止のため）
   getFilePath: (file: File): string => webUtils.getPathForFile(file),
 
   // デモモード
-  loadDemoScript: (): Promise<{ ok: true; lines: DemoScript } | { ok: false; error: string }> =>
-    ipcRenderer.invoke("demo.script.load"),
-})
+  loadDemoScript: (): Promise<
+    { ok: true; lines: DemoScript } | { ok: false; error: string }
+  > => ipcRenderer.invoke("demo.script.load"),
+}
+
+contextBridge.exposeInMainWorld("fieldApi", fieldApi)

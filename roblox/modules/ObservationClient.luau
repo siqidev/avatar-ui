@@ -65,4 +65,42 @@ function module.sendAck(intentId: string?, opIndex: number, opName: string, succ
 	})
 end
 
+-- 最新display状態を取得（サーバー起動時のpull用）
+function module.fetchLatestDisplays(): { { target: string, title: string, text: string } }?
+	local url = Config.observationUrl .. "/display-state"
+	local headers: { [string]: string } = {}
+	if Config.observationSecret ~= "" then
+		headers["Authorization"] = "Bearer " .. Config.observationSecret
+	end
+
+	local ok, result = pcall(function()
+		return HttpService:RequestAsync({
+			Url = url,
+			Method = "GET",
+			Headers = headers,
+		})
+	end)
+
+	if not ok then
+		warn("[ObservationClient] display-state取得失敗: " .. tostring(result))
+		return nil
+	end
+
+	if not result.Success then
+		warn("[ObservationClient] display-state HTTP " .. tostring(result.StatusCode))
+		return nil
+	end
+
+	local decodeOk, data = pcall(function()
+		return HttpService:JSONDecode(result.Body)
+	end)
+
+	if not decodeOk or not data or not data.displays then
+		warn("[ObservationClient] display-state JSONデコード失敗")
+		return nil
+	end
+
+	return data.displays
+end
+
 return module

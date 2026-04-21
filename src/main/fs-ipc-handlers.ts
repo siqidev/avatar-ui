@@ -1,61 +1,36 @@
 import { ipcMain } from "electron"
-import {
-  FS_CHANNELS,
-  fsImportFileArgsSchema,
-  fsListArgsSchema,
-  fsReadArgsSchema,
-  fsWriteArgsSchema,
-  fsMutateArgsSchema,
-} from "../shared/fs-schema.js"
-import { fsImportFile, fsList, fsRead, fsWrite, fsMutate, fsRootName } from "../runtime/filesystem-service.js"
+import { FS_CHANNELS } from "../shared/fs-schema.js"
+import { dispatchFsRequest } from "../runtime/fs-request-handler.js"
 import * as log from "../logger.js"
 
-/** FS系IPCハンドラを登録する */
+/** FS系IPCハンドラを登録する。dispatcher経由でWS側と実装を共有する */
 export function registerFsIpcHandlers(): void {
-  ipcMain.handle("fs.rootName", () => fsRootName())
+  ipcMain.handle("fs.rootName", () => dispatchFsRequest("fs.rootName", undefined))
 
   ipcMain.handle(FS_CHANNELS.list, async (_event, raw: unknown) => {
-    const parsed = fsListArgsSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error(`fs.list バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-    }
-    log.info(`[FS] list: ${parsed.data.path}`)
-    return fsList(parsed.data)
+    log.info(`[FS] list: ${(raw as { path?: string })?.path ?? "?"}`)
+    return dispatchFsRequest("fs.list", raw)
   })
 
   ipcMain.handle(FS_CHANNELS.read, async (_event, raw: unknown) => {
-    const parsed = fsReadArgsSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error(`fs.read バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-    }
-    log.info(`[FS] read: ${parsed.data.path}`)
-    return fsRead(parsed.data)
+    log.info(`[FS] read: ${(raw as { path?: string })?.path ?? "?"}`)
+    return dispatchFsRequest("fs.read", raw)
   })
 
   ipcMain.handle(FS_CHANNELS.write, async (_event, raw: unknown) => {
-    const parsed = fsWriteArgsSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error(`fs.write バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-    }
-    log.info(`[FS] write: ${parsed.data.path}`)
-    return fsWrite(parsed.data)
+    log.info(`[FS] write: ${(raw as { path?: string })?.path ?? "?"}`)
+    return dispatchFsRequest("fs.write", raw)
   })
 
   ipcMain.handle(FS_CHANNELS.importFile, async (_event, raw: unknown) => {
-    const parsed = fsImportFileArgsSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error(`fs.importFile バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-    }
-    log.info(`[FS] importFile: ${parsed.data.sourcePath} -> ${parsed.data.destPath}`)
-    return fsImportFile(parsed.data)
+    const r = raw as { sourcePath?: string; destPath?: string }
+    log.info(`[FS] importFile: ${r?.sourcePath ?? "?"} -> ${r?.destPath ?? "?"}`)
+    return dispatchFsRequest("fs.importFile", raw)
   })
 
   ipcMain.handle(FS_CHANNELS.mutate, async (_event, raw: unknown) => {
-    const parsed = fsMutateArgsSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error(`fs.mutate バリデーション失敗: ${JSON.stringify(parsed.error.issues)}`)
-    }
-    log.info(`[FS] mutate(${parsed.data.op}): ${parsed.data.path}`)
-    return fsMutate(parsed.data)
+    const r = raw as { op?: string; path?: string }
+    log.info(`[FS] mutate(${r?.op ?? "?"}): ${r?.path ?? "?"}`)
+    return dispatchFsRequest("fs.mutate", raw)
   })
 }

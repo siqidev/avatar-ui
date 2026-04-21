@@ -5,7 +5,9 @@ import { createServer } from "node:http"
 import type { Server as HttpServer, IncomingMessage, ServerResponse } from "node:http"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import * as zlib from "node:zlib"
 import * as log from "../logger.js"
+import { buildPolyfillSource } from "./field-api-polyfill.js"
 
 // --- 型定義 ---
 
@@ -38,39 +40,6 @@ const MIME_TYPES: Record<string, string> = {
   ".ttf": "font/ttf",
 }
 
-// --- ポリフィル生成 ---
-
-function generatePolyfill(wsPort: number, wsToken: string | undefined, devMode: boolean): string {
-  const tokenStr = wsToken ? `"${wsToken}"` : "undefined"
-  return `// field-api-polyfill: ブラウザ用window.fieldApiスタブ
-// Electron preloadの代替。FS/Terminal系はブラウザでは未対応
-window.fieldApi = {
-  attach: function() { return Promise.resolve(); },
-  detach: function() {},
-  terminate: function() {},
-  sessionWsConfig: function() {
-    return Promise.resolve({ port: ${wsPort}, token: ${tokenStr}, devMode: ${devMode} });
-  },
-  fsRootName: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsList: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsRead: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsWrite: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsImportFile: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  fsMutate: function() { return Promise.reject(new Error("ブラウザモードでは未対応")); },
-  terminalInput: function() { return Promise.resolve(); },
-  terminalResize: function() { return Promise.resolve(); },
-  terminalSnapshot: function() { return Promise.resolve(""); },
-  onIntegrityAlert: function() {},
-  onTerminalData: function() {},
-  onTerminalState: function() {},
-  onThemeChange: function() {},
-  onLocaleChange: function() {},
-  getFilePath: function() { return ""; },
-  loadDemoScript: function() { return Promise.resolve({ ok: false, error: "ブラウザモードでは未対応" }); },
-};
-`
-}
-
 // --- CSP書き換え ---
 
 // ブラウザ版CSP: ws:/wss:を全許可（WS認証はtoken認証で保護）
@@ -90,13 +59,33 @@ function extractHttpToken(req: IncomingMessage): string | null {
   return null
 }
 
+// --- 静的ファイル圧縮キャッシュ ---
+
+type CompressedEntry = { encoding: "br" | "gzip"; buffer: Buffer; mtimeMs: number }
+const COMPRESSIBLE_EXT = new Set([".js", ".css", ".html", ".json", ".svg"])
+const COMPRESSION_MIN_BYTES = 1024
+// プロセス内メモリキャッシュ（assetは数個のみ。再ビルドでmtime変化したら再圧縮）
+const compressedCache = new Map<string, CompressedEntry>()
+
+function pickEncoding(acceptEncoding: string | undefined): "br" | "gzip" | null {
+  if (!acceptEncoding) return null
+  // brotli優先（より高圧縮率）
+  if (/\bbr\b/u.test(acceptEncoding)) return "br"
+  if (/\bgzip\b/u.test(acceptEncoding)) return "gzip"
+  return null
+}
+
+function compressFile(filePath: string, encoding: "br" | "gzip", source: Buffer): Buffer {
+  return encoding === "br" ? zlib.brotliCompressSync(source) : zlib.gzipSync(source)
+}
+
 // --- サーバー作成 ---
 
 export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHttpServer {
   const { port, token, rendererDir, devMode } = options
 
-  // ポリフィルJSを事前生成
-  const polyfillJs = generatePolyfill(port, token, devMode)
+  // ポリフィルJSを事前生成（独立TSモジュール `field-api-polyfill.ts` に切り出し済み）
+  const polyfillJs = buildPolyfillSource({ wsPort: port, wsToken: token, devMode })
 
   // index.htmlをポリフィル付きで変換（キャッシュ）
   let cachedIndexHtml: string | null = null
@@ -111,18 +100,34 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     let html = fs.readFileSync(indexPath, "utf-8")
 
-    // CSP書き換え（Electron用→ブラウザ用）
-    html = html.replace(
-      /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")(?=\s|\/>|>)/u,
-      `$1${BROWSER_CSP}$3`,
-    )
+    // CSP書き換え（Electron用→ブラウザ用）: 置換失敗をfail-fast
+    // ビルド出力のCSPメタタグがRollupの変更等で構造が変わるとブラウザが
+    // Electron用CSP（connect-src制限）のまま起動してWebSocket接続が全滅するため、
+    // ヒット件数を検証して一致しないときは即throwして起動を止める
+    const cspPattern =
+      /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")(?=\s|\/>|>)/gu
+    const cspMatches = html.match(cspPattern)
+    if (!cspMatches || cspMatches.length !== 1) {
+      throw new Error(
+        `CSPメタタグの書き換えに失敗しました（期待: 1件、実測: ${cspMatches?.length ?? 0}件）。` +
+          `out/renderer/index.htmlのCSP定義を確認してください`,
+      )
+    }
+    html = html.replace(cspPattern, `$1${BROWSER_CSP}$3`)
 
     // ポリフィルスクリプトタグ挿入（theme-init.jsの直後）
     // ビルド出力のパスは "./theme-init.js" または "/theme-init.js" の可能性がある
     // キャッシュバスター: 起動ごとにURLが変わるのでCDNキャッシュを回避
     const cacheBuster = Date.now()
+    const themeScriptPattern = /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u
+    if (!themeScriptPattern.test(html)) {
+      throw new Error(
+        "theme-init.jsのscriptタグが見つからず、ポリフィル挿入に失敗しました。" +
+          "out/renderer/index.htmlの出力を確認してください",
+      )
+    }
     html = html.replace(
-      /(<script\s+src="\.?\/theme-init\.js"><\/script>)/u,
+      themeScriptPattern,
       `$1\n  <script src="./field-api-polyfill.js?v=${cacheBuster}"></script>`,
     )
 
@@ -179,7 +184,15 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
       return
     }
 
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(filePath)
+    } catch {
+      res.writeHead(404, { "Content-Type": "text/plain" })
+      res.end("Not Found")
+      return
+    }
+    if (stat.isDirectory()) {
       res.writeHead(404, { "Content-Type": "text/plain" })
       res.end("Not Found")
       return
@@ -187,8 +200,68 @@ export function createConsoleHttpServer(options: ConsoleHttpOptions): ConsoleHtt
 
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] ?? "application/octet-stream"
-    res.writeHead(200, { "Content-Type": contentType })
-    fs.createReadStream(filePath).pipe(res)
+
+    // ETag / Last-Modified: mtimeベースのweak ETagで非hashed assetのフル転送を回避
+    // If-None-Match / If-Modified-Since が一致すれば304を返す
+    const lastModified = new Date(stat.mtimeMs).toUTCString()
+    const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`
+    const ifNoneMatch = req.headers["if-none-match"]
+    const ifModifiedSince = req.headers["if-modified-since"]
+    const notModified =
+      (typeof ifNoneMatch === "string" && ifNoneMatch === etag) ||
+      (typeof ifModifiedSince === "string" &&
+        Date.parse(ifModifiedSince) >= Math.floor(stat.mtimeMs / 1000) * 1000)
+    if (notModified) {
+      res.writeHead(304, {
+        "ETag": etag,
+        "Last-Modified": lastModified,
+        "Cache-Control": "no-transform",
+      })
+      res.end()
+      return
+    }
+
+    // 圧縮配信判定: 1KB以上のテキスト系のみ。cloudflared HTTP/2経路で大きい未圧縮レスポンスが
+    // 落ちる事象（ERR_HTTP2_PROTOCOL_ERROR）を回避するため、転送量自体を縮める
+    const encoding = stat.size >= COMPRESSION_MIN_BYTES && COMPRESSIBLE_EXT.has(ext)
+      ? pickEncoding(req.headers["accept-encoding"] as string | undefined)
+      : null
+
+    if (encoding) {
+      const cacheKey = `${filePath}:${encoding}`
+      let entry = compressedCache.get(cacheKey)
+      if (!entry || entry.mtimeMs !== stat.mtimeMs) {
+        const source = fs.readFileSync(filePath)
+        entry = { encoding, buffer: compressFile(filePath, encoding, source), mtimeMs: stat.mtimeMs }
+        compressedCache.set(cacheKey, entry)
+      }
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Content-Length": entry.buffer.length,
+        "Content-Encoding": encoding,
+        "Vary": "Accept-Encoding",
+        "ETag": etag,
+        "Last-Modified": lastModified,
+        "Cache-Control": "no-transform",
+      })
+      res.end(entry.buffer)
+      return
+    }
+
+    // 非圧縮: Content-Length明示（chunked transfer起因の ERR_HTTP2_PROTOCOL_ERROR を回避）
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Content-Length": stat.size,
+      "ETag": etag,
+      "Last-Modified": lastModified,
+      "Cache-Control": "no-transform",
+    })
+    const stream = fs.createReadStream(filePath)
+    stream.on("error", (err) => {
+      log.error(`[CONSOLE_HTTP] 静的ファイル読み取り失敗: ${filePath} ${err instanceof Error ? err.message : String(err)}`)
+      res.destroy(err)
+    })
+    stream.pipe(res)
   })
 
   function start(): void {

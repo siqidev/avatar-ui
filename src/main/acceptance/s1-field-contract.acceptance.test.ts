@@ -19,8 +19,7 @@ vi.mock("../../runtime/field-runtime.js", () => ({
     displayText: "応答",
     toolCalls: [],
   }),
-  startPulse: vi.fn(),
-  startXpulse: vi.fn(),
+  startPulses: vi.fn(),
   startObservation: vi.fn(),
   startXWebhook: vi.fn(),
   getState: vi.fn(() => mockDefaultState()),
@@ -59,7 +58,7 @@ describe("S1: 場契約整合性", () => {
   let safeDetach: () => void
   let mockProjection: Record<string, Mock>
   let isFrozen: () => boolean
-  let startPulseMock: Mock
+  let startPulsesMock: Mock
   let handleStreamPost: (text: string, correlationId: string, actor: "human" | "ai") => Promise<void>
 
   beforeEach(async () => {
@@ -90,7 +89,7 @@ describe("S1: 場契約整合性", () => {
     getFieldState = ipcHandlers.getFieldState
     safeDetach = ipcHandlers.safeDetach
     mockProjection = vi.mocked(channelProjection.createConsoleProjection).mock.results[0]?.value
-    startPulseMock = vi.mocked(fieldRuntime.startPulse)
+    startPulsesMock = vi.mocked(fieldRuntime.startPulses)
     handleStreamPost = ipcHandlers.handleStreamPost
   })
 
@@ -183,8 +182,8 @@ describe("S1: 場契約整合性", () => {
   // --- ai起点: Pulse契約遵守 ---
   // isFieldActiveゲートの動作はS2で実物を使って検証済み（end-to-end）
 
-  it("ai起点: startPulse/startXpulse/startObservation/startXWebhookが引数なしで呼ばれる", () => {
-    expect(startPulseMock).toHaveBeenCalledOnce()
-    expect(startPulseMock).toHaveBeenCalledWith()
+  it("ai起点: startPulses/startObservation/startXWebhookが引数なしで呼ばれる", () => {
+    expect(startPulsesMock).toHaveBeenCalledOnce()
+    expect(startPulsesMock).toHaveBeenCalledWith()
   })
 })

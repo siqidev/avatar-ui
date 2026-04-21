@@ -1,7 +1,6 @@
 import OpenAI from "openai"
 import * as http from "node:http"
 import * as fs from "node:fs"
-import cron from "node-cron"
 import { getConfig, isRobloxEnabled, isXEnabled } from "../config.js"
 import { resolveRobloxRole, resolveXRole } from "../services/input-role-resolver.js"
 import type { InputRole } from "../services/input-role-resolver.js"
@@ -26,7 +25,10 @@ import { publish } from "./session-event-bus.js"
 import { createSessionEvent } from "../shared/session-event-schema.js"
 import type { ToolCallInfo } from "../services/chat-session-service.js"
 import { report, warn, isFrozen } from "./integrity-manager.js"
+import { startPulses as startPulsesCron, stopPulses as stopPulsesCron, getLatestDisplays } from "./pulse-runner.js"
+import type { PulseRunnerDeps } from "./pulse-runner.js"
 import { t } from "../shared/i18n.js"
+import { pushObservation, drainObservationContext } from "./observation-buffer.js"
 import * as log from "../logger.js"
 
 // FieldRuntime: 場のロジックを統合する
@@ -63,25 +65,19 @@ function enqueue(fn: () => Promise<void>, onSkip?: () => void): Promise<void> {
   return queue
 }
 
+// 観測バッファを排出し、入力テキストに注入する
+// バッファが空なら元のテキストをそのまま返す
+function prependObservationContext(input: string): string {
+  const ctx = drainObservationContext()
+  return ctx ? `${ctx}\n\n${input}` : input
+}
+
 // being.mdを読み込む
 function loadBeing(): string {
   try {
     return fs.readFileSync(getConfig().beingFile, "utf-8").trim()
   } catch {
     throw new Error("BEING.md が見つかりません")
-  }
-}
-
-// pulse.mdを読み込む
-function loadPulse(): string | null {
-  try {
-    const content = fs.readFileSync(getConfig().pulseFile, "utf-8").trim()
-    return content || null
-  } catch (err: unknown) {
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      return null
-    }
-    throw err
   }
 }
 
@@ -213,25 +209,31 @@ function isFieldActive(): boolean {
   return state.field.state === "active" || state.field.state === "resumed"
 }
 
-// ツール結果からx_post/x_replyの成功をmonitor.itemとして発行する
+// ツール結果からX投稿系ツールの成功をmonitor.itemとして発行する
+const X_TOOL_EVENT_MAP: Record<string, { statuses: string[]; eventType: string }> = {
+  x_post: { statuses: ["posted"], eventType: "post" },
+  x_reply: { statuses: ["replied"], eventType: "reply" },
+  x_quote_repost: { statuses: ["quoted"], eventType: "quote" },
+}
+
 export function publishXToolResults(toolCalls: ToolCallInfo[]): void {
   for (const tc of toolCalls) {
-    if (tc.name !== "x_post" && tc.name !== "x_reply") continue
+    const mapping = X_TOOL_EVENT_MAP[tc.name]
+    if (!mapping) continue
     try {
       const parsed = JSON.parse(tc.result) as Record<string, unknown>
-      if (parsed.status !== "posted" && parsed.status !== "replied") continue
+      if (!mapping.statuses.includes(parsed.status as string)) continue
       const text = (tc.args.text as string) ?? ""
-      const eventType = tc.name === "x_post" ? "post" : "reply"
       const timestamp = new Date().toISOString()
-      const formatted = `[${eventType}] ${text}`
+      const formatted = `[${mapping.eventType}] ${text}`
       publish(createSessionEvent("monitor.item", {
         channel: "x",
-        eventType,
+        eventType: mapping.eventType,
         payload: { tweet_id: parsed.tweet_id, text },
         formatted,
         timestamp,
       }))
-      appendXEvent({ eventType, formatted, timestamp })
+      appendXEvent({ eventType: mapping.eventType, formatted, timestamp })
     } catch { /* パース失敗は無視 */ }
   }
 }
@@ -241,7 +243,7 @@ export function emitStreamItem(
   actor: "human" | "ai",
   text: string,
   correlationId: string,
-  source: "user" | "pulse" | "xpulse" | "observation",
+  source: "user" | "pulse" | "observation",
   channel: ChannelId,
   toolCalls: ToolCallInfo[] = [],
   displayText?: string,
@@ -273,7 +275,8 @@ export function processStream(text: string, source: import("../shared/ipc-schema
   return new Promise<SendMessageResult>((resolve, reject) => {
     enqueue(async () => {
       try {
-        const result = await sendMessage(client, state, beingPrompt, text, false, source, channel, inputRole)
+        const inputWithContext = prependObservationContext(text)
+        const result = await sendMessage(client, state, beingPrompt, inputWithContext, false, source, channel, inputRole)
         // lastResponseIdはsendMessage内でstate.participant.lastResponseIdに更新済み
         updateParticipantChain(state.participant.lastResponseId)
         resolve(result)
@@ -284,120 +287,33 @@ export function processStream(text: string, source: import("../shared/ipc-schema
   })
 }
 
-// Pulseを開始する（AI起点の定期発話）
-export function startPulse(): void {
+// パルスシステムを開始する（pulse/ディレクトリの全パルスをcronスケジュール）
+export function startPulses(): void {
   if (!initialized) throw new Error("FieldRuntime未初期化")
 
-  cron.schedule(config.pulseCron, () => {
-    if (!isFieldActive()) {
-      log.info("[PULSE] 場が非アクティブ — スキップ")
-      return
-    }
-
-    const pulseContent = loadPulse()
-    if (!pulseContent) return
-
-    const correlationId = generateCorrelationId("pulse")
-    log.info(`[PULSE] 発火 (${correlationId})`)
-    enqueue(async () => {
-      try {
-        const pulseInput = `${pulseContent}\n\n${config.pulseOkPrefix}と返答すれば対応不要を意味する。`
-        const result = await sendMessage(
-          client, state, beingPrompt, pulseInput, true, "pulse", "console",
-        )
-        updateParticipantChain(state.participant.lastResponseId)
-        if (!result.text.startsWith(config.pulseOkPrefix)) {
-          log.info(`[PULSE] 応答: ${result.text.substring(0, 100)}`)
-          emitStreamItem("ai", result.text, correlationId, "pulse", "console", result.toolCalls, result.displayText)
-          publishXToolResults(result.toolCalls)
-        } else {
-          log.info("[PULSE] 対応不要")
-        }
-      } catch (err) {
-        warn("RECIPROCITY_PULSE_ERROR",
-          `Pulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
-      }
-    })
-  }, { timezone: "Etc/UTC" })
-
-  log.info(`[PULSE] cron開始: ${config.pulseCron} (UTC)`)
-}
-
-// xpulse.mdを読み込む
-function loadXpulse(): string | null {
-  try {
-    const content = fs.readFileSync(getConfig().xpulseFile, "utf-8").trim()
-    return content || null
-  } catch (err: unknown) {
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      return null
-    }
-    throw err
-  }
-}
-
-// XPulseを開始する（X投稿用の定期Pulse）
-// xpulseBusy: 前回のXPulseジョブが完了するまで次の発火をスキップ
-// （承認待ちでキューが詰まり、解放後に大量実行される問題の防止）
-let xpulseBusy = false
-
-export function startXpulse(): void {
-  if (!initialized) throw new Error("FieldRuntime未初期化")
-  if (!isXEnabled(config)) {
-    log.info("[XPULSE] X連携無効 — XPulse起動スキップ")
-    return
+  const deps: PulseRunnerDeps = {
+    isFieldActive,
+    isResonanceOn: () => getSettings().resonance,
+    enqueue: (fn) => { enqueue(fn) },
+    sendMessage: async (input, source, channel, options) => {
+      const inputWithContext = prependObservationContext(input)
+      const result = await sendMessage(client, state, beingPrompt, inputWithContext, true, source, channel, "owner", options)
+      updateParticipantChain(state.participant.lastResponseId)
+      return result
+    },
+    emitStreamItem: (actor, text, correlationId, source, channel, toolCalls, displayText) => {
+      emitStreamItem(actor, text, correlationId, source, channel, toolCalls, displayText)
+    },
+    publishXToolResults,
+    getXEventHistory: () => state.field.xEventHistory,
   }
 
-  cron.schedule(config.xpulseCron, () => {
-    if (!isFieldActive()) {
-      log.info("[XPULSE] 場が非アクティブ — スキップ")
-      return
-    }
+  startPulsesCron(deps)
+}
 
-    if (xpulseBusy) {
-      log.info("[XPULSE] 前回のジョブが未完了 — スキップ")
-      return
-    }
-
-    const xpulseContent = loadXpulse()
-    if (!xpulseContent) return
-
-    const correlationId = generateCorrelationId("xpulse")
-    log.info(`[XPULSE] 発火 (${correlationId})`)
-    xpulseBusy = true
-    enqueue(async () => {
-      try {
-        // 直近の投稿履歴を注入（重複防止）
-        const recentPosts = state.field.xEventHistory
-          .filter((e) => e.eventType === "post")
-          .slice(-5)
-          .map((e) => `- ${e.formatted.replace(/^\[post\]\s*/, "")} (${e.timestamp.substring(0, 10)})`)
-        const recentSection = recentPosts.length > 0
-          ? `\n\n# 直近の投稿（同じ話題・同じ切り口で書くな）\n${recentPosts.join("\n")}`
-          : ""
-        const xpulseInput = `${xpulseContent}${recentSection}\n\n${config.xpulseOkPrefix}と返答すれば対応不要を意味する。`
-        const result = await sendMessage(
-          client, state, beingPrompt, xpulseInput, true, "xpulse", "x",
-          "owner", { toolChoice: "required", toolNames: ["x_post"] },
-        )
-        updateParticipantChain(state.participant.lastResponseId)
-        if (result.toolCalls.some((tc) => tc.name === "x_post" || tc.name === "x_reply")) {
-          log.info(`[XPULSE] 応答: ${result.text.substring(0, 100)}`)
-          emitStreamItem("ai", result.text, correlationId, "xpulse", "x", result.toolCalls, result.displayText)
-          publishXToolResults(result.toolCalls)
-        } else {
-          log.info(`[XPULSE] x_post未使用の応答を抑制: ${result.text.substring(0, 100)}`)
-        }
-      } catch (err) {
-        warn("RECIPROCITY_PULSE_ERROR",
-          `XPulse処理エラー: ${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        xpulseBusy = false
-      }
-    })
-  }, { timezone: "Etc/UTC" })
-
-  log.info(`[XPULSE] cron開始: ${config.xpulseCron} (UTC)`)
+// パルスシステムを停止する
+export function stopPulses(): void {
+  stopPulsesCron()
 }
 
 // 観測サーバーを起動する（Roblox連携有効時のみ）
@@ -465,6 +381,13 @@ export function startObservation(): void {
         return
       }
 
+      // proximity: バッファに蓄積（LLM応答を生成せず、次のターンでAI文脈に注入）
+      if (event.type === "player_proximity") {
+        pushObservation(formatted, event.type, timestamp)
+        log.info(`[OBSERVATION] バッファ蓄積: ${formatted.substring(0, 80)}`)
+        return
+      }
+
       // 共振ゲート: off時は注意+表出を停止（知覚は常時ON）
       if (!getSettings().resonance) {
         log.info(`[OBSERVATION] 共振OFF — AI転送スキップ: ${event.type}`)
@@ -479,7 +402,7 @@ export function startObservation(): void {
       const robloxRole = resolveRobloxRole(event.payload.userId as string | number | undefined, config)
       enqueue(async () => {
         try {
-          const aiInput = t("obs.aiPrefix", event.type, formatted)
+          const aiInput = prependObservationContext(t("obs.aiPrefix", event.type, formatted))
           log.info(`[OBSERVATION→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "roblox", robloxRole)
           updateParticipantChain(state.participant.lastResponseId)
@@ -492,6 +415,8 @@ export function startObservation(): void {
       })
     },
     config.robloxObservationSecret,
+    undefined, // port（デフォルト）
+    getLatestDisplays,
   )
 
   log.info("[OBSERVATION] 観測サーバー起動")
@@ -530,8 +455,8 @@ export function startXWebhook(): void {
         return
       }
 
-      // 共振ゲート
-      if (!getSettings().resonance) {
+      // 共振ゲート（明示行為＝干渉はゲートを通さない）
+      if (event.type !== "x_mention" && !getSettings().resonance) {
         log.info(`[X_WEBHOOK] 共振OFF — AI転送スキップ: ${event.type}`)
         return
       }
@@ -544,7 +469,7 @@ export function startXWebhook(): void {
       const xRole = resolveXRole(event.userId, config)
       enqueue(async () => {
         try {
-          const aiInput = formatXEventForAI(event)
+          const aiInput = prependObservationContext(formatXEventForAI(event))
           log.info(`[X→AI] (${correlationId}) ${formatted}`)
           const result = await sendMessage(client, state, beingPrompt, aiInput, false, "observation", "x", xRole)
           updateParticipantChain(state.participant.lastResponseId)
@@ -574,6 +499,7 @@ export function stopRuntime(): void {
     xWebhookServer = null
     log.info("[X_WEBHOOK] Webhookサーバー停止")
   }
+  stopPulses()
 }
 
 // 現在のlastResponseIdを取得（会話継続性の確認用）

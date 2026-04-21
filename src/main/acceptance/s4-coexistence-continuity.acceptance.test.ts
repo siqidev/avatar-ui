@@ -75,7 +75,7 @@ async function setupRuntime() {
   const appConfig = config._resetConfigForTest({ XAI_API_KEY: "test-key" })
   Object.assign(appConfig, {
     beingFile: path.join(tempDir, "being.md"),
-    pulseFile: path.join(tempDir, "pulse.md"),
+    pulseDir: path.join(tempDir, "pulse"),
     dataDir: tempDir,
     stateFile: path.join(tempDir, "state.json"),
   })
@@ -115,7 +115,6 @@ describe("S4: 共存連続性", () => {
   beforeEach(() => {
     tempDir = setupTempDataDir()
     fs.writeFileSync(path.join(tempDir, "being.md"), "テスト用BEING")
-    fs.writeFileSync(path.join(tempDir, "pulse.md"), "パルスプロンプト")
   })
 
   afterEach(() => {

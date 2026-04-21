@@ -98,6 +98,7 @@ app.whenReady().then(() => {
   sessionWs = createSessionWsServer({
     port: config.sessionWsPort,
     token: config.sessionWsToken,
+    allowedOrigins: config.sessionWsAllowedOrigins,
     getStateSnapshot,
     onStreamPost: handleStreamPost,
   })

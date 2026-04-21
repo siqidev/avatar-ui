@@ -7,7 +7,7 @@ export type Actor = z.infer<typeof actorSchema>
 
 export const channelIdSchema = z.enum(["console", "roblox", "x", "discord"])
 
-export const sourceSchema = z.enum(["user", "pulse", "xpulse", "observation"])
+export const sourceSchema = z.enum(["user", "pulse", "observation"])
 export type Source = z.infer<typeof sourceSchema>
 
 // --- Renderer → Main ---

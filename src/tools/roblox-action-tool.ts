@@ -42,6 +42,10 @@ export const robloxActionToolDef: Tool = {
     "\n\n--- effect ---\n" +
     "演出操作。ops: create/set/delete。" +
     "  create: {op,type(PointLight/SpotLight/Fire/Smoke/Sparkles/ParticleEmitter/Sound),parent,name,...props}" +
+    "\n\n--- display ---\n" +
+    "テキスト表示（SurfaceGui経由でパーツ表面にテキスト出力）。ops: set_text/clear。" +
+    "  set_text: {op,target(オブジェクト名),text,title?,face?(front/back/top/bottom/left/right,デフォルトfront)}" +
+    "  clear: {op,target(オブジェクト名)}" +
     "\n\nRoblox素材: Concrete,Wood,Brick,Glass,Marble,Metal,Granite,Slate,Sand,Grass,Ice,Snow,Neon等。" +
     "\n建築時は座標を自分で計算せず、buildカテゴリのapply_constraintsを使って制約（attach/offset/non_overlap）で指定すること。" +
     "\nプレイヤーへの単発移動はgo_to_player、継続追従（ついてきて等）はfollow_playerを使うこと。座標不要。" +
@@ -54,7 +58,7 @@ export const robloxActionToolDef: Tool = {
       category: {
         type: "string",
         description:
-          "操作カテゴリ: part, terrain, npc, npc_motion, build, spatial, effect",
+          "操作カテゴリ: part, terrain, npc, npc_motion, build, spatial, effect, display",
       },
       ops: {
         type: "array",

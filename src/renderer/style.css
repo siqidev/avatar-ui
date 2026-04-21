@@ -801,6 +801,20 @@ body {
   padding: 4px 0 0 4px;
 }
 
+/* 能力不足プレースホルダ（Web profile等、capabilities.terminal=false の場合に表示） */
+.pane-unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 16px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
 /* === Classic テーマ構造スタイル === */
 /* レイアウト変更なし（Modernと完全同一）。色・背景のみ変更 */
 

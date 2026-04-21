@@ -25,7 +25,8 @@ import {
 import { terminalToolDef, terminalArgsSchema } from "../tools/terminal-tool.js"
 import { xPostToolDef, xPostArgsSchema } from "../tools/x-post-tool.js"
 import { xReplyToolDef, xReplyArgsSchema } from "../tools/x-reply-tool.js"
-import { createPost, createReply } from "../x/x-api-repository.js"
+import { xQuoteRepostToolDef, xQuoteRepostArgsSchema } from "../tools/x-quote-repost-tool.js"
+import { createPost, createReply, createQuoteRepost } from "../x/x-api-repository.js"
 import { requestApproval } from "../runtime/tool-approval-service.js"
 import type { ToolName } from "../shared/tool-approval-schema.js"
 import {
@@ -315,6 +316,7 @@ function buildTools(config: import("../config.js").AppConfig, source: Source, ch
     { name: "roblox_action", def: robloxActionToolDef, condition: isRobloxEnabled(config) },
     { name: "x_post", def: xPostToolDef, condition: isXEnabled(config) },
     { name: "x_reply", def: xReplyToolDef, condition: isXEnabled(config) },
+    { name: "x_quote_repost", def: xQuoteRepostToolDef, condition: isXEnabled(config) },
   ]
 
   // InputGateで許可されたツールのみ追加
@@ -382,6 +384,9 @@ async function handleToolCall(
   }
   if (call.name === "x_reply") {
     return handleXReply(call.args)
+  }
+  if (call.name === "x_quote_repost") {
+    return handleXQuoteRepost(call.args)
   }
   throw new Error(`未知のツール: ${call.name}`)
 }
@@ -596,4 +601,20 @@ async function handleXReply(argsJson: string): Promise<string> {
   }
 
   return JSON.stringify({ status: "replied", tweet_id: result.tweetId, reply_to: validation.data.reply_to_tweet_id })
+}
+
+// x_quote_repostツールの実行
+async function handleXQuoteRepost(argsJson: string): Promise<string> {
+  const parsed = JSON.parse(argsJson)
+  const validation = xQuoteRepostArgsSchema.safeParse(parsed)
+  if (!validation.success) {
+    throw new Error(`x_quote_repost引数バリデーション失敗: ${JSON.stringify(validation.error.issues)}`)
+  }
+
+  const result = await createQuoteRepost(validation.data.text, validation.data.quote_tweet_id)
+  if (!result.success) {
+    throw new Error(`X引用リポスト作成失敗: ${result.error}`)
+  }
+
+  return JSON.stringify({ status: "quoted", tweet_id: result.tweetId, quote_of: validation.data.quote_tweet_id })
 }

@@ -1,7 +1,7 @@
 {
   "name": "avatar-ui",
   "productName": "AUI",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "AUI reference implementation",
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",

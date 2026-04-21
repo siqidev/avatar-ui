@@ -18,6 +18,7 @@ const ALL_TOOLS: readonly ToolName[] = [
   "roblox_action",
   "x_post",
   "x_reply",
+  "x_quote_repost",
 ] as const
 
 // external: 同一媒体の応答ツールのみ許可（ハードコード）
@@ -37,7 +38,7 @@ export function getAllowedTools(source: Source, channel: ChannelId, role: InputR
   }
 
   // owner / 内部トリガー → 全ツール許可
-  if (role === "owner" || source === "pulse" || source === "xpulse") {
+  if (role === "owner" || source === "pulse") {
     return ALL_TOOLS
   }
 

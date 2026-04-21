@@ -158,4 +158,66 @@ describe("approval-hub", () => {
     const result = respond("nonexistent", "approve")
     expect(result).toEqual({ ok: false, reason: "REQUEST_NOT_FOUND" })
   })
+
+  it("タイムアウトで自動deny（TIMEOUT）", async () => {
+    vi.useFakeTimers()
+    const approver = createMockApprover("console:1")
+    registerApprover(approver)
+
+    const promise = request("x_post", { text: "test" }, 5000)
+    expect(approver.sendRequest).toHaveBeenCalledOnce()
+
+    // 5秒経過 → タイムアウト
+    vi.advanceTimersByTime(5000)
+
+    const result = await promise
+    expect(result.approved).toBe(false)
+    expect(result.reason).toBe("TIMEOUT")
+
+    // タイムアウト後のrespondはREQUEST_NOT_FOUND
+    const requestId = approver.lastRequest!.requestId
+    const respondResult = respond(requestId, "approve")
+    expect(respondResult).toEqual({ ok: false, reason: "REQUEST_NOT_FOUND" })
+
+    vi.useRealTimers()
+  })
+
+  it("タイムアウト前に承認すればタイマーはクリアされる", async () => {
+    vi.useFakeTimers()
+    const approver = createMockApprover("console:1")
+    registerApprover(approver)
+
+    const promise = request("x_post", { text: "test" }, 5000)
+    const requestId = approver.lastRequest!.requestId
+
+    // 3秒後に承認
+    vi.advanceTimersByTime(3000)
+    respond(requestId, "approve")
+
+    const result = await promise
+    expect(result.approved).toBe(true)
+    expect(result.reason).toBe("USER_APPROVED")
+
+    vi.useRealTimers()
+  })
+
+  it("timeoutMs=0ではタイムアウトしない", async () => {
+    vi.useFakeTimers()
+    const approver = createMockApprover("console:1")
+    registerApprover(approver)
+
+    const promise = request("x_post", { text: "test" }, 0)
+
+    // 大量の時間が経過してもタイムアウトしない
+    vi.advanceTimersByTime(999_999)
+
+    // 手動で承認して解決
+    const requestId = approver.lastRequest!.requestId
+    respond(requestId, "approve")
+
+    const result = await promise
+    expect(result.approved).toBe(true)
+
+    vi.useRealTimers()
+  })
 })

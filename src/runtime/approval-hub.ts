@@ -63,10 +63,13 @@ export function unregisterApprover(approverId: string): void {
   }
 }
 
-/** 承認をリクエストする（auto-approve判定は呼び出し側で行う） */
+/** 承認をリクエストする（auto-approve判定は呼び出し側で行う）
+ *  @param timeoutMs 0=無制限、正数=ミリ秒後に自動deny（TIMEOUT）
+ */
 export function request(
   toolName: ToolName,
   args: Record<string, unknown>,
+  timeoutMs = 0,
 ): Promise<ToolApprovalDecision> {
   const currentApprovers = [...approvers.values()]
 
@@ -89,6 +92,27 @@ export function request(
   return new Promise<ToolApprovalDecision>((resolve) => {
     const deliveredTo = new Set<string>()
 
+    // resolve重複防止ラッパー
+    let settled = false
+    const safeResolve = (decision: ToolApprovalDecision): void => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve(decision)
+    }
+
+    // タイムアウト設定（0=無制限）
+    let timer: ReturnType<typeof setTimeout> | undefined
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        if (pending.delete(requestId)) {
+          log.info(`[APPROVAL_HUB] タイムアウト(${timeoutMs}ms) — 拒否: ${requestId}`)
+          publishResolved(toolName, args, requestId, false, "TIMEOUT")
+          safeResolve({ approved: false, reason: "TIMEOUT" })
+        }
+      }, timeoutMs)
+    }
+
     // 各承認者に配送
     for (const approver of currentApprovers) {
       try {
@@ -103,7 +127,7 @@ export function request(
             if (e && e.deliveredTo.size === 0) {
               pending.delete(requestId)
               publishResolved(toolName, args, requestId, false, "NO_APPROVER")
-              resolve({ approved: false, reason: "NO_APPROVER" })
+              safeResolve({ approved: false, reason: "NO_APPROVER" })
             }
           })
         }
@@ -115,12 +139,12 @@ export function request(
 
     // 配送成功先が0 → 即deny
     if (deliveredTo.size === 0) {
-      resolve({ approved: false, reason: "NO_APPROVER" })
+      safeResolve({ approved: false, reason: "NO_APPROVER" })
       return
     }
 
-    pending.set(requestId, { envelope, resolve, deliveredTo })
-    log.info(`[APPROVAL_HUB] リクエスト送信: ${toolName} (${requestId}) → ${deliveredTo.size}件`)
+    pending.set(requestId, { envelope, resolve: safeResolve, deliveredTo })
+    log.info(`[APPROVAL_HUB] リクエスト送信: ${toolName} (${requestId}) → ${deliveredTo.size}件${timeoutMs > 0 ? ` [timeout: ${timeoutMs}ms]` : ""}`)
 
     // event busにapproval.requestedを発行
     publish(createSessionEvent("approval.requested", {
@@ -182,7 +206,7 @@ function publishResolved(
   args: Record<string, unknown>,
   requestId: string,
   approved: boolean,
-  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER",
+  reason: "AUTO_APPROVED" | "USER_APPROVED" | "USER_DENIED" | "NO_APPROVER" | "TIMEOUT",
 ): void {
   publish(createSessionEvent("approval.resolved", {
     requestId,

@@ -1,7 +1,9 @@
 import { constants as fsConstants } from "node:fs"
+import * as fsSync from "node:fs"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { getConfig } from "../config.js"
+import * as log from "../logger.js"
 import type {
   FsImportFileArgs,
   FsImportFileResult,
@@ -18,9 +20,25 @@ import type {
 
 // --- パスガード ---
 
+const REFS_DIR = "refs"
+
 /** Avatar Space のルートパス（正規化済み、環境変数を動的に参照） */
 function getAvatarSpaceRoot(): string {
   return path.resolve(getConfig().avatarSpace)
+}
+
+/** パスがrefs/配下（読み取り専用領域）かどうか判定 */
+function isUnderRefs(resolvedPath: string): boolean {
+  const refsRoot = path.join(getAvatarSpaceRoot(), REFS_DIR)
+  return resolvedPath === refsRoot || resolvedPath.startsWith(refsRoot + path.sep)
+}
+
+/** refs/配下への書き込みを拒否 */
+function assertWritable(resolvedPath: string): void {
+  if (isUnderRefs(resolvedPath)) {
+    const rel = path.relative(getAvatarSpaceRoot(), resolvedPath)
+    throw new Error(`refs/は読み取り専用です: ${rel}`)
+  }
 }
 
 /** パスがAvatar Space内であることを検証（symlink解決込み）。違反時はthrow */
@@ -30,17 +48,36 @@ async function assertInAvatarSpace(targetPath: string): Promise<string> {
   if (!resolved.startsWith(root + path.sep) && resolved !== root) {
     throw new Error(`Avatar Space外へのアクセスは拒否されました: ${targetPath}`)
   }
-  // symlink解決: リンク先の実体パスもAvatar Space内か検証
+  // refs/配下: ユーザーが配置したシンボリックリンク先（外部リポ等）への読み取りを許可
+  if (isUnderRefs(resolved)) {
+    return resolved
+  }
+  // 非refs: symlink解決してAvatar Space内であることを検証
   // root自体もrealpath解決する（macOSの/var→/private/var等に対応）
-  try {
-    const realRoot = await fs.realpath(root)
-    const real = await fs.realpath(resolved)
-    if (!real.startsWith(realRoot + path.sep) && real !== realRoot) {
-      throw new Error(`リンク先がAvatar Space外です: ${targetPath} → ${real}`)
+  const realRoot = await fs.realpath(root)
+  // resolved自体が存在する場合: そのままrealpath検証
+  // 存在しない場合: 最も近い既存ancestorをrealpathして検証（symlink経由の外部書き込みを防ぐ）
+  let probe = resolved
+  let real: string
+  while (true) {
+    try {
+      real = await fs.realpath(probe)
+      break
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e
+      const parent = path.dirname(probe)
+      if (parent === probe) {
+        // ルートまで遡っても見つからない（通常起こらない）
+        throw new Error(`パスを解決できません: ${targetPath}`)
+      }
+      probe = parent
     }
-  } catch (e) {
-    // ENOENT: ファイルが存在しない場合はsymlink検証不要（write/mkdir等の新規作成）
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e
+  }
+  // probeを起点にresolvedまでの相対部分（未存在部分）を実symlink解決後のrealにくっつけて再判定
+  const remainder = path.relative(probe, resolved)
+  const finalReal = remainder === "" ? real : path.join(real, remainder)
+  if (!finalReal.startsWith(realRoot + path.sep) && finalReal !== realRoot) {
+    throw new Error(`リンク先がAvatar Space外です: ${targetPath} → ${finalReal}`)
   }
   return resolved
 }
@@ -59,10 +96,12 @@ export async function fsList(args: FsListArgs): Promise<FsListResult> {
   const entries: FsEntry[] = await Promise.all(
     dirents.map(async (d) => {
       const fullPath = path.join(resolved, d.name)
+      // fs.statはsymlinkを辿るので、refs/配下のシンボリックリンク先がディレクトリの場合も
+      // directoryとして正しく分類される（dirent.isDirectory()はsymlink自体を見るためfalseになる）
       const stat = await fs.stat(fullPath)
       return {
         name: d.name,
-        type: d.isDirectory() ? "directory" as const : "file" as const,
+        type: stat.isDirectory() ? "directory" as const : "file" as const,
         size: stat.size,
         mtimeMs: stat.mtimeMs,
       }
@@ -96,6 +135,7 @@ export async function fsRead(args: FsReadArgs): Promise<FsReadResult> {
 
 export async function fsWrite(args: FsWriteArgs): Promise<FsWriteResult> {
   const resolved = await assertInAvatarSpace(args.path)
+  assertWritable(resolved)
 
   // 親ディレクトリの自動作成
   await fs.mkdir(path.dirname(resolved), { recursive: true })
@@ -119,6 +159,7 @@ export async function fsImportFile(args: FsImportFileArgs): Promise<FsImportFile
   }
 
   const resolvedDest = await assertInAvatarSpace(args.destPath)
+  assertWritable(resolvedDest)
   await fs.mkdir(path.dirname(resolvedDest), { recursive: true })
 
   try {
@@ -138,27 +179,42 @@ export async function fsMutate(args: FsMutateArgs): Promise<FsMutateResult> {
   switch (args.op) {
     case "delete": {
       const resolved = await assertInAvatarSpace(args.path)
+      assertWritable(resolved)
       await fs.rm(resolved, { recursive: true })
       return { message: `削除しました: ${args.path}` }
     }
     case "rename": {
       const resolvedFrom = await assertInAvatarSpace(args.path)
+      assertWritable(resolvedFrom)
       const resolvedTo = await assertInAvatarSpace(args.newPath)
+      assertWritable(resolvedTo)
       await fs.mkdir(path.dirname(resolvedTo), { recursive: true })
       await fs.rename(resolvedFrom, resolvedTo)
       return { message: `リネームしました: ${args.path} → ${args.newPath}` }
     }
     case "mkdir": {
       const resolved = await assertInAvatarSpace(args.path)
+      assertWritable(resolved)
       await fs.mkdir(resolved, { recursive: true })
       return { message: `ディレクトリを作成しました: ${args.path}` }
     }
     case "copy": {
       const resolvedFrom = await assertInAvatarSpace(args.path)
       const resolvedTo = await assertInAvatarSpace(args.destPath)
+      assertWritable(resolvedTo)
       await fs.mkdir(path.dirname(resolvedTo), { recursive: true })
       await fs.cp(resolvedFrom, resolvedTo, { recursive: true })
       return { message: `コピーしました: ${args.path} → ${args.destPath}` }
     }
   }
+}
+
+// --- refs/ 初期化 ---
+
+/** refs/ディレクトリを準備する（同期・起動時に1回呼ぶ） */
+export function ensureRefsReady(): void {
+  const root = getAvatarSpaceRoot()
+  const refsDir = path.join(root, REFS_DIR)
+  fsSync.mkdirSync(refsDir, { recursive: true })
+  log.info(`[FS] refs/ 準備完了: ${refsDir}`)
 }

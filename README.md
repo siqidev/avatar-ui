@@ -79,11 +79,14 @@ That's it for a basic setup. See [Environment Variables](#environment-variables)
 ### 3. Create identity files
 
 ```bash
-cp BEING.example.md BEING.md
-cp PULSE.example.md PULSE.md
+cp avatar.example/BEING.example.md BEING.md
+mkdir -p pulse
+cp avatar.example/pulse.example.md pulse/checkin.md
 ```
 
-Edit these to define your avatar's personality and periodic behavior.
+Edit `BEING.md` to define your avatar's personality. Add `.md` files to `pulse/` for periodic tasks (each file = one cron task with frontmatter config).
+
+> **Tip:** To keep identity files in a separate directory (e.g. `my-avatar/`), set `AVATAR_DIR=my-avatar` in `.env`. The framework will look for `BEING.md` and `pulse/` inside that directory.
 
 ### 4. Run
 
@@ -103,14 +106,14 @@ npm run dev
 | `AVATAR_NAME` | | `Avatar` | Display name for the avatar |
 | `USER_NAME` | | `User` | Display name for the human |
 | `AVATAR_SPACE` | | `~/Avatar/space` | Avatar Space root path |
-| `PULSE_CRON` | | `0 6 * * *` | AI-initiated pulse interval |
 | `TERMINAL_SHELL` | | OS default (zsh / bash / PowerShell) | Shell for terminal pane |
 | `AVATAR_SHELL` | | `off` | AI shell access (`on` = AI can execute commands) |
 | `TOOL_AUTO_APPROVE` | | `save_memory,fs_list,fs_read` | Tools auto-approved without user confirmation |
+| `APPROVAL_TIMEOUT_SEC` | | `60` | Approval timeout in seconds (auto-deny after expiry, `0` = no timeout) |
 | `DEV_MODE` | | `off` | Developer mode (on = verbose logs, source tags, full Roblox Monitor) |
 | `SESSION_WS_PORT` | | `3002` | WebSocket server port (Console UI communication) |
 | `SESSION_WS_TOKEN` | | — | WebSocket authentication token (optional, for security) |
-| `XPULSE_CRON` | | `0 5,9 * * *` | X posting pulse interval (cron, UTC. Default = JST 14:00/18:00) |
+| `SESSION_WS_ALLOWED_ORIGINS` | | — | Comma-separated Origin allowlist for WS upgrade (CSWSH defense). Non-browser clients without Origin are always allowed |
 
 ### Optional: Long-term memory (Collections API)
 
@@ -284,6 +287,7 @@ docs/                 PLAN.md, architecture.md
 |-----------|-------------|
 | **Single-user** | Designed for single-user operation (local or remote) |
 | **WS authentication** | `SESSION_WS_TOKEN` enables token auth for WebSocket connections |
+| **WS Origin allowlist** | `SESSION_WS_ALLOWED_ORIGINS` blocks cross-origin browser upgrades (CSWSH defense, multi-layer with token) |
 | **Restricted filesystem** | AI file access is restricted to Avatar Space (path guard + symlink resolution) |
 | **Context isolation** | Electron: nodeIntegration off, contextIsolation on, sandbox on |
 | **No shell injection** | File operations use Node.js `fs`, not shell commands |
