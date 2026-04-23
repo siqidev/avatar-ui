@@ -222,6 +222,21 @@ v0.3.0実装済みの対策はdocs/architecture.mdを参照。公開サーバー
 - **外部チャネル接続軸**: Slack/Discord/X/APIの位置づけ + 承認/記憶書き込み/人格表現の許容範囲
 - **機械接続軸**: Terminal/FS/MCP/ローカル制御のDesktop専権範囲 + Web承認経由実行の境界
 
+### γ軸リファクタ（α/β本質議論決着後に着手）
+
+2026-04-23 Decision Log参照。境界設計αβγ3軸モデルのγ（内向き入口境界）を実装する。先行着手は思想歪曲リスクがあるため、α（場の状態正本）・β（副作用冪等性境界）の議論決着を待つ。バージョン表記は変更規模で決まるため未定。
+
+**スコープ案**:
+- 3つのHTTPサーバー（SESSION_WS_PORT/ROBLOX_OBSERVATION_PORT/X_WEBHOOK_PORT）を単一ingressに集約（path-based routing）
+- cloudflared を avatar-ui 側が子プロセス管理（既存 `CLOUDFLARED_TOKEN` + tunnel-manager.ts を拡張、ローカル config.yml 依存を廃止）
+- `SESSION_WS_ALLOWED_ORIGINS` 削除、same-origin判定（`Origin.host == request.Host`）に置換
+- `ROBLOX_OBSERVATION_PORT` / `X_WEBHOOK_PORT` env削除、`PORT` 1本化
+- `/status` エンドポイントで自己観測した住所（Host/Origin/tunnel状態）を自己説明
+
+**禁止事項**（Decision Log棄却案）:
+- network-manifest.yaml等の新層追加（既存.envと二重正本でSSOT崩壊）
+- PUBLIC_URL env追加（住所の自己宣言は外部事実の内部複製）
+- Origin allowlistのURL追従運用（対症療法）
 
 
 ## 設計参照
