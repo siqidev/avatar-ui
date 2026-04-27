@@ -60,10 +60,8 @@ const envSchema = z.object({
   DISCORD_OWNER_ID: z.string().regex(/^\d+$/, "DISCORD_OWNER_ID は数値で指定してください").optional(),
 
   // --- 自己分析ジャーナル（オーナー専用 /log カスタムコマンドで使用） ---
-  // 書き込み先 .md ファイルの絶対パス
+  // 書き込み先 .md ファイルの絶対パス（rw領域、git管理外を推奨）
   SELF_ANALYSIS_JOURNAL_FILE: z.string().min(1).optional(),
-  // git commit 実行ディレクトリの絶対パス
-  SELF_ANALYSIS_REPO_DIR: z.string().min(1).optional(),
 
   // --- オーナーID ---
   ROBLOX_OWNER_USER_ID: z.string().regex(/^\d+$/, "ROBLOX_OWNER_USER_ID は数値で指定してください").optional(),
@@ -169,7 +167,6 @@ export type AppConfig = {
 
   // 自己分析ジャーナル（owner専用 /log カスタムコマンド経由）
   selfAnalysisJournalFile: string | undefined
-  selfAnalysisRepoDir: string | undefined
 
   // オーナーID（role判定用）
   robloxOwnerUserId: string | undefined
@@ -266,7 +263,6 @@ export function buildConfig(rawEnv: Record<string, string | undefined> = process
 
     // 自己分析ジャーナル（owner専用 /log カスタムコマンド経由）
     selfAnalysisJournalFile: env.SELF_ANALYSIS_JOURNAL_FILE,
-    selfAnalysisRepoDir: env.SELF_ANALYSIS_REPO_DIR,
 
     // オーナーID
     robloxOwnerUserId: env.ROBLOX_OWNER_USER_ID,
