@@ -12,6 +12,8 @@ import {
   renderApprovalRequest,
   renderApprovalResolved,
 } from "./discord-message-renderer.js"
+import { loadAvatarCommands } from "./avatar-command-loader.js"
+import type { AvatarCommandRegistry } from "./avatar-command-loader.js"
 import type { PendingApproval } from "../shared/session-event-schema.js"
 import * as log from "../logger.js"
 
@@ -31,6 +33,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
   let client: Client | null = null
   let sessionClient: DiscordSessionClient | null = null
   let channel: TextChannel | null = null
+  let avatarCommands: AvatarCommandRegistry | null = null
   // requestId → Discord messageId（承認メッセージの更新に使用）
   const approvalMessages = new Map<string, string>()
   // typing indicator用タイマー
@@ -47,8 +50,19 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     })
 
     client.on(Events.InteractionCreate, async (interaction) => {
-      if (!interaction.isButton()) return
-      await handleButtonInteraction(interaction as ButtonInteraction)
+      if (interaction.isButton()) {
+        await handleButtonInteraction(interaction as ButtonInteraction)
+        return
+      }
+      // カスタム slash command / select menu / modal は AvatarCommandRegistry に委譲
+      if (
+        avatarCommands &&
+        (interaction.isChatInputCommand() ||
+          interaction.isStringSelectMenu() ||
+          interaction.isModalSubmit())
+      ) {
+        await avatarCommands.handle(interaction)
+      }
     })
 
     client.on(Events.MessageCreate, (message) => {
@@ -69,7 +83,20 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
     channel = fetched as TextChannel
     log.info(`[DISCORD] チャンネル取得: #${channel.name}`)
 
-    // 3. session-ws-server に接続
+    // 3. カスタム slash command（$AVATAR_DIR/commands/*）の動的ロードと guild 登録
+    try {
+      avatarCommands = await loadAvatarCommands(config)
+      if (avatarCommands.size > 0) {
+        await avatarCommands.registerToGuild(channel.guild)
+      }
+    } catch (err) {
+      log.error(
+        `[DISCORD] カスタムコマンドのロード/登録に失敗: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      avatarCommands = null
+    }
+
+    // 4. session-ws-server に接続
     const wsUrl = config.sessionWsToken
       ? `ws://localhost:${config.sessionWsPort}?token=${config.sessionWsToken}`
       : `ws://localhost:${config.sessionWsPort}`
@@ -123,6 +150,7 @@ export function createDiscordBridge(config: AppConfig): DiscordBridge {
       client = null
     }
     channel = null
+    avatarCommands = null
     approvalMessages.clear()
     log.info("[DISCORD] Bridge停止")
   }

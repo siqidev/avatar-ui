@@ -12,4 +12,4 @@ roblox/*.rbxlx
 tmp/
 
 # Spectra固有データ（別リポジトリで管理）
-spectra/
+Spectra/

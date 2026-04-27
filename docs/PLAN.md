@@ -130,6 +130,7 @@ X（Twitter）をチャネルとして統合。Phase 1（x_post + Webhook受信 
 - **ファイル操作サンドボックス** — Dockerコンテナ隔離によるTOCTOU脆弱性の根本排除
 - **デスクトップアプリ パッケージ化** — electron-builder等で.appビルド（macOSメニューバー名「AUI」表示、アプリアイコン設定、productName反映）。dev時はElectronバイナリ直接使用のためメニューバー名変更不可
 - ~~**クロスプラットフォーム対応**~~ — 実装済み（v0.5.1）。Windows PowerShellシェル統合、path.join()明示化、\r?\n統一、modKey()でCmd/Ctrl抽象化（VSCode準拠）。残: Electronメニューロール（macOS専用、他OSでは無視されるため実害なし）
+- ~~**カスタムslashコマンドのプラグインローダー**~~ — 実装済み（dev）。`$AVATAR_DIR/commands/*.{mjs,js,ts}` を起動時に動的import（pathToFileURL経由）し、`AvatarCommand` contractに従う実装を接続中guildにスラッシュコマンドとして登録（`avatar-command.ts` / `avatar-command-loader.ts`）。owner enforcement と `isEnabled(config)` ゲートはloader側で一元処理。InteractionCreate（ChatInput / StringSelectMenu / ModalSubmit）は`customIdPrefix`の最長一致でルーティング。OSS本体に汎用機構のみ残し、シト固有コマンドは`Spectra/config/commands/`配下（gitignore）で実装する分離パターン
 
 ### ギャップ（帰納的検証で発見、将来の検討材料）
 

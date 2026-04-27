@@ -86,7 +86,7 @@ cp avatar.example/pulse.example.md pulse/checkin.md
 
 Edit `BEING.md` to define your avatar's personality. Add `.md` files to `pulse/` for periodic tasks (each file = one cron task with frontmatter config).
 
-> **Tip:** To keep identity files in a separate directory (e.g. `my-avatar/`), set `AVATAR_DIR=my-avatar` in `.env`. The framework will look for `BEING.md` and `pulse/` inside that directory.
+> **Tip:** To keep identity files in a separate directory (e.g. `my-avatar/`), set `AVATAR_DIR=my-avatar` in `.env`. The framework will look for `BEING.md`, `pulse/`, and `commands/` inside that directory. Files under `commands/` are loaded as custom Discord slash commands at startup (see [Optional: Discord integration](#optional-discord-integration)).
 
 ### 4. Run
 
@@ -147,6 +147,10 @@ Both variables must be set to enable.
 | `DISCORD_OWNER_ID` | Owner's Discord user ID (numeric, for owner identification. Unset = all external) |
 
 @mention the bot to chat. Console conversations are synced to Discord. Tool approval via buttons (owner only). Enable `Guilds`, `GuildMessages`, and `MessageContent` intents in Discord Developer Portal.
+
+#### Custom slash commands (owner-only)
+
+Drop a `.ts` / `.mjs` / `.js` file into `$AVATAR_DIR/commands/` exporting an `AvatarCommand` (see [`src/discord/avatar-command.ts`](src/discord/avatar-command.ts)). Files are dynamically imported at startup and registered to the connected guild. Loader handles owner enforcement (`ownerOnly: true`) and routes ChatInput / StringSelectMenu / ModalSubmit interactions by `customIdPrefix` (longest-match).
 
 ### Optional: X (Twitter) integration
 
