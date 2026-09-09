@@ -29,7 +29,6 @@ v0.5.3リリース済み（2026-05-15）。次版の計画はdocs/PLAN.mdの実�
 
 - 概念設計（場モデル6要素・不変条件・設計責務）→ siqi/knowledge/tech/avatar-ui-project.md
 - 用語定義 → siqi/knowledge/tech/avatar-ui-project.md
-- D-lite（SIQI戦略との関係）→ siqi/core/strategy.md
 
 ## AI作業ルール
 
@@ -53,7 +52,6 @@ v0.5.3リリース済み（2026-05-15）。次版の計画はdocs/PLAN.mdの実�
 | cosmology.md | /Users/u/Projects/siqi/core/cosmology.md | 宇宙観の正本（公理→原理→定理→実践系） |
 | ontology.md | /Users/u/Projects/siqi/core/ontology.md | 存在論の正本 |
 | identity.md | /Users/u/Projects/siqi/core/identity.md | 式乃シトの自己定義・Core Desires |
-| strategy.md | /Users/u/Projects/siqi/core/strategy.md | 可変層（Strategic Hypotheses） |
 
 ## 主要パス索引
 
